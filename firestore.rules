@@ -1,0 +1,135 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields: id, name, email, role, kycStatus, onboardingStep, phone, createdAt
+    //
+    // Collection: properties
+    // Document ID: {propertyId}
+    // Fields: id, address, rent, status, landlordId, tenantId, description, imageUrl, createdAt
+    //
+    // Collection: contracts
+    // Document ID: {contractId}
+    // Fields: id, propertyId, landlordId, tenantId, startDate, endDate, rentAmount, status, documentUrl, createdAt
+    //
+    // Collection: payments
+    // Document ID: {paymentId}
+    // Fields: id, propertyId, landlordId, tenantId, amount, date, status, type, transactionId, createdAt
+    //
+    // Collection: serviceCalls
+    // Document ID: {callId}
+    // Fields: id, propertyId, tenantId, landlordId, title, status, priority, category, description, imageUrl, assignedVendor, createdAt
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+        (request.auth.token.email == "eyalatiyawork@gmail.com" && request.auth.token.email_verified == true)
+      );
+    }
+
+    function isLandlord() {
+      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'landlord';
+    }
+
+    function isTenant() {
+      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'tenant';
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['id', 'name', 'email', 'role']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.email is string && data.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$") &&
+             data.role in ['tenant', 'landlord', 'admin'];
+    }
+
+    function isValidProperty(data) {
+      return data.keys().hasAll(['id', 'address', 'rent', 'status', 'landlordId']) &&
+             data.address is string && data.address.size() > 5 &&
+             data.rent is number && data.rent > 0 &&
+             data.status in ['occupied', 'vacant', 'maintenance'];
+    }
+
+    function isValidServiceCall(data) {
+      return data.keys().hasAll(['id', 'propertyId', 'title', 'status', 'priority', 'category']) &&
+             data.title is string && data.title.size() > 2 &&
+             data.status in ['open', 'in_progress', 'resolved', 'closed'] &&
+             data.priority in ['low', 'medium', 'high'] &&
+             data.category in ['plumbing', 'electricity', 'general', 'cleaning', 'other'] &&
+             (!('description' in data) || (data.description is string && data.description.size() < 2000));
+    }
+
+    // ===============================================================
+    // Match Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      // Owners can read their own private data, Admins can read all.
+      allow read: if isOwner(userId) || isAdmin();
+      // Only users themselves or admins can create/update profiles.
+      // Roles can only be set initially or changed by admin.
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role != 'admin';
+      allow update: if (isOwner(userId) || isAdmin()) && isValidUser(request.resource.data) && 
+                      (request.resource.data.role == resource.data.role || isAdmin());
+    }
+
+    match /properties/{propertyId} {
+      // Anyone authenticated can read properties (to browse or if involved)
+      allow read: if isAuthenticated();
+      // Landlords can create properties for themselves
+      allow create: if isLandlord() && request.resource.data.landlordId == request.auth.uid && isValidProperty(request.resource.data);
+      // Only owners (landlords) or admins can update
+      allow update: if (resource.data.landlordId == request.auth.uid || isAdmin()) && isValidProperty(request.resource.data);
+      allow delete: if (resource.data.landlordId == request.auth.uid || isAdmin());
+    }
+
+    match /contracts/{contractId} {
+      // Landlords or tenants involved in the contract, or admins
+      allow read: if isAuthenticated() && (resource.data.landlordId == request.auth.uid || resource.data.tenantId == request.auth.uid || isAdmin());
+      allow create: if (isLandlord() || isAdmin()) && isValidContract(request.resource.data);
+      allow update: if (resource.data.landlordId == request.auth.uid || isAdmin()) && isValidContract(request.resource.data);
+    }
+
+    match /payments/{paymentId} {
+      allow read: if isAuthenticated() && (resource.data.landlordId == request.auth.uid || resource.data.tenantId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && (request.resource.data.tenantId == request.auth.uid || isAdmin());
+      allow update: if isAdmin(); // Usually payments aren't edited by users
+    }
+
+    match /serviceCalls/{callId} {
+      allow read: if isAuthenticated() && (resource.data.landlordId == request.auth.uid || resource.data.tenantId == request.auth.uid || isAdmin());
+      allow create: if (isTenant() || isLandlord() || isAdmin()) && isValidServiceCall(request.resource.data);
+      allow update: if (resource.data.landlordId == request.auth.uid || resource.data.tenantId == request.auth.uid || isAdmin()) && isValidServiceCall(request.resource.data);
+    }
+
+    // Fallback
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
+// Helper for contracts - defined here due to scope
+function isValidContract(data) {
+  return data.keys().hasAll(['id', 'propertyId', 'landlordId', 'tenantId', 'status']) &&
+         data.status in ['active', 'pending', 'expired', 'waiting_signature'];
+}

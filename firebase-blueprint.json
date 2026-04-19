@@ -1,0 +1,128 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile for tenants, landlords, and admins.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["tenant", "landlord", "admin", "vendor"] },
+        "kycStatus": { "type": "string", "enum": ["pending", "submitted", "approved", "rejected"] },
+        "onboardingStep": { "type": "number" },
+        "phone": { "type": "string" },
+        "idPhotoUrl": { "type": "string", "format": "uri" },
+        "selfieUrl": { "type": "string", "format": "uri" },
+        "bdiStatus": { "type": "string", "enum": ["green", "yellow", "red", "pending"] },
+        "bdiReason": { "type": "string" },
+        "rating": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "email", "role"]
+    },
+    "Property": {
+      "title": "Property",
+      "description": "Real estate properties managed in the system.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "address": { "type": "string" },
+        "rent": { "type": "number" },
+        "status": { "type": "string", "enum": ["occupied", "vacant", "maintenance"] },
+        "landlordId": { "type": "string" },
+        "tenantId": { "type": "string" },
+        "partners": { "type": "array", "items": { "type": "string" } },
+        "description": { "type": "string" },
+        "imageUrl": { "type": "string", "format": "uri" },
+        "isArchived": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "address", "rent", "status", "landlordId"]
+    },
+    "Contract": {
+      "title": "Contract",
+      "description": "Rental lease agreements.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "propertyId": { "type": "string" },
+        "landlordId": { "type": "string" },
+        "tenantId": { "type": "string" },
+        "partners": { "type": "array", "items": { "type": "string" } },
+        "isSplitPayment": { "type": "boolean" },
+        "startDate": { "type": "string", "format": "date" },
+        "endDate": { "type": "string", "format": "date" },
+        "rentAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["active", "pending", "expired", "waiting_signature", "waiting_kyc", "waiting_bdi", "waiting_bank_auth"] },
+        "documentUrl": { "type": "string", "format": "uri" },
+        "insuranceUrl": { "type": "string", "format": "uri" },
+        "guaranteeType": { "type": "string", "enum": ["bank", "promissory", "cash", "insurance"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "propertyId", "landlordId", "tenantId", "status"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Financial transactions for rent and utilities.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "propertyId": { "type": "string" },
+        "landlordId": { "type": "string" },
+        "tenantId": { "type": "string" },
+        "amount": { "type": "number" },
+        "date": { "type": "string", "format": "date" },
+        "status": { "type": "string", "enum": ["paid", "pending", "failed", "deferred"] },
+        "type": { "type": "string", "enum": ["rent", "utility", "deposit", "fine", "commission"] },
+        "failureReason": { "type": "string" },
+        "expectedRetryDate": { "type": "string", "format": "date" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "propertyId", "amount", "status", "type"]
+    },
+    "ServiceCall": {
+      "title": "ServiceCall",
+      "description": "Maintenance requests and issue tracking.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "propertyId": { "type": "string" },
+        "tenantId": { "type": "string" },
+        "landlordId": { "type": "string" },
+        "title": { "type": "string" },
+        "status": { "type": "string", "enum": ["open", "in_progress", "resolved", "closed"] },
+        "priority": { "type": "string", "enum": ["low", "medium", "high"] },
+        "category": { "type": "string", "enum": ["plumbing", "electricity", "general", "cleaning", "other"] },
+        "description": { "type": "string" },
+        "imageUrl": { "type": "string", "format": "uri" },
+        "assignedVendor": { "type": "string" },
+        "rating": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "propertyId", "title", "status", "priority", "category"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "Individual user profiles."
+    },
+    "properties/{propertyId}": {
+      "schema": "Property",
+      "description": "Comprehensive list of properties."
+    },
+    "contracts/{contractId}": {
+      "schema": "Contract",
+      "description": "Rental agreements between parties."
+    },
+    "payments/{paymentId}": {
+      "schema": "Payment",
+      "description": "Financial ledger for all payments."
+    },
+    "serviceCalls/{callId}": {
+      "schema": "ServiceCall",
+      "description": "Maintenance tickets logged in the system."
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "RentFlow",
+  "description": "Smart property management platform for landlords and tenants in Israel.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": []
+}
