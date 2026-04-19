@@ -1,20 +1,52 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# 🏢 RentFlow - הדרך הנכונה לנהל נכס
 
-# Run and deploy your AI Studio app
+![RentFlow Banner](./src/image/Gemini_Generated_Image_u8ml1gu8ml1gu8ml.png)
 
-This contains everything you need to run your app locally.
+## 🚀 אודות הפרויקט
+**RentFlow** היא מערכת פרימיום לניהול שכירות ונכסים, המעניקה פתרון מקצה לקצה למשכירים, דיירים ומנהלי מערכת. 
+המערכת מתמקדת בחוויית משתמש יוקרתית (Premium UI), אוטומציה של תהליכי גבייה, וניהול משפטי חכם של חוזים.
 
-View your app in AI Studio: https://ai.studio/apps/aec3657e-6986-4eb9-9dbf-e8d844882b9b
+## ✨ תכונות עיקריות
 
-## Run Locally
+### 👨‍💼 לוח בקרה למשכיר (Landlord Dashboard)
+- **מדד גבייה חודשי:** תצוגה ויזואלית מתקדמת (Radial Progress) של מצב הגבייה בזמן אמת.
+- **ניהול נכסים:** מעקב אחרי נכסים מאוכלסים, פנויים ותקלות פתוחות.
+- **סיכום פיננסי:** מבט מהיר על הכנסות והוצאות צפויות.
 
-**Prerequisites:**  Node.js
+### 🏠 לוח בקרה לדייר (Tenant Dashboard)
+- **תהליך אונבורדינג (Onboarding):** ליווי מלא מהרגע הראשון – אימות זהות (KYC), בדיקת אשראי (BDI), והסדרת הרשאה לחיוב.
+- **תשלומים ותחזוקה:** צפייה בסטטוס תשלומים ופתיחת קריאות שירות בקליק.
 
+### ⚖️ ניהול חוזים והסכמים
+- **חתימה דיגיטלית:** תהליך חתימה מאובטח עם תוקף משפטי מלא.
+- **ארכיון מסמכים:** גישה מהירה לחוזי שכירות, פוליסות ביטוח וערבויות בנקאיות.
+- **היסטוריית גרסאות:** מעקב אחרי עדכונים ושינויים בחוזה לאורך זמן.
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+### 🛠️ ניהול תחזוקה וקריאות שירות
+- ניהול תקלות לפי קטגוריות ורמות דחיפות.
+- תקשורת ישירה בין דייר למשכיר לפתרון מהיר.
+
+## 🛠 טכנולוגיות
+- **React** & **TypeScript**
+- **Tailwind CSS** (לעיצוב מודרני ורספונסיבי)
+- **Framer Motion** (לאנימציות חלקות)
+- **Lucide React** (מערכת אייקונים פרימיום)
+- **Vite** (סביבת פיתוח מהירה)
+
+## 💻 הרצה מקומית
+
+1. התקנת תלויות:
+   ```bash
+   npm install
+   ```
+
+2. הרצת האפליקציה:
+   ```bash
+   npm run dev
+   ```
+
+## 🎨 עיצוב וחוויית משתמש
+הפרויקט עוצב בדגש על **Rich Aesthetics** - שימוש בגרדיאנטים עמוקים, צלליות מרוככות (Sleek Shadows), וטיפוגרפיה מודרנית (SF Hebrew), כדי להעניק למשתמש תחושה של מוצר טכנולוגי יוקרתי ואמין.
+
+---
+© 2024 RentFlow. כל הזכויות שמורות.
