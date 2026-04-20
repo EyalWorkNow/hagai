@@ -24,12 +24,13 @@ import {
   CartesianGrid,
   ComposedChart,
   Line,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
-import { format, isSameMonth, parseISO, subMonths } from "date-fns";
+import { endOfMonth, endOfWeek, format, startOfDay, startOfMonth, startOfWeek, subDays, subMonths, subWeeks } from "date-fns";
 import { he } from "date-fns/locale";
 import { cn } from "../lib/utils";
 import { PlatformTransaction, User } from "../types";
@@ -62,6 +63,75 @@ function formatCompactCurrency(value: number) {
   return formatCurrency(Math.round(value));
 }
 
+function formatMonthShort(date: Date) {
+  const months = ["ינו׳", "פבר׳", "מרץ", "אפר׳", "מאי", "יוני", "יולי", "אוג׳", "ספט׳", "אוק׳", "נוב׳", "דצמ׳"];
+  return months[date.getMonth()];
+}
+
+type ChartTimeRange = "Day" | "Week" | "Month" | "Half Year" | "Year" | "All Time";
+
+type ChartPoint = {
+  name: string;
+  rangeLabel: string;
+  total: number;
+  collected: number;
+  pending: number;
+  revenue: number;
+  count: number;
+};
+
+function getRangeMeta(range: ChartTimeRange, now: Date) {
+  switch (range) {
+    case "Day":
+      return {
+        buckets: Array.from({ length: 7 }, (_, index) => startOfDay(subDays(now, 6 - index))),
+        label: (date: Date) => format(date, "EEE", { locale: he }),
+        rangeLabel: (date: Date) => format(date, "d בMMMM", { locale: he }),
+        key: (date: Date) => format(startOfDay(date), "yyyy-MM-dd"),
+      };
+    case "Week":
+      return {
+        buckets: Array.from({ length: 8 }, (_, index) => startOfWeek(subWeeks(now, 7 - index), { weekStartsOn: 0 })),
+        label: (date: Date) => format(date, "d/M", { locale: he }),
+        rangeLabel: (date: Date) => {
+          const start = startOfWeek(date, { weekStartsOn: 0 });
+          const end = endOfWeek(date, { weekStartsOn: 0 });
+          return `${format(start, "d/M", { locale: he })} - ${format(end, "d/M", { locale: he })}`;
+        },
+        key: (date: Date) => format(startOfWeek(date, { weekStartsOn: 0 }), "yyyy-MM-dd"),
+      };
+    case "Month":
+      return {
+        buckets: Array.from({ length: 6 }, (_, index) => startOfWeek(subWeeks(now, 5 - index), { weekStartsOn: 0 })),
+        label: (date: Date) => format(date, "d/M", { locale: he }),
+        rangeLabel: (date: Date) => {
+          const start = startOfWeek(date, { weekStartsOn: 0 });
+          const end = endOfWeek(date, { weekStartsOn: 0 });
+          return `${format(start, "d/M", { locale: he })} - ${format(end, "d/M", { locale: he })}`;
+        },
+        key: (date: Date) => format(startOfWeek(date, { weekStartsOn: 0 }), "yyyy-MM-dd"),
+      };
+    case "Half Year":
+      return {
+        buckets: Array.from({ length: 6 }, (_, index) => startOfMonth(subMonths(now, 5 - index))),
+        label: (date: Date) => formatMonthShort(date),
+        rangeLabel: (date: Date) => format(date, "MMMM yyyy", { locale: he }),
+        key: (date: Date) => format(startOfMonth(date), "yyyy-MM"),
+      };
+    case "Year":
+    case "All Time":
+    default:
+      return {
+        buckets: Array.from({ length: range === "Year" ? 12 : 13 }, (_, index) =>
+          startOfMonth(subMonths(now, (range === "Year" ? 11 : 12) - index)),
+        ),
+        label: (date: Date) => formatMonthShort(date),
+        rangeLabel: (date: Date) => format(date, "MMMM yyyy", { locale: he }),
+        key: (date: Date) => format(startOfMonth(date), "yyyy-MM"),
+      };
+  }
+}
+
 function transactionStatusLabel(status: PlatformTransaction["status"]) {
   switch (status) {
     case "completed":
@@ -82,6 +152,7 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
   const { db } = useAppData();
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [chartTimeRange, setChartTimeRange] = useState<ChartTimeRange>("Year");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedTransaction, setSelectedTransaction] = useState<{
     transaction: PlatformTransaction;
@@ -136,30 +207,33 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
     let pendingCount = 0;
     let completedVolume = 0;
     let pendingVolume = 0;
+    let totalRevenue = 0;
     
     for (let i = 0; i < transactions.length; i++) {
-        const amount = transactions[i].amount;
-        totalVolume += amount;
-        if (transactions[i].status === "completed") {
-            completedCount++;
-            completedVolume += amount;
-        } else if (transactions[i].status === "in_progress") {
-            inProgressCount++;
-            pendingVolume += amount;
-        } else {
-            pendingCount++;
-            pendingVolume += amount;
-        }
+      const amount = transactions[i].amount;
+      totalVolume += amount;
+      totalRevenue += transactions[i].revenue;
+      if (transactions[i].status === "completed") {
+        completedCount++;
+        completedVolume += amount;
+      } else if (transactions[i].status === "in_progress") {
+        inProgressCount++;
+        pendingVolume += amount;
+      } else {
+        pendingCount++;
+        pendingVolume += amount;
+      }
     }
 
     return {
       totalVolume,
+      totalRevenue,
       completedCount,
       inProgressCount,
       pendingCount,
       completedVolume,
       pendingVolume,
-      feesCaptured: transactions.length * 20,
+      feesCaptured: totalRevenue,
       collectionRate: transactions.length > 0 ? (completedCount / transactions.length) * 100 : 0,
       connectedIntegrations: db.integrations.filter((integration) => integration.status === "connected").length,
       averageTransactionValue: transactions.length > 0 ? totalVolume / transactions.length : 0,
@@ -167,46 +241,59 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
   }, [db.integrations, transactions]);
 
   const chartData = useMemo(() => {
-    const months = Array.from({ length: 6 }, (_, index) => subMonths(new Date(), index)).reverse();
-    
-    // Group by month/year string to avoid N * M calls to isSameMonth / parseISO
-    const buckets: Record<string, typeof transactions> = {};
-    for (const month of months) {
-      const key = `${month.getFullYear()}-${month.getMonth()}`;
-      buckets[key] = [];
+    const now = new Date();
+    const meta = getRangeMeta(chartTimeRange, now);
+    const bucketMap = new Map<string, ChartPoint>();
+
+    for (const bucket of meta.buckets) {
+      const key = meta.key(bucket);
+      bucketMap.set(key, {
+        name: meta.label(bucket),
+        rangeLabel: meta.rangeLabel(bucket),
+        total: 0,
+        collected: 0,
+        pending: 0,
+        revenue: 0,
+        count: 0,
+      });
     }
-    
-    // Build buckets linearly O(N)
+
     for (let i = 0; i < transactions.length; i++) {
-        const d = new Date(transactions[i]._parsedDate);
-        const key = `${d.getFullYear()}-${d.getMonth()}`;
-        if (buckets[key]) {
-            buckets[key].push(transactions[i]);
-        }
+      const transactionDate = new Date(transactions[i]._parsedDate);
+      const key = meta.key(transactionDate);
+      const bucket = bucketMap.get(key);
+      if (!bucket) continue;
+
+      bucket.total += transactions[i].amount;
+      bucket.revenue += transactions[i].revenue;
+      bucket.count += 1;
+
+      if (transactions[i].status === "completed") {
+        bucket.collected += transactions[i].amount;
+      } else {
+        bucket.pending += transactions[i].amount;
+      }
     }
 
-    return months.map((month) => {
-      const key = `${month.getFullYear()}-${month.getMonth()}`;
-      const monthTransactions = buckets[key];
-      let collected = 0;
-      let pending = 0;
+    return meta.buckets.map((bucket) => bucketMap.get(meta.key(bucket))!);
+  }, [chartTimeRange, transactions]);
 
-      for (let i = 0; i < monthTransactions.length; i++) {
-          if (monthTransactions[i].status === "completed") {
-              collected += monthTransactions[i].amount;
-          } else {
-              pending += monthTransactions[i].amount;
-          }
-      }
-
-      return {
-        name: format(month, "LLL", { locale: he }),
-        collected,
-        fees: monthTransactions.length * 20,
-        pending,
-      };
-    });
-  }, [transactions]);
+  const chartSummary = useMemo(() => {
+    const visibleTotal = chartData.reduce((sum, item) => sum + item.total, 0);
+    const visibleCollected = chartData.reduce((sum, item) => sum + item.collected, 0);
+    const visibleRevenue = chartData.reduce((sum, item) => sum + item.revenue, 0);
+    const visibleCount = chartData.reduce((sum, item) => sum + item.count, 0);
+    const peakValue = chartData.reduce((max, item) => Math.max(max, item.total), 0);
+    return {
+      visibleTotal,
+      visibleCollected,
+      visibleRevenue,
+      visibleCount,
+      peakValue,
+      completionRate: visibleTotal > 0 ? (visibleCollected / visibleTotal) * 100 : 0,
+      averagePerBucket: visibleCount > 0 ? visibleTotal / Math.max(chartData.length, 1) : 0,
+    };
+  }, [chartData]);
 
   const filteredTransactions = useMemo(
     () =>
@@ -301,96 +388,163 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
       </div>
 
       <div className="grid gap-10 lg:grid-cols-12">
-        <div className="dashboard-card flex min-h-[450px] flex-col border-slate-100 p-8 shadow-sleek lg:col-span-8 md:p-10">
-          <div className="mb-10 flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-black tracking-tight text-slate-900 italic font-display">
-                מגמות עסקאות ועמלות
-              </h2>
-              <p className="mt-1 text-[11px] font-bold text-slate-500">
-                השוואה בין עסקאות שהושלמו, עמלות שנצברו ועסקאות שעדיין לא נסגרו
-              </p>
-            </div>
+        <div className="dashboard-card flex min-h-[400px] flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-8 md:p-8">
+          <div className="mb-8 flex flex-col gap-5 border-b border-slate-100 pb-6 md:flex-row md:items-start md:justify-between">
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-black tracking-wide text-slate-500 uppercase">
+                  <div className="flex h-4 w-4 items-center justify-center rounded-[4px] bg-slate-900 text-[10px] italic text-white font-display">R</div>
+                  <span>RentFlow</span>
+                </div>
+                <div className="flex items-center gap-1 rounded-md border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[10px] font-black tracking-wide text-emerald-600">
+                  <TrendingUp size={12} strokeWidth={3} />
+                  <span>{chartSummary.completionRate.toFixed(0)}% גבייה בפועל</span>
+                </div>
+              </div>
 
-            <div className="flex flex-wrap items-center justify-end gap-6">
-              <ChartLegend label="גבייה בפועל" color="#0f172a" />
-              <ChartLegend label="עמלות" color="#2563eb" />
-              <ChartLegend label="ממתין/בתהליך" color="#fb7185" />
+              <div className="space-y-2">
+                <p className="text-[11px] font-black tracking-[0.16em] text-slate-400">
+                  {chartTimeRange === "Year" ? "מחזור שנתי" : chartTimeRange === "Half Year" ? "מחזור חצי שנתי" : "מחזור בטווח הנבחר"}
+                </p>
+                <h2 className="text-4xl font-light leading-none tracking-tighter text-slate-900 font-display tabular-nums md:text-[52px]">
+                  {formatCurrency(Math.round(chartSummary.visibleTotal))}
+                </h2>
+                <p className="text-sm font-bold text-slate-500">
+                  {chartData[0]?.rangeLabel} עד {chartData[chartData.length - 1]?.rangeLabel}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <ChartLegend label="גבייה שהושלמה" color="#0f766e" />
+                <ChartLegend label="עסקאות פתוחות" color="#cbd5e1" />
+                <ChartLegend label="מגמת נפח כולל" color="#0f172a" />
+              </div>
+            </div>
+            
+            <div className="flex items-center overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm shrink-0">
+               {(["Day", "Week", "Month", "Half Year", "Year", "All Time"] as ChartTimeRange[]).map((range) => (
+                  <button 
+                    key={range}
+                    onClick={() => setChartTimeRange(range)}
+                    className={cn(
+                      "border-l border-slate-200 px-3 py-2 text-[10px] font-bold tracking-widest transition-colors uppercase last:border-0 sm:text-xs",
+                      chartTimeRange === range 
+                        ? "bg-slate-950 text-white" 
+                        : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                    )}
+                  >
+                    {range === "Day" ? "יום" : range === "Week" ? "שבוע" : range === "Month" ? "חודש" : range === "Half Year" ? "חצי שנה" : range === "Year" ? "שנה" : "הכל"}
+                  </button>
+               ))}
             </div>
           </div>
 
-          <div className="mb-8 grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-3">
             <InsightChip
-              label="ממוצע חודשי"
-              value={formatCurrency(Math.round(stats.totalVolume / Math.max(chartData.length, 1)))}
-              tone="slate"
-            />
-            <InsightChip
-              label="שיעור השלמה"
-              value={`${stats.collectionRate.toFixed(0)}%`}
+              label="הכנסה בטווח"
+              value={formatCurrency(Math.round(chartSummary.visibleRevenue))}
               tone="blue"
             />
             <InsightChip
-              label="ממוצע לעסקה"
-              value={formatCompactCurrency(stats.averageTransactionValue)}
+              label="ממוצע נקודת זמן"
+              value={formatCurrency(Math.round(chartSummary.averagePerBucket))}
+              tone="slate"
+            />
+            <InsightChip
+              label="עסקאות בטווח"
+              value={chartSummary.visibleCount.toLocaleString("he-IL")}
               tone="rose"
             />
           </div>
 
-          <div className="w-full min-h-[350px]">
+          <div className="mt-6 rounded-[28px] border border-slate-100 bg-slate-50/55 px-4 pb-3 pt-4 md:px-5">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-[11px] font-black tracking-[0.14em] text-slate-500">מגמת עסקאות לאורך התקופה</p>
+              <p className="text-[10px] font-bold text-slate-400">כל נקודה מייצגת {chartTimeRange === "Year" || chartTimeRange === "All Time" || chartTimeRange === "Half Year" ? "חודש" : chartTimeRange === "Month" || chartTimeRange === "Week" ? "שבוע" : "יום"}</p>
+            </div>
+            <div className="h-[300px] w-full md:h-[340px]">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={chartData} margin={{ top: 12, right: 12, left: 12, bottom: 0 }}>
+              <ComposedChart data={chartData} margin={{ top: 8, right: 6, left: 6, bottom: 20 }}>
                 <defs>
                   <linearGradient id="colorCollected" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#0f172a" stopOpacity={0.24} />
-                    <stop offset="95%" stopColor="#0f172a" stopOpacity={0.03} />
+                    <stop offset="0%" stopColor="#14b8a6" stopOpacity={0.24} />
+                    <stop offset="100%" stopColor="#14b8a6" stopOpacity={0.03} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                <CartesianGrid vertical={false} stroke="#e2e8f0" strokeDasharray="3 3" />
                 <XAxis
                   dataKey="name"
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fill: "#64748b", fontSize: 11, fontWeight: 700 }}
+                  interval={0}
+                  minTickGap={0}
+                  height={52}
+                  tick={{ fill: "#64748b", fontSize: 12, fontWeight: 800 }}
                   dy={10}
+                  tickMargin={12}
                 />
                 <YAxis
                   yAxisId="money"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "#94a3b8", fontSize: 10 }}
-                  tickFormatter={(value) => formatCompactCurrency(value)}
-                />
-                <YAxis
-                  yAxisId="fees"
                   orientation="right"
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fill: "#94a3b8", fontSize: 10 }}
-                  tickFormatter={(value) => `₪${Math.round(value)}`}
+                  tick={{ fill: "#94a3b8", fontSize: 11, fontWeight: 700 }}
+                  tickFormatter={(value) => formatCompactCurrency(value)}
+                  width={64}
+                  domain={[0, (dataMax: number) => Math.ceil(dataMax * 1.08)]}
                 />
-                <Tooltip cursor={{ fill: "rgba(37,99,235,0.06)" }} content={<FinanceTooltip />} />
-                <Bar yAxisId="money" dataKey="pending" barSize={22} radius={[10, 10, 0, 0]} fill="#fecdd3" />
+                <Tooltip 
+                  cursor={{ stroke: "#cbd5e1", strokeWidth: 1, strokeDasharray: "4 4" }} 
+                  content={<FinanceTooltip />} 
+                />
+                <ReferenceLine
+                  yAxisId="money"
+                  y={chartSummary.averagePerBucket}
+                  stroke="#94a3b8"
+                  strokeDasharray="4 4"
+                  ifOverflow="extendDomain"
+                />
+                <Bar yAxisId="money" dataKey="pending" barSize={10} radius={[10, 10, 0, 0]} fill="#dbe4f0" />
+                <Line
+                  yAxisId="money"
+                  type="monotone"
+                  dataKey="total"
+                  stroke="#0f172a"
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4, fill: "#0f172a", stroke: "#ffffff", strokeWidth: 2 }}
+                />
                 <Area
                   yAxisId="money"
                   type="monotone"
                   dataKey="collected"
-                  stroke="#0f172a"
-                  strokeWidth={3}
+                  stroke="#14b8a6"
+                  strokeWidth={2.5}
                   fillOpacity={1}
                   fill="url(#colorCollected)"
-                />
-                <Line
-                  yAxisId="fees"
-                  type="monotone"
-                  dataKey="fees"
-                  stroke="#2563eb"
-                  strokeWidth={3}
-                  dot={{ r: 4, strokeWidth: 2, fill: "#ffffff" }}
-                  activeDot={{ r: 6 }}
+                  activeDot={{ r: 5, fill: "#14b8a6", stroke: "#ffffff", strokeWidth: 2 }}
                 />
               </ComposedChart>
             </ResponsiveContainer>
+          </div>
+          </div>
+          
+          <div className="mt-6 grid gap-4 border-t border-slate-100 pt-6 md:grid-cols-3">
+            <InsightChip
+              label="גבייה שהושלמה"
+              value={formatCurrency(Math.round(chartSummary.visibleCollected))}
+              tone="slate"
+            />
+            <InsightChip
+              label="שיעור גבייה בטווח"
+              value={`${chartSummary.completionRate.toFixed(0)}%`}
+              tone="blue"
+            />
+            <InsightChip
+              label="שיא בטווח"
+              value={formatCurrency(Math.round(chartSummary.peakValue))}
+              tone="rose"
+            />
           </div>
         </div>
 
@@ -429,7 +583,7 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
             <div className="space-y-6">
               <GoalProgress label="השלמת עסקאות" progress={Math.round(stats.collectionRate)} target={`${stats.completedCount.toLocaleString("he-IL")} הושלמו`} />
               <GoalProgress
-                label="צבירת עמלות"
+                label="צבירת הכנסות"
                 progress={Math.round((stats.feesCaptured / Math.max(stats.totalVolume, 1)) * 100)}
                 target={formatCurrency(stats.feesCaptured)}
               />
@@ -456,7 +610,7 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
               <FilterButton active={filterStatus === "all"} label="הכל" onClick={() => { setFilterStatus("all"); setCurrentPage(1); }} />
               <FilterButton active={filterStatus === "completed"} label="הושלם" tone="emerald" onClick={() => { setFilterStatus("completed"); setCurrentPage(1); }} />
               <FilterButton active={filterStatus === "in_progress"} label="בתהליך" tone="rose" onClick={() => { setFilterStatus("in_progress"); setCurrentPage(1); }} />
-              <FilterButton active={filterStatus === "pending"} label="ממתין" tone="amber" onClick={() => { setFilterStatus("pending"); setCurrentPage(1); }} />
+              <FilterButton active={filterStatus === "pending"} label="ממתין" tone="purple" onClick={() => { setFilterStatus("pending"); setCurrentPage(1); }} />
             </div>
           </div>
 
@@ -516,9 +670,9 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
                         row.transaction.status === "completed"
                           ? "border-emerald-100 bg-emerald-50 text-emerald-600"
                           : row.transaction.status === "in_progress"
-                            ? "border-rose-100 bg-rose-50 text-rose-600"
+                            ? "border-red-100 bg-red-50 text-red-600"
                             : row.transaction.status === "pending"
-                              ? "border-amber-100 bg-amber-50 text-amber-600"
+                              ? "border-purple-100 bg-purple-50 text-purple-600"
                               : "border-slate-100 bg-slate-50 text-slate-500",
                       )}
                     >
@@ -698,7 +852,7 @@ function FilterButton({
   active: boolean;
   label: string;
   onClick: () => void;
-  tone?: "slate" | "emerald" | "rose" | "amber";
+  tone?: "slate" | "emerald" | "rose" | "amber" | "purple";
 }) {
   const activeClass =
     tone === "emerald"
@@ -707,6 +861,8 @@ function FilterButton({
         ? "bg-rose-500 text-white"
         : tone === "amber"
           ? "bg-amber-500 text-white"
+        : tone === "purple"
+          ? "bg-purple-500 text-white"
           : "bg-slate-900 text-white";
 
   return (
@@ -725,7 +881,7 @@ function FilterButton({
 function ChartLegend({ label, color }: { label: string; color: string }) {
   return (
     <div className="flex items-center gap-3">
-      <div className="h-3 w-3 rounded-full" style={{ backgroundColor: color }} />
+      <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
       <span className="text-[11px] font-black tracking-[0.12em] text-slate-400">{label}</span>
     </div>
   );
@@ -764,19 +920,24 @@ function FinanceTooltip({ active, payload, label }: any) {
       <p className="text-sm font-black text-slate-900">{label}</p>
       <div className="mt-3 space-y-2">
         <TooltipRow
-          label="גבייה בפועל"
-          value={formatCurrency(Math.round(values.collected ?? 0))}
+          label="נפח כולל"
+          value={formatCurrency(Math.round(values.total ?? 0))}
           color="bg-slate-900"
         />
         <TooltipRow
-          label="עמלות"
-          value={formatCurrency(Math.round(values.fees ?? 0))}
+          label="גבייה שהושלמה"
+          value={formatCurrency(Math.round(values.collected ?? 0))}
+          color="bg-teal-500"
+        />
+        <TooltipRow
+          label="הכנסה"
+          value={formatCurrency(Math.round(values.revenue ?? 0))}
           color="bg-blue-600"
         />
         <TooltipRow
-          label="ממתין/בתהליך"
+          label="פתוח לטיפול"
           value={formatCurrency(Math.round(values.pending ?? 0))}
-          color="bg-rose-400"
+          color="bg-slate-300"
         />
       </div>
     </div>

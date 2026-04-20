@@ -42,6 +42,7 @@ import { useAppData } from "./lib/appData";
 
 // Assets
 import welcomeImage from "./image/Gemini_Generated_Image_u8ml1gu8ml1gu8ml.png";
+import hagaiLogo from "./image/HAGAI_LOGO.png";
 
 type AppNavItem = {
   id: string;
@@ -138,8 +139,8 @@ export default function App() {
         <div className="flex h-full flex-col overflow-hidden">
           {/* Sidebar Logo Area */}
           <div className="flex items-center gap-4 p-8 pt-10 h-24 shrink-0 transition-all">
-            <div className="h-10 w-10 shrink-0 rounded-xl bg-slate-900 flex items-center justify-center text-white text-xl font-bold shadow-xl shadow-slate-900/10 cursor-pointer active:scale-95">
-              <div className="h-4 w-4 border-2 border-white rounded-[2px]" />
+            <div className="h-12 shrink-0 cursor-pointer active:scale-95">
+              <img src={hagaiLogo} alt="Logo" className="h-full w-auto object-contain" />
             </div>
             <button
               onClick={() => setIsMobileSidebarOpen(false)}
@@ -520,7 +521,7 @@ export function WelcomeScreen() {
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/20 to-transparent"></div>
         
         <div className="absolute inset-0 flex flex-col justify-end p-12 xl:p-20 space-y-8 animate-in fade-in slide-in-from-bottom-10 duration-1000">
-          <div className="h-16 w-16 bg-white rounded-2xl flex items-center justify-center text-slate-950 text-3xl font-black italic shadow-2xl rotate-2">R</div>
+          <img src={hagaiLogo} alt="Logo" className="h-16 w-auto object-contain drop-shadow-2xl self-start" />
           
           <div className="space-y-4">
             <h2 className="text-6xl font-black text-white leading-tight tracking-tighter">
@@ -756,8 +757,8 @@ function LoadingScreen() {
        </div>
 
       <div className="relative group">
-        <div className="h-28 w-28 rounded-3xl bg-white shadow-[0_0_80px_rgba(255,255,255,0.1)] flex items-center justify-center text-slate-950 text-5xl font-black italic relative z-10 animate-bounce font-display shadow-2xl">
-          R
+        <div className="flex items-center justify-center relative z-10 animate-bounce">
+           <img src={hagaiLogo} alt="Logo" className="h-28 w-auto object-contain rounded-2xl bg-white p-4 shadow-2xl" />
         </div>
         <div className="absolute -inset-4 rounded-[40px] border border-white/5 animate-[ping_3s_infinite] opacity-20"></div>
         <div className="absolute -inset-8 rounded-[48px] border border-white/5 animate-[ping_4s_infinite] opacity-10"></div>

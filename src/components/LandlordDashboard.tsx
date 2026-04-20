@@ -306,7 +306,7 @@ export default function LandlordDashboard({ user }: { user: User }) {
                    <NotificationItem 
                      type="success" 
                      title="כל התשלומים נקלטו" 
-                     desc="סה״כ 5 תשלומים הועברו היום מחשבון הנאמנות לעו״ש." 
+                     desc="סהכ תשלומים עברו החודש לחשבונך" 
                    />
                 </div>
              </div>

@@ -49,6 +49,15 @@ export default function AdminDashboard({ user: adminUser }: { user: User }) {
     .slice(0, 10), [db.payments]);
     
   const adminMetrics = useMemo(() => getAdminDashboardMetrics(db), [db]);
+  const annualTurnover = useMemo(() => {
+    const thisYear = new Date().getFullYear();
+    return db.transactions
+      .filter(t => {
+        const d = new Date(t.createdAt);
+        return !isNaN(d.getTime()) && d.getFullYear() === thisYear;
+      })
+      .reduce((sum, t) => sum + t.amount, 0);
+  }, [db.transactions]);
 
   // Handling User Updates
   const updateUserStatus = async (userId: string, data: Partial<User>) => {
@@ -80,9 +89,33 @@ export default function AdminDashboard({ user: adminUser }: { user: User }) {
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between pb-10 border-b border-slate-200/60 mb-10 gap-6">
         <div>
            <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter italic font-display">לוח בקרה <span className="text-blue-600">ניהולי</span></h1>
-           <p className="text-slate-400 font-bold mt-3 text-[13px] tracking-[0.08em]">
+           <p className="text-slate-400 font-bold mt-3 text-[11px] tracking-[0.08em] leading-relaxed uppercase">
              פיקוח מערכתי • אישור KYC • ניטור {adminMetrics.totalTransactions.toLocaleString("he-IL")} עסקאות בזמן אמת
            </p>
+           
+           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8 max-w-2xl">
+             <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-all hover:shadow-md">
+               <p className="text-sm font-medium text-slate-500">מחזור עסקאות חודשי</p>
+               <div className="mt-3 flex items-baseline gap-3">
+                 <span className="text-3xl font-semibold text-slate-900 tabular-nums tracking-tight">₪{Math.round(adminMetrics.currentMonthTransfers).toLocaleString()}</span>
+                 <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded text-left" dir="ltr">
+                   <TrendingUp size={12} />
+                   +14%
+                 </span>
+               </div>
+             </div>
+             
+             <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-all hover:shadow-md">
+               <p className="text-sm font-medium text-slate-500">מחזור עסקאות שנתי</p>
+               <div className="mt-3 flex items-baseline gap-3">
+                 <span className="text-3xl font-semibold text-slate-900 tabular-nums tracking-tight">₪{Math.round(annualTurnover).toLocaleString()}</span>
+                 <span className="flex items-center gap-1 text-[11px] font-bold text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-100 text-left" dir="ltr">
+                   <BarChart3 size={12} />
+                   YTD
+                 </span>
+               </div>
+             </div>
+           </div>
         </div>
          <div className="flex items-center gap-6">
             <button 
@@ -115,7 +148,7 @@ export default function AdminDashboard({ user: adminUser }: { user: User }) {
         <TabHeader 
           active={activeTab === "bdi"} 
           onClick={() => setActiveTab("bdi")} 
-          label="בדיקת BDI עצמאית" 
+          label="בדיקת מערכת נתוני אשראי עצמאית" 
         />
       </div>
 
@@ -133,15 +166,15 @@ export default function AdminDashboard({ user: adminUser }: { user: User }) {
             <MetricCard 
               icon={<DollarSign size={20} />} 
               title="יתרה במערכת" 
-              value={`₪${adminMetrics.currentBalance.toLocaleString()}`} 
-              subtitle="מאזן נוכחי של כספים בפלטפורמה" 
+              value={`₪${Math.round(adminMetrics.currentBalance).toLocaleString()}`} 
+              subtitle="מחזור עסקאות חודשי" 
               color="text-slate-900" 
             />
             <MetricCard 
               icon={<Users size={20} />} 
               title="הכנסות חודשיות" 
               value={formatCurrencyCompact(adminMetrics.monthlyRevenue)} 
-              subtitle={`עמלת פלטפורמה קבועה של ₪${getPlatformFeeRate()} לכל עסקה`} 
+              subtitle="" 
               color="text-slate-900" 
             />
             <MetricCard 
@@ -353,7 +386,7 @@ export default function AdminDashboard({ user: adminUser }: { user: User }) {
                 <tr>
                   <th className="px-10 py-6 text-right">פרופיל משתמש</th>
                   <th className="px-10 py-6 text-center">סטטוס KYC</th>
-                  <th className="px-10 py-6 text-center">BDI SCORE</th>
+                  <th className="px-10 py-6 text-center">מערכת נתוני אשראי SCORE</th>
                   <th className="px-10 py-6 text-center">תפקיד</th>
                   <th className="px-10 py-6 text-right">פעולות אישור</th>
                 </tr>
@@ -410,7 +443,7 @@ function TabHeader({ active, onClick, label }: { active: boolean, onClick: () =>
 
 function MetricCard({ icon, title, value, status, subtitle, color }: any) {
   return (
-    <div className="dashboard-card p-10 border-slate-100 hover:border-slate-300 transition-all hover:-translate-y-1 group min-w-0">
+    <div className="dashboard-card p-7 border-slate-100 hover:border-slate-300 transition-all hover:-translate-y-1 group min-w-0">
       <div className="flex items-center gap-5 mb-8 min-w-0">
         <div className={cn("h-12 w-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform shrink-0", color)}>
           {icon}
@@ -424,8 +457,8 @@ function MetricCard({ icon, title, value, status, subtitle, color }: any) {
         </div>
       ) : (
         <>
-          <p className="text-5xl font-black text-slate-900 tracking-tighter leading-none tabular-nums font-display break-words">{value}</p>
-          <p className="mt-4 text-[10px] text-slate-400 font-bold tracking-[0.14em] leading-relaxed">{subtitle}</p>
+          <p className="text-3xl md:text-4xl font-black text-slate-900 tracking-tighter leading-none tabular-nums font-display break-words">{value}</p>
+          {subtitle && <p className="mt-4 text-[10px] text-slate-400 font-bold tracking-[0.14em] leading-relaxed">{subtitle}</p>}
         </>
       )}
     </div>
@@ -487,10 +520,10 @@ function TransactionItem({ payment, index }: { payment: Payment, index: number }
         <p className="text-xl font-black text-slate-900 tracking-tighter tabular-nums">₪{payment.amount.toLocaleString()}</p>
         <span className={cn(
           "flex items-center justify-end gap-1.5 text-[9px] font-black tracking-[0.12em] mt-1",
-          payment.status === "paid" ? "text-emerald-500" : "text-orange-500"
+          payment.status === "paid" ? "text-emerald-500" : payment.status === "failed" ? "text-red-500" : "text-purple-500"
         )}>
-          {payment.status === "paid" ? <CheckCircle2 size={12} /> : <Clock size={12} />}
-          {payment.status === "paid" ? "הושלם" : "ממתין"}
+          {payment.status === "paid" ? <CheckCircle2 size={12} /> : payment.status === "failed" ? <X size={12} /> : <Clock size={12} />}
+          {payment.status === "paid" ? "הושלם" : payment.status === "failed" ? "נכשל" : "ממתין"}
         </span>
       </div>
     </div>

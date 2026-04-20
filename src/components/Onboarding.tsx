@@ -18,6 +18,7 @@ import {
 import { cn } from "../lib/utils";
 import { User } from "../types";
 import { useAppData } from "../lib/appData";
+import hagaiLogo from "../image/HAGAI_LOGO.png";
 
 // -----------------------------------------------------------------------------
 // Constants & Types
@@ -62,8 +63,8 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
       if (user.kycStatus === "submitted") return "אשר KYC (סימולציית מנהל)";
     }
     if (currentStep === 1) {
-      if (!user.bdiStatus) return "התחל בדיקת BDI";
-      if (user.bdiStatus === "pending") return "אשר BDI (סימולציית מנהל)";
+      if (!user.bdiStatus) return "התחל בדיקת מערכת נתוני אשראי";
+      if (user.bdiStatus === "pending") return "אשר מערכת נתוני אשראי (סימולציית מנהל)";
     }
     return "המשך לשלב הבא";
   };
@@ -128,9 +129,7 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
       {/* Header with Logo and Logout */}
       <div className="mb-6 flex w-full max-w-2xl flex-col gap-4 px-2 sm:mb-8 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <div className="flex items-center gap-4">
-          <div className="h-12 w-12 shrink-0 rounded-[14px] bg-slate-900 shadow-xl flex items-center justify-center text-white font-black text-2xl italic font-display">
-            R
-          </div>
+          <img src={hagaiLogo} alt="Logo" className="h-12 w-auto object-contain drop-shadow-sm" />
           <span className="text-2xl font-black text-slate-900 tracking-tighter font-display">
             Rent<span className="text-blue-600">Flow</span>
           </span>
@@ -294,7 +293,7 @@ function BDIStep() {
            </div>
            <div>
               <p className="text-[15px] md:text-[17px] font-black text-slate-900 italic font-display">התחל בדיקת זכאות מיידית</p>
-              <p className="text-[10px] md:text-xs text-slate-400 font-bold mt-2 uppercase tracking-[0.1em] md:tracking-widest leading-relaxed">אישור חתום לביצוע בדיקה ע״י BDI</p>
+              <p className="text-[10px] md:text-xs text-slate-400 font-bold mt-2 uppercase tracking-[0.1em] md:tracking-widest leading-relaxed">אישור חתום לביצוע בדיקה ע״י מערכת נתוני אשראי</p>
            </div>
            <button 
              onClick={startCheck}
@@ -441,7 +440,7 @@ export function BDICheckStandalone() {
         <div className="h-20 w-20 bg-slate-900 text-white rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-xl shadow-slate-900/20 rotate-3">
           <ShieldCheck size={36} />
         </div>
-        <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tighter italic font-display">בדיקת זכאות BDI</h2>
+        <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tighter italic font-display">בדיקת זכאות מערכת נתוני אשראי</h2>
         <p className="text-[15px] text-slate-500 mt-3 font-bold">הפק דוח אשראי חתום לזירוז חתימת החוזה</p>
       </div>
 
@@ -451,7 +450,7 @@ export function BDICheckStandalone() {
           <div className="flex items-start gap-4 p-6 bg-slate-50 rounded-2xl border border-slate-100 shadow-inner">
             <input type="checkbox" className="mt-1 h-5 w-5 rounded-lg border-slate-300 text-slate-900 focus:ring-slate-900 transition-all border-2" />
             <span className="text-[11px] text-slate-400 font-black leading-relaxed italic uppercase tracking-[0.1em]">
-              אני מאשר ביצוע בדיקת נתוני אשראי ע״י BDI. המידע ישמש להערכת זכאות בלבד • מסלול soft check ללא פגיעה בדירוג
+              אני מאשר ביצוע בדיקת נתוני אשראי ע״י מערכת נתוני אשראי. המידע ישמש להערכת זכאות בלבד • מסלול soft check ללא פגיעה בדירוג
             </span>
           </div>
           <button 
@@ -470,7 +469,7 @@ export function BDICheckStandalone() {
           </div>
           <p className="font-black text-slate-900 text-2xl animate-pulse italic tracking-tighter font-display">מתחבר למאגרי המידע...</p>
           <p className="text-[11px] text-slate-400 mt-4 font-bold uppercase tracking-[0.2em] leading-loose">
-            BDI Credit Monitoring • מסד נתוני אזרחים • בדיקת עיקולים
+            מערכת נתוני אשראי Credit Monitoring • מסד נתוני אזרחים • בדיקת עיקולים
           </p>
         </div>
       )}
@@ -481,7 +480,7 @@ export function BDICheckStandalone() {
             <CheckCircle2 size={56} />
           </div>
           <h3 className="text-4xl font-black text-slate-900 tracking-tighter uppercase italic font-display">זכאי! (Grade: A+)</h3>
-          <p className="text-slate-500 mt-2 font-bold italic text-[15px]">ציון ה-BDI שלך מצוין ומאפשר המשך תהליך מיידי.</p>
+          <p className="text-slate-500 mt-2 font-bold italic text-[15px]">ציון מערכת נתוני אשראי שלך מצוין ומאפשר המשך תהליך מיידי.</p>
           
           <div className="mt-12 p-8 bg-slate-950 rounded-[32px] text-right shadow-2xl relative overflow-hidden group border border-white/5">
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-emerald-400"></div>

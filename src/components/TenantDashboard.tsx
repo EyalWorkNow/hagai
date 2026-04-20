@@ -165,6 +165,10 @@ export default function TenantDashboard({
         address={viewModel.summaryCard.address}
         statusLabel={viewModel.statusPill.label}
         tone={viewModel.statusPill.tone}
+        rent={tenantFinancials.rent}
+        buildingCommittee={tenantFinancials.costs.buildingCommittee}
+        arnona={tenantFinancials.costs.arnona}
+        utilities={tenantFinancials.costs.utilities}
       />
 
       {viewModel.pageState === "loading" ? (
@@ -194,18 +198,6 @@ export default function TenantDashboard({
           <div className="grid gap-8 xl:grid-cols-12 items-start">
             <div className="xl:col-span-8 space-y-8">
               <HeroCard hero={viewModel.hero} onAction={handleAction} />
-
-              <HousingCostBreakdown
-                rent={tenantFinancials.rent}
-                buildingCommittee={tenantFinancials.costs.buildingCommittee}
-                arnona={tenantFinancials.costs.arnona}
-                utilities={tenantFinancials.costs.utilities}
-              />
-
-              <InsuranceIntentCard
-                preference={user.insurancePreference ?? "undecided"}
-                onSelect={(preference) => updateUser(user.id, { insurancePreference: preference })}
-              />
 
               <QuickActionsGrid
                 actions={viewModel.quickActions}
@@ -258,12 +250,20 @@ export default function TenantDashboard({
   );
 }
 
-function HousingCostBreakdown({
+function DashboardHeader({
+  user,
+  address,
+  statusLabel,
+  tone,
   rent,
   buildingCommittee,
   arnona,
   utilities,
 }: {
+  user: User;
+  address: string;
+  statusLabel: string;
+  tone: "critical" | "warning" | "info" | "success";
   rent: number;
   buildingCommittee: number;
   arnona: number;
@@ -277,98 +277,42 @@ function HousingCostBreakdown({
   ];
 
   return (
-    <section className="dashboard-card p-6 md:p-7">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-xl font-black text-slate-900">פירוט עלויות מגורים</h3>
-          <p className="mt-1 text-sm text-slate-500 font-semibold">שכר דירה ועלויות נלוות לנכס</p>
-        </div>
-        <CreditCard size={20} className="text-slate-300" />
-      </div>
-      <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {rows.map((row) => (
-          <div key={row.label} className="rounded-[20px] border border-slate-100 bg-slate-50/70 px-4 py-4">
-            <p className="text-xs font-black text-slate-400">{row.label}</p>
-            <p className="mt-2 text-xl font-black text-slate-900 tabular-nums">₪{row.value.toLocaleString()}</p>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function InsuranceIntentCard({
-  preference,
-  onSelect,
-}: {
-  preference: NonNullable<User["insurancePreference"]>;
-  onSelect: (preference: NonNullable<User["insurancePreference"]>) => void;
-}) {
-  return (
-    <section className="dashboard-card border-blue-100 bg-blue-50/70 p-6 md:p-7">
-      <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h3 className="text-xl font-black text-slate-900">ביטוח דירה לשוכר</h3>
-          <p className="mt-2 text-sm leading-6 text-slate-600 font-semibold">
-            האם תרצה שנציע עבורך פוליסת ביטוח לנכס כחלק מהתהליך הדיגיטלי?
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <button
-            onClick={() => onSelect("interested")}
-            className={cn(
-              "rounded-[18px] px-4 py-3 text-sm font-black transition-all",
-              preference === "interested"
-                ? "bg-slate-900 text-white"
-                : "border border-slate-200 bg-white text-slate-700",
-            )}
-          >
-            כן, מעניין אותי
-          </button>
-          <button
-            onClick={() => onSelect("declined")}
-            className={cn(
-              "rounded-[18px] px-4 py-3 text-sm font-black transition-all",
-              preference === "declined"
-                ? "bg-slate-900 text-white"
-                : "border border-slate-200 bg-white text-slate-700",
-            )}
-          >
-            לא כרגע
-          </button>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function DashboardHeader({
-  user,
-  address,
-  statusLabel,
-  tone,
-}: {
-  user: User;
-  address: string;
-  statusLabel: string;
-  tone: "critical" | "warning" | "info" | "success";
-}) {
-  return (
-    <div className="dashboard-card p-6 md:p-8 flex items-center justify-between">
-      <div className="flex items-center gap-4 min-w-0">
-        <div className="h-16 w-16 shrink-0 rounded-[24px] bg-slate-900 text-white flex items-center justify-center text-2xl font-black shadow-xl shadow-slate-900/10">
+    <div className="dashboard-card p-6 md:p-8 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-8 md:gap-10 bg-slate-950 text-white relative overflow-hidden">
+      <div className="absolute top-[-50%] left-[-10%] w-96 h-96 bg-blue-600/30 rounded-full blur-[100px] pointer-events-none" />
+      
+      <div className="flex items-center gap-5 min-w-0 relative z-10 w-full xl:w-auto shrink-0 xl:border-l xl:border-white/10 xl:pl-10">
+        <div className="h-16 w-16 shrink-0 rounded-[24px] bg-blue-600 text-white flex items-center justify-center text-2xl font-black shadow-xl shadow-blue-900/50">
           {user.name.charAt(0)}
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-bold text-slate-500">בית הדייר</p>
-          <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
-            שלום, {user.name.split(" ")[0]}
-          </h1>
-          <div className="mt-2 flex items-center gap-2 text-slate-500 min-w-0">
-            <ShieldCheck size={15} className="text-blue-600 shrink-0" />
-            <span className="text-sm font-semibold">{address}</span>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl md:text-3xl font-black tracking-tight">
+              שלום, {user.name.split(" ")[0]}
+            </h1>
+            <span className={cn(
+              "shrink-0 rounded-full px-3 py-1 text-[10px] font-black tracking-wide hidden sm:block",
+              tone === "success" ? "bg-emerald-500/20 text-emerald-300" :
+              tone === "warning" ? "bg-amber-500/20 text-amber-300" :
+              tone === "critical" ? "bg-rose-500/20 text-rose-300" :
+              "bg-blue-500/20 text-blue-300"
+            )}>
+              {statusLabel}
+            </span>
+          </div>
+          <div className="mt-2 flex items-center gap-2 text-slate-400 min-w-0">
+            <ShieldCheck size={16} className="text-blue-500 shrink-0" />
+            <span className="text-sm font-semibold truncate">{address}</span>
           </div>
         </div>
+      </div>
+
+      <div className="flex-1 w-full grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 relative z-10">
+         {rows.map((row) => (
+           <div key={row.label} className="flex flex-col items-start bg-white/5 shadow-inner shadow-white/5 rounded-2xl p-4 md:p-5 border border-white/10 w-full hover:bg-white/10 transition-colors">
+             <p className="text-xs font-black text-slate-400 drop-shadow-sm">{row.label}</p>
+             <p className="mt-1.5 text-xl font-black text-white tabular-nums drop-shadow-md">₪{row.value.toLocaleString()}</p>
+           </div>
+         ))}
       </div>
     </div>
   );
