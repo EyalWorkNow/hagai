@@ -1,6 +1,18 @@
 export type Role = "tenant" | "landlord" | "admin" | "vendor";
 export type KYCStatus = "pending" | "submitted" | "approved" | "rejected";
 export type BDIStatus = "green" | "yellow" | "red" | "pending";
+export type PurchaseFlowStatus = "pending" | "in_progress" | "completed";
+export type IntegrationProvider = "yad2" | "midrag" | "insurance";
+export type TransactionChannel =
+  | "maintenance_companies"
+  | "foreign_resident_agencies"
+  | "commercial_real_estate";
+
+export interface PropertyCosts {
+  buildingCommittee: number;
+  arnona: number;
+  utilities: number;
+}
 
 export interface User {
   id: string;
@@ -20,6 +32,7 @@ export interface User {
   createdAt?: string;
   preferredContractVisibilityStep?: 1 | 2 | 4;
   statusLabel?: string;
+  insurancePreference?: "undecided" | "interested" | "declined" | "insured";
 }
 
 export interface Property {
@@ -39,6 +52,8 @@ export interface Property {
   sizeSqm?: number;
   floor?: string;
   catalogStatus?: "published" | "draft" | "archived";
+  costs?: PropertyCosts;
+  insuranceOffered?: boolean;
 }
 
 export interface Payment {
@@ -266,6 +281,38 @@ export interface NotificationRecord {
   read?: boolean;
 }
 
+export interface IntegrationRecord {
+  id: string;
+  provider: IntegrationProvider;
+  status: "connected" | "warning" | "disconnected";
+  syncHealth: PurchaseFlowStatus;
+  lastSyncAt: string;
+  transactionCount: number;
+  revenue: number;
+}
+
+export interface PlatformTransaction {
+  id: string;
+  propertyId?: string;
+  contractId?: string;
+  paymentId?: string;
+  provider: IntegrationProvider;
+  channel: TransactionChannel;
+  status: PurchaseFlowStatus;
+  amount: number;
+  revenue: number;
+  createdAt: string;
+}
+
+export interface SupportIssue {
+  id: string;
+  source: IntegrationProvider | "platform";
+  title: string;
+  severity: "low" | "medium" | "high";
+  status: "open" | "resolved";
+  createdAt: string;
+}
+
 export interface RentflowDb {
   meta: {
     version: string;
@@ -290,6 +337,9 @@ export interface RentflowDb {
   eligibilityChecks: EligibilityCheck[];
   onboardingInvites: OnboardingInvite[];
   notifications: NotificationRecord[];
+  integrations: IntegrationRecord[];
+  transactions: PlatformTransaction[];
+  supportIssues: SupportIssue[];
 }
 
 export interface SessionState {

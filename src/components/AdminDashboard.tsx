@@ -1,4 +1,4 @@
-import { useState, ReactNode } from "react";
+import { useState, useMemo, ReactNode } from "react";
 import { 
   Shield, 
   Activity, 
@@ -24,6 +24,14 @@ import { cn } from "../lib/utils";
 import { User, Property, Payment, Contract } from "../types";
 import { useAppData } from "../lib/appData";
 import { Database } from "lucide-react";
+import {
+  formatCurrencyCompact,
+  formatChannelLabel,
+  formatProviderLabel,
+  getAdminDashboardMetrics,
+  getPlatformFeeRate,
+  getPurchaseFlowPresentation,
+} from "../lib/analytics";
 
 /**
  * AdminDashboard Component
@@ -35,9 +43,12 @@ export default function AdminDashboard({ user: adminUser }: { user: User }) {
   const allUsers = db.users;
   const allProperties = db.properties;
   const allContracts = db.contracts;
-  const recentPayments = [...db.payments]
+  
+  const recentPayments = useMemo(() => [...db.payments]
     .sort((left, right) => Date.parse(right.date) - Date.parse(left.date))
-    .slice(0, 10);
+    .slice(0, 10), [db.payments]);
+    
+  const adminMetrics = useMemo(() => getAdminDashboardMetrics(db), [db]);
 
   // Handling User Updates
   const updateUserStatus = async (userId: string, data: Partial<User>) => {
@@ -45,16 +56,16 @@ export default function AdminDashboard({ user: adminUser }: { user: User }) {
   };
 
   // Compute Funnel Data
-  const funnel = {
+  const funnel = useMemo(() => ({
     firstNotice: allUsers.filter(u => u.role === "tenant" && u.onboardingStep !== undefined && u.onboardingStep >= 0).length,
     sentKYC: allUsers.filter(u => u.role === "tenant" && u.onboardingStep !== undefined && u.onboardingStep >= 1).length,
     waitingLandlord: allContracts.filter(c => c.status === "pending" || c.status === "waiting_kyc" || c.status === "waiting_bdi").length,
     waitingSignature: allContracts.filter(c => c.status === "waiting_signature").length,
     completed: allContracts.filter(c => c.status === "active").length,
-  };
+  }), [allUsers, allContracts]);
 
-  const pendingKYC = allUsers.filter(u => u.kycStatus === "submitted" || u.kycStatus === "pending").length;
-  const totalVolume = recentPayments.reduce((acc, p) => acc + p.amount, 0);
+  const pendingKYC = useMemo(() => allUsers.filter(u => u.kycStatus === "submitted" || u.kycStatus === "pending").length, [allUsers]);
+  const totalVolume = useMemo(() => recentPayments.reduce((acc, p) => acc + p.amount, 0), [recentPayments]);
   const regionalBreakdown = [
     { label: "מרכז", share: 62, occupancy: 91, accent: "bg-slate-900" },
     { label: "ירושלים והשפלה", share: 21, occupancy: 84, accent: "bg-blue-600" },
@@ -69,7 +80,9 @@ export default function AdminDashboard({ user: adminUser }: { user: User }) {
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between pb-10 border-b border-slate-200/60 mb-10 gap-6">
         <div>
            <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter italic font-display">לוח בקרה <span className="text-blue-600">ניהולי</span></h1>
-           <p className="text-slate-400 font-bold mt-3 text-[13px] tracking-[0.08em]">פיקוח מערכתי • אישור KYC • ניטור עסקאות בזמן אמת</p>
+           <p className="text-slate-400 font-bold mt-3 text-[13px] tracking-[0.08em]">
+             פיקוח מערכתי • אישור KYC • ניטור {adminMetrics.totalTransactions.toLocaleString("he-IL")} עסקאות בזמן אמת
+           </p>
         </div>
          <div className="flex items-center gap-6">
             <button 
@@ -88,7 +101,7 @@ export default function AdminDashboard({ user: adminUser }: { user: User }) {
         </div>
       </div>
 
-      <div className="flex border-b border-slate-200">
+      <div className="flex overflow-x-auto border-b border-slate-200 no-scrollbar">
         <TabHeader 
           active={activeTab === "overview"} 
           onClick={() => setActiveTab("overview")} 
@@ -112,37 +125,79 @@ export default function AdminDashboard({ user: adminUser }: { user: User }) {
           <div className="grid gap-8 md:grid-cols-4">
             <MetricCard 
               icon={<TrendingUp size={20} />} 
-              title="מדד הצלחת גבייה" 
-              value="98.2%" 
-              subtitle="חיובים פעילים במערכת" 
+              title="הועבר החודש" 
+              value={formatCurrencyCompact(adminMetrics.currentMonthTransfers)} 
+              subtitle={`סה"כ ${adminMetrics.totalTransactions.toLocaleString("he-IL")} עסקאות במערכת`} 
               color="text-emerald-500" 
             />
             <MetricCard 
               icon={<DollarSign size={20} />} 
-              title="נפח עסקאות (חודשי)" 
-              value={`₪${(totalVolume / 1000).toFixed(1)}K`} 
-              subtitle="מעקב תשלומים אחרונים" 
+              title="יתרה במערכת" 
+              value={`₪${adminMetrics.currentBalance.toLocaleString()}`} 
+              subtitle="מאזן נוכחי של כספים בפלטפורמה" 
               color="text-slate-900" 
             />
             <MetricCard 
               icon={<Users size={20} />} 
-              title="נכסים ברישום" 
-              value={allProperties.length} 
-              subtitle={`${allProperties.filter(p => p.status === "vacant").length} נכסים זמינים כרגע`} 
+              title="הכנסות חודשיות" 
+              value={formatCurrencyCompact(adminMetrics.monthlyRevenue)} 
+              subtitle={`עמלת פלטפורמה קבועה של ₪${getPlatformFeeRate()} לכל עסקה`} 
               color="text-slate-900" 
             />
             <MetricCard 
               icon={<Scale size={20} />} 
-              title="טיפול משפטי" 
-              value="3" 
-              subtitle="תיקים בטיפול הוצאה לפועל" 
+              title="תקלות פתוחות" 
+              value={adminMetrics.unresolvedIssues} 
+              subtitle="באגים וקריאות פתוחות מול אינטגרציות והפלטפורמה" 
               color="text-red-500" 
             />
           </div>
 
+          <div className="grid gap-8 lg:grid-cols-3">
+            <div className="rounded-3xl bg-white p-8 shadow-sleek border border-slate-200 lg:col-span-2">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-black text-slate-900 tracking-tight italic">אינטגרציות וערוצי הכנסה</h2>
+                <BarChart3 size={22} className="text-slate-300" />
+              </div>
+              <div className="grid gap-4 md:grid-cols-3">
+                {adminMetrics.providerMetrics.map((metric) => (
+                  <div key={metric.provider} className="rounded-[24px] border border-slate-100 bg-slate-50/70 p-5">
+                    <p className="text-[11px] font-black tracking-[0.14em] text-slate-400 uppercase">
+                      {formatProviderLabel(metric.provider)}
+                    </p>
+                    <p className="mt-3 text-3xl font-black text-slate-900 tabular-nums">{metric.count}</p>
+                    <p className="mt-2 text-sm font-semibold text-slate-500">
+                      הכנסה: {formatCurrencyCompact(metric.revenue)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-3xl bg-white p-8 shadow-sleek border border-slate-200">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-black text-slate-900 tracking-tight italic">סטטוס תהליך הרכישה</h2>
+                <Activity size={22} className="text-slate-300" />
+              </div>
+              <div className="space-y-3">
+                {adminMetrics.purchaseFlow.map((item) => {
+                  const presentation = getPurchaseFlowPresentation(item.status);
+                  return (
+                    <div key={item.status} className="flex items-center justify-between rounded-[20px] border border-slate-100 bg-slate-50/70 px-4 py-4">
+                      <span className={cn("rounded-full border px-3 py-1 text-[10px] font-black tracking-[0.12em]", presentation.className)}>
+                        {presentation.label}
+                      </span>
+                      <span className="text-lg font-black tabular-nums text-slate-900">{item.count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
           {/* 3. ONBOARDING FUNNEL (Pipeline Efficiency) */}
           <div className="mt-10 dashboard-card p-10 md:p-14">
-            <div className="flex items-center justify-between mb-16">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-16">
               <div>
                 <h2 className="text-3xl font-black text-slate-900 tracking-tight italic font-display">משפך אונבורדינג</h2>
                 <p className="text-slate-400 text-[11px] font-bold tracking-[0.12em] mt-3">מעקב התקדמות הרישום מחלונית ההזמנה ועד לחתימה</p>
@@ -153,7 +208,7 @@ export default function AdminDashboard({ user: adminUser }: { user: User }) {
               </div>
             </div>
             
-            <div className="flex justify-between items-start gap-2 md:gap-4 px-4">
+            <div className="flex min-w-max justify-between items-start gap-2 md:gap-4 px-4">
               <FunnelStep label="הודעה ראשונה" count={funnel.firstNotice.toString()} color="bg-slate-900" />
               <FunnelStep label="שלחו KYC" count={funnel.sentKYC.toString()} color="bg-slate-900" />
               <FunnelStep label="מתנה לאישור" count={funnel.waitingLandlord.toString()} color="bg-slate-900" />
@@ -239,30 +294,61 @@ export default function AdminDashboard({ user: adminUser }: { user: User }) {
               </div>
             </div>
           </div>
+
+          <div className="rounded-3xl bg-white p-8 shadow-sleek border border-slate-200">
+            <div className="flex items-center justify-between mb-8">
+              <h2 className="text-2xl font-black text-slate-900 tracking-tight italic">פילוח עסקאות והכנסות</h2>
+              <PieChartIcon size={22} className="text-slate-300" />
+            </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              {adminMetrics.channelBreakdown.map((item) => (
+                <div key={item.channel} className="rounded-[24px] border border-slate-100 bg-slate-50/70 p-5">
+                  <p className="text-sm font-black text-slate-900">{formatChannelLabel(item.channel)}</p>
+                  <p className="mt-3 text-3xl font-black tabular-nums text-slate-900">{item.count}</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-500">
+                    הכנסה: {formatCurrencyCompact(item.revenue)}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-6 rounded-[24px] bg-slate-950 p-6 text-white">
+              <p className="text-[11px] font-black tracking-[0.16em] text-slate-400">סיכום עסקאות כולל</p>
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <div>
+                  <p className="text-sm text-slate-400 font-semibold">סה"כ עסקאות שנקלטו במערכת</p>
+                  <p className="mt-2 text-3xl font-black">{adminMetrics.totalTransactions.toLocaleString("he-IL")}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-400 font-semibold">הכנסה מצטברת מעמלות פלטפורמה</p>
+                  <p className="mt-2 text-3xl font-black">{formatCurrencyCompact(adminMetrics.totalPlatformRevenue)}</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </>
       )}
 
       {activeTab === "users" && (
-        <div className="rounded-3xl bg-white shadow-sleek-lg border border-slate-200 overflow-hidden animate-in slide-in-from-bottom-5 duration-500">
-          <div className="p-10 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+          <div className="rounded-3xl bg-white shadow-sleek-lg border border-slate-200 overflow-hidden animate-in slide-in-from-bottom-5 duration-500">
+          <div className="p-6 sm:p-10 border-b border-slate-100 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between bg-slate-50/50">
             <div>
               <h2 className="text-3xl font-black text-slate-900 tracking-tight italic">ניהול משתמשים ו-KYC</h2>
               <p className="text-slate-500 text-sm font-medium mt-1">פיקוח על זהות המשתמשים, אישורי KYC ובדיקות אמינות</p>
             </div>
-            <div className="relative group">
+            <div className="relative group w-full sm:w-auto">
               <Search className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={20} />
               <input 
                 type="text" 
                 placeholder="חפש לפי שם, ת.ז או אימייל..." 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="rounded-2xl bg-white border border-slate-200 py-4 pl-8 pr-14 text-sm focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 w-96 shadow-sm transition-all font-bold" 
+                className="rounded-2xl bg-white border border-slate-200 py-4 pl-8 pr-14 text-sm focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 w-full sm:w-96 shadow-sm transition-all font-bold" 
               />
             </div>
           </div>
           
           <div className="overflow-x-auto">
-            <table className="w-full text-right">
+            <table className="w-full min-w-[920px] text-right">
               <thead className="bg-slate-50/80 text-[10px] font-black text-slate-400 tracking-[0.16em] border-b border-slate-100">
                 <tr>
                   <th className="px-10 py-6 text-right">פרופיל משתמש</th>
@@ -329,7 +415,7 @@ function MetricCard({ icon, title, value, status, subtitle, color }: any) {
         <div className={cn("h-12 w-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform shrink-0", color)}>
           {icon}
         </div>
-        <h3 className="font-black text-[11px] text-slate-400 tracking-[0.12em] leading-tight truncate">{title}</h3>
+        <h3 className="font-black text-[11px] text-slate-400 tracking-[0.12em] leading-tight">{title}</h3>
       </div>
       {status ? (
         <div className="flex items-center gap-3">
@@ -338,8 +424,8 @@ function MetricCard({ icon, title, value, status, subtitle, color }: any) {
         </div>
       ) : (
         <>
-          <p className="text-5xl font-black text-slate-900 tracking-tighter leading-none tabular-nums font-display truncate">{value}</p>
-          <p className="text-[10px] text-slate-400 font-bold tracking-[0.14em] mt-4 truncate">{subtitle}</p>
+          <p className="text-5xl font-black text-slate-900 tracking-tighter leading-none tabular-nums font-display break-words">{value}</p>
+          <p className="mt-4 text-[10px] text-slate-400 font-bold tracking-[0.14em] leading-relaxed">{subtitle}</p>
         </>
       )}
     </div>
@@ -387,13 +473,13 @@ function TransactionItem({ payment, index }: { payment: Payment, index: number }
           <DollarSign size={24} className="text-slate-400 group-hover:text-white shrink-0" />
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-black text-slate-900 italic truncate">
+          <p className="text-sm font-black text-slate-900 italic">
             {payment.type === "rent" ? "תשלום שכירות חודשי" : payment.type === "commission" ? "עמלת מערכת" : "תשלום שירות/תקלה"}
           </p>
           <div className="flex items-center gap-3 mt-1.5 min-w-0">
             <span className="text-[10px] text-slate-400 font-black tracking-[0.12em] tabular-nums shrink-0">{payment.date}</span>
             <span className="h-1 w-1 rounded-full bg-slate-200 shrink-0"></span>
-            <span className="text-[10px] text-blue-500 font-black italic truncate">ID: {payment.id.slice(-8)}</span>
+            <span className="text-[10px] text-blue-500 font-black italic">ID: {payment.id.slice(-8)}</span>
           </div>
         </div>
       </div>
@@ -467,8 +553,8 @@ function UserTableRow({ user: u, onUpdate }: { user: User, onUpdate: (data: Part
             {u.name.charAt(0)}
           </div>
           <div className="min-w-0">
-            <p className="text-[17px] font-black text-slate-900 leading-none tracking-tight truncate font-display italic">{u.name}</p>
-            <p className="text-[11px] text-slate-400 font-bold mt-2 tracking-[0.08em] truncate">{u.email}</p>
+            <p className="text-[17px] font-black text-slate-900 leading-none tracking-tight font-display italic">{u.name}</p>
+            <p className="mt-2 text-[11px] text-slate-400 font-bold tracking-[0.08em] break-all">{u.email}</p>
           </div>
         </div>
       </td>

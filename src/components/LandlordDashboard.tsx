@@ -1,4 +1,4 @@
-import { useState, ReactNode } from "react";
+import { useState, useMemo, ReactNode } from "react";
 import { 
   Home, 
   Users, 
@@ -37,12 +37,12 @@ import { useAppData } from "../lib/appData";
 export default function LandlordDashboard({ user }: { user: User }) {
   const { db, addProperty, inviteTenant, resetDatabase } = useAppData();
   const [activeTab, setActiveTab] = useState<"overview" | "properties" | "proofs" | "maintenance">("overview");
-  const properties = db.properties.filter((property) => property.landlordId === user.id);
-  const payments = db.payments
+  const properties = useMemo(() => db.properties.filter((property) => property.landlordId === user.id), [db.properties, user.id]);
+  const payments = useMemo(() => [...db.payments]
     .filter((payment) => payment.landlordId === user.id)
-    .sort((left, right) => Date.parse(right.date) - Date.parse(left.date));
-  const contracts = db.contracts.filter((contract) => contract.landlordId === user.id);
-  const serviceCalls = db.serviceCalls.filter((serviceCall) => serviceCall.landlordId === user.id);
+    .sort((left, right) => Date.parse(right.date) - Date.parse(left.date)), [db.payments, user.id]);
+  const contracts = useMemo(() => db.contracts.filter((contract) => contract.landlordId === user.id), [db.contracts, user.id]);
+  const serviceCalls = useMemo(() => db.serviceCalls.filter((serviceCall) => serviceCall.landlordId === user.id), [db.serviceCalls, user.id]);
   
   // Modal States
   const [showAddProperty, setShowAddProperty] = useState(false);
@@ -50,16 +50,26 @@ export default function LandlordDashboard({ user }: { user: User }) {
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
 
   // Derived Metrics
-  const totalMonthlyIncome = properties.reduce((acc, p) => acc + (p.status === "occupied" ? p.rent : 0), 0);
-  const occupiedCount = properties.filter(p => p.status === "occupied").length;
-  const vacantCount = properties.length - occupiedCount;
-  const pendingPaymentsNum = payments.filter(p => {
-    const pDate = new Date(p.date);
+  const { totalMonthlyIncome, occupiedCount, vacantCount, pendingPaymentsNum, failedPaymentsNum, openServiceCalls, featuredProperty, featuredCosts } = useMemo(() => {
+    const totalMonthlyIncome = properties.reduce((acc, p) => acc + (p.status === "occupied" ? p.rent : 0), 0);
+    const occupiedCount = properties.filter(p => p.status === "occupied").length;
+    const vacantCount = properties.length - occupiedCount;
     const now = new Date();
-    return pDate.getMonth() === now.getMonth() && pDate.getFullYear() === now.getFullYear() && p.status === "pending";
-  }).length;
-  const failedPaymentsNum = payments.filter(p => p.status === "failed").length;
-  const openServiceCalls = serviceCalls.filter((call) => call.status !== "closed").length;
+    const pendingPaymentsNum = payments.filter(p => {
+      const pDate = new Date(p.date);
+      return pDate.getMonth() === now.getMonth() && pDate.getFullYear() === now.getFullYear() && p.status === "pending";
+    }).length;
+    const failedPaymentsNum = payments.filter(p => p.status === "failed").length;
+    const openServiceCalls = serviceCalls.filter((call) => call.status !== "closed").length;
+    const featuredProperty = properties.find((property) => property.status === "occupied") ?? properties[0] ?? null;
+    const featuredCosts = featuredProperty?.costs ?? {
+      buildingCommittee: 0,
+      arnona: 0,
+      utilities: 0,
+    };
+    
+    return { totalMonthlyIncome, occupiedCount, vacantCount, pendingPaymentsNum, failedPaymentsNum, openServiceCalls, featuredProperty, featuredCosts };
+  }, [properties, payments, serviceCalls]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 text-right" dir="rtl">
@@ -83,7 +93,7 @@ export default function LandlordDashboard({ user }: { user: User }) {
         </div>
       )}
 
-      <div className="flex border-b border-slate-200 sticky top-0 bg-white/50 backdrop-blur-sm z-10 transition-all">
+      <div className="flex overflow-x-auto border-b border-slate-200 sticky top-0 bg-white/50 backdrop-blur-sm z-10 transition-all no-scrollbar">
         <TabHeader active={activeTab === "overview"} onClick={() => setActiveTab("overview")} label="מרכז שליטה" />
         <TabHeader active={activeTab === "properties"} onClick={() => setActiveTab("properties")} label="ניהול נכסים" />
         <TabHeader active={activeTab === "proofs"} onClick={() => setActiveTab("proofs")} label="העברות ואסמכתאות" />
@@ -92,10 +102,32 @@ export default function LandlordDashboard({ user }: { user: User }) {
 
       {activeTab === "overview" && (
         <>
+          {featuredProperty && (
+            <div className="rounded-[32px] bg-white border border-slate-200 p-6 md:p-8 shadow-sleek">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <p className="text-[11px] font-black tracking-[0.14em] text-slate-400">תקציר בעל הנכס</p>
+                  <h2 className="mt-3 text-3xl md:text-4xl font-black text-slate-900 tracking-tight italic font-display">
+                    {featuredProperty.address}
+                  </h2>
+                  <p className="mt-2 text-sm font-semibold text-slate-500">
+                    שכר דירה ועלויות נלוות לנכס המוביל בפורטפוליו
+                  </p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <HeroCostPill label="שכר דירה" value={featuredProperty.rent} />
+                  <HeroCostPill label="ועד בית" value={featuredCosts.buildingCommittee} />
+                  <HeroCostPill label="ארנונה" value={featuredCosts.arnona} />
+                  <HeroCostPill label="שירותים" value={featuredCosts.utilities} />
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="grid gap-8 lg:grid-cols-12 mt-4 items-start">
              
              {/* LEFT SIDE: 2x2 Grid of Status Cards */}
-             <div className="lg:col-span-5 grid grid-cols-2 gap-6">
+             <div className="lg:col-span-5 grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <StatusSmallCard 
                   title="תקלות פתוחות" 
                   value={openServiceCalls.toString()} 
@@ -127,13 +159,13 @@ export default function LandlordDashboard({ user }: { user: User }) {
              </div>
 
              {/* RIGHT SIDE: Large Financial Summary Card */}
-             <div className="lg:col-span-7 bg-white rounded-[40px] p-10 md:p-14 border border-slate-200/50 shadow-[0_20px_50px_rgba(0,0,0,0.03)] relative overflow-hidden h-full min-w-0">
-                <div className="flex items-center justify-between mb-12">
+             <div className="lg:col-span-7 bg-white rounded-[40px] p-6 sm:p-8 md:p-14 border border-slate-200/50 shadow-[0_20px_50px_rgba(0,0,0,0.03)] relative overflow-hidden h-full min-w-0">
+                <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between mb-12">
                    <div className="h-16 w-16 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-300">
                       <Clock size={32} />
                    </div>
                    <div className="text-right">
-                      <h2 className="text-4xl font-black text-slate-900 tracking-tighter italic font-display leading-none">סיכום פיננסי חודשי</h2>
+                      <h2 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tighter italic font-display leading-none">סיכום פיננסי חודשי</h2>
                       <p className="text-[11px] text-slate-500 font-bold mt-3">סטטוס תקבולים לחודש הנוכחי</p>
                    </div>
                 </div>
@@ -309,21 +341,21 @@ export default function LandlordDashboard({ user }: { user: User }) {
 
       {activeTab === "properties" && (
          <div className="rounded-3xl bg-white shadow-sleek border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-500">
-            <div className="p-10 border-b border-slate-100 flex items-center justify-between">
+            <div className="p-6 sm:p-10 border-b border-slate-100 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                <div>
                   <h2 className="text-2xl font-black text-slate-900 tracking-tight italic">ניהול יחידות ודיור</h2>
                   <p className="text-slate-500 text-sm font-medium">פירוט מלא של כל הנכסים שבבעלותך</p>
                </div>
                <button 
                   onClick={() => setShowAddProperty(true)}
-                  className="flex items-center gap-3 rounded-2xl bg-blue-600 px-8 py-4 text-xs font-black text-white shadow-sleek-blue hover:bg-blue-700 transition-all active:scale-95 tracking-[0.12em]"
+                  className="flex items-center justify-center gap-3 rounded-2xl bg-blue-600 px-5 sm:px-8 py-4 text-xs font-black text-white shadow-sleek-blue hover:bg-blue-700 transition-all active:scale-95 tracking-[0.12em]"
                >
                   <Plus size={20} />
                   <span>הוסף נכס חדש</span>
                </button>
             </div>
             <div className="overflow-x-auto">
-               <table className="w-full text-right">
+               <table className="w-full min-w-[760px] text-right">
                   <thead className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black text-slate-400 tracking-[0.12em]">
                      <tr>
                         <th className="px-10 py-5">נכס</th>
@@ -357,13 +389,13 @@ export default function LandlordDashboard({ user }: { user: User }) {
       )}
 
       {activeTab === "proofs" && (
-         <div className="rounded-3xl bg-white p-10 shadow-sleek border border-slate-200 animate-in slide-in-from-bottom-5 duration-500">
-            <div className="flex items-center justify-between mb-10">
+         <div className="rounded-3xl bg-white p-6 sm:p-10 shadow-sleek border border-slate-200 animate-in slide-in-from-bottom-5 duration-500">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-10">
                <div>
                   <h2 className="text-3xl font-black text-slate-900 tracking-tight italic">אסמכתאות והעברות לעו״ש</h2>
                   <p className="text-slate-500 text-sm font-medium mt-1 italic tracking-tight">כאן תוכל לראות את כל הכספים שהמערכת גבתה והעבירה ישירות לחשבון שלך</p>
                </div>
-               <div className="flex gap-4">
+               <div className="flex flex-wrap gap-4">
                   <button className="flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-xs font-black text-slate-500 hover:bg-slate-50 transition-all tracking-[0.12em]">
                     <Download size={16} />
                     <span>ייצוא הכל</span>
@@ -379,7 +411,7 @@ export default function LandlordDashboard({ user }: { user: User }) {
       )}
 
       {activeTab === "maintenance" && (
-         <div className="rounded-3xl bg-white p-10 shadow-sleek border border-slate-200 animate-in slide-in-from-bottom-5 duration-500">
+         <div className="rounded-3xl bg-white p-6 sm:p-10 shadow-sleek border border-slate-200 animate-in slide-in-from-bottom-5 duration-500">
             <h2 className="text-3xl font-black text-slate-900 tracking-tight italic mb-8">מרכז תקלות ותחזוקה</h2>
             <div className="py-20 text-center border-2 border-dashed border-slate-100 rounded-[32px]">
                <Wrench size={48} className="mx-auto text-slate-200 mb-4" />
@@ -451,6 +483,15 @@ function LegendItem({ color, label, amount }: { color: string, label: string, am
           <span className="text-[15px] font-semibold text-slate-600 tracking-tight leading-none">{label}</span>
        </div>
        <span className="text-[17px] font-black text-slate-900 tabular-nums font-display">{amount}</span>
+    </div>
+  );
+}
+
+function HeroCostPill({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-[20px] border border-slate-100 bg-slate-50/70 px-4 py-4 min-w-[140px]">
+      <p className="text-[11px] font-black tracking-[0.12em] text-slate-400 uppercase">{label}</p>
+      <p className="mt-2 text-2xl font-black text-slate-900 tabular-nums">₪{value.toLocaleString()}</p>
     </div>
   );
 }
@@ -552,7 +593,7 @@ function PropertyRow({ property, onInvite }: { property: Property, onInvite: () 
                 <Home size={22} className="text-blue-500" />
              </div>
              <div className="min-w-0">
-                <p className="text-sm font-black text-slate-900 leading-none tracking-tight truncate">{property.address}</p>
+                <p className="text-sm font-black text-slate-900 leading-none tracking-tight">{property.address}</p>
                 <p className="text-[10px] text-slate-400 font-bold mt-2 tracking-[0.12em] leading-none">מזהה: {property.id.slice(-6)}</p>
              </div>
           </div>
@@ -561,7 +602,7 @@ function PropertyRow({ property, onInvite }: { property: Property, onInvite: () 
           {property.tenantId ? (
             <div className="flex items-center gap-2 text-emerald-600">
                <ShieldCheck size={14} />
-               <span>דייר מאומת</span>
+               <span>דייר פעיל</span>
             </div>
           ) : (
             <button 
@@ -724,11 +765,11 @@ function TransferItem({ payment, index }: { payment: Payment, index: number }) {
              <CheckCircle2 size={24} />
           </div>
           <div className="min-w-0">
-             <p className="font-black text-slate-900 text-base md:text-lg italic tracking-tight truncate">העברת שכירות - {payment.propertyAddress || payment.propertyId}</p>
+             <p className="font-black text-slate-900 text-base md:text-lg italic tracking-tight">העברת שכירות - {payment.propertyAddress || payment.propertyId}</p>
              <div className="flex items-center gap-3 mt-1.5 font-sans">
                 <span className="text-[10px] text-slate-400 font-black tracking-[0.12em] tabular-nums">{payment.date}</span>
                 <span className="h-1 w-1 rounded-full bg-slate-200"></span>
-                <span className="text-[10px] text-blue-500 font-black italic leading-none truncate">נשלחה אסמכתא למייל</span>
+                <span className="text-[10px] text-blue-500 font-black italic leading-none">נשלחה אסמכתא למייל</span>
              </div>
           </div>
        </div>

@@ -126,7 +126,7 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-slate-100 p-4 text-right" dir="rtl">
       {/* Header with Logo and Logout */}
-      <div className="w-full max-w-2xl flex items-center justify-between mb-8 px-6">
+      <div className="mb-6 flex w-full max-w-2xl flex-col gap-4 px-2 sm:mb-8 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <div className="flex items-center gap-4">
           <div className="h-12 w-12 shrink-0 rounded-[14px] bg-slate-900 shadow-xl flex items-center justify-center text-white font-black text-2xl italic font-display">
             R
@@ -147,7 +147,7 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
       <div className="w-full max-w-2xl overflow-hidden rounded-[32px] bg-white shadow-2xl border border-slate-200">
         
         {/* Top Progress Navigator */}
-        <div className="flex border-b border-slate-100 bg-slate-50/30 p-4 md:p-10 overflow-x-auto hide-scrollbar gap-2 snap-x">
+        <div className="flex border-b border-slate-100 bg-slate-50/30 p-3 md:p-10 overflow-x-auto no-scrollbar gap-2 snap-x">
           {STEPS.map((step, index) => (
             <StepIndicator 
               key={step.id}
@@ -165,7 +165,7 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
         </div>
 
         {/* Dynamic Step Content */}
-        <div className="p-6 md:p-16 min-h-[480px]">
+        <div className="min-h-[420px] p-4 sm:p-6 md:min-h-[480px] md:p-16">
           <AnimatePresence mode="wait">
             <motion.div
               key={currentStep}
@@ -254,7 +254,7 @@ function KYCStep({ user }: { user: User }) {
       <div className="p-6 md:p-10 bg-slate-900 rounded-[32px] md:rounded-[40px] text-white shadow-2xl relative overflow-hidden group">
         <div className="absolute top-0 right-0 h-40 w-40 bg-blue-600/10 rounded-full translate-x-20 -translate-y-20 blur-3xl"></div>
         <div className="relative z-10 flex flex-col items-center text-center">
-           <ShieldCheck size={36} md:size={40} className="text-blue-500 mb-4 md:mb-6" />
+           <ShieldCheck size={40} className="text-blue-500 mb-4 md:mb-6" />
            <h3 className="text-lg md:text-xl font-black italic font-display">הצהרת סודיות ואבטחה</h3>
            <p className="text-slate-400 text-xs font-bold mt-3 md:mt-4 leading-relaxed max-w-sm">
              RentFlow עומדת בתקני אבטחה מחמירים. המידע הביומטרי שלך משמש לאימות בלבד ונמחק מיד לאחר אישור הבנק.
@@ -308,7 +308,7 @@ function BDIStep() {
         <motion.div 
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          className="p-10 bg-emerald-500 rounded-[40px] text-white shadow-2xl text-center space-y-6"
+          className="p-6 md:p-10 bg-emerald-500 rounded-[32px] md:rounded-[40px] text-white shadow-2xl text-center space-y-6"
         >
            <div className="h-20 w-20 bg-white text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-xl">
               <Check size={40} />
@@ -325,18 +325,18 @@ function PaymentMethodStep() {
   return (
     <div className="space-y-10">
       <div className="text-center">
-        <h2 className="text-4xl font-black text-slate-900 tracking-tight italic font-display">הרשאה לחיוב (מס"ב)</h2>
-        <p className="text-slate-500 font-bold mt-4 text-[15px]">הסדרת התשלום האוטומטי. הכסף עובר ישירות מהבנק שלך למשכיר.</p>
+        <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight italic font-display">הרשאה לחיוב (מס"ב)</h2>
+        <p className="text-slate-500 font-bold mt-4 text-[13px] md:text-[15px]">הסדרת התשלום האוטומטי. הכסף עובר ישירות מהבנק שלך למשכיר.</p>
       </div>
 
       <div className="space-y-6">
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
           <InputField label="שם הבנק" placeholder="בנק הפועלים (12)" />
           <InputField label="מספר סניף" placeholder="612" />
           <InputField label="מספר חשבון" placeholder="12345678" />
         </div>
         
-        <div className="p-10 bg-blue-600 rounded-[40px] text-white shadow-2xl flex flex-col items-center text-center space-y-6">
+        <div className="p-6 md:p-10 bg-blue-600 rounded-[32px] md:rounded-[40px] text-white shadow-2xl flex flex-col items-center text-center space-y-6">
            <div className="h-16 w-16 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-md">
               <FileSignature size={32} />
            </div>
@@ -407,7 +407,7 @@ function FinishStep() {
       </div>
 
       <div className="space-y-4">
-        <h2 className="text-4xl font-black text-slate-900 tracking-tighter">ברוך הבא לבית החדש!</h2>
+        <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tighter">ברוך הבא לבית החדש!</h2>
         <p className="text-slate-500 font-medium max-w-md mx-auto leading-relaxed">
           כל המסמכים החתומים נשלחו כרגע למייל שלך ולבעל הנכס. מעכשיו, הכל מנוהל ב-RentFlow.
         </p>
@@ -436,7 +436,7 @@ export function BDICheckStandalone() {
   };
 
   return (
-    <div className="max-w-md mx-auto p-12 bg-white rounded-[36px] shadow-2xl border border-slate-200 text-right animate-in zoom-in-95 duration-500" dir="rtl">
+    <div className="max-w-md mx-auto p-6 sm:p-8 md:p-12 bg-white rounded-[36px] shadow-2xl border border-slate-200 text-right animate-in zoom-in-95 duration-500" dir="rtl">
       <div className="text-center mb-12">
         <div className="h-20 w-20 bg-slate-900 text-white rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-xl shadow-slate-900/20 rotate-3">
           <ShieldCheck size={36} />

@@ -29,6 +29,7 @@ import {
   TenantRetryRequest,
 } from "../lib/tenantDashboard";
 import { useAppData } from "../lib/appData";
+import { getTenantHeroFinancials } from "../lib/analytics";
 
 type RemoteStatus = "loading" | "ready" | "error";
 
@@ -56,7 +57,7 @@ export default function TenantDashboard({
   onNavigate,
   onResumeOnboarding,
 }: TenantDashboardProps) {
-  const { db, submitRetryRequest } = useAppData();
+  const { db, submitRetryRequest, updateUser } = useAppData();
 
   const [isRetryDialogOpen, setIsRetryDialogOpen] = useState(false);
   const payments = useMemo(
@@ -107,6 +108,7 @@ export default function TenantDashboard({
     hasError: false,
     retryRequest,
   });
+  const tenantFinancials = getTenantHeroFinancials(db, user.id);
 
   const handleAction = (action?: TenantActionKind) => {
     switch (action) {
@@ -193,6 +195,18 @@ export default function TenantDashboard({
             <div className="xl:col-span-8 space-y-8">
               <HeroCard hero={viewModel.hero} onAction={handleAction} />
 
+              <HousingCostBreakdown
+                rent={tenantFinancials.rent}
+                buildingCommittee={tenantFinancials.costs.buildingCommittee}
+                arnona={tenantFinancials.costs.arnona}
+                utilities={tenantFinancials.costs.utilities}
+              />
+
+              <InsuranceIntentCard
+                preference={user.insurancePreference ?? "undecided"}
+                onSelect={(preference) => updateUser(user.id, { insurancePreference: preference })}
+              />
+
               <QuickActionsGrid
                 actions={viewModel.quickActions}
                 onNavigate={(target) => onNavigate?.(target)}
@@ -244,6 +258,90 @@ export default function TenantDashboard({
   );
 }
 
+function HousingCostBreakdown({
+  rent,
+  buildingCommittee,
+  arnona,
+  utilities,
+}: {
+  rent: number;
+  buildingCommittee: number;
+  arnona: number;
+  utilities: number;
+}) {
+  const rows = [
+    { label: "שכר דירה", value: rent },
+    { label: "ועד בית", value: buildingCommittee },
+    { label: "ארנונה", value: arnona },
+    { label: "שירותים", value: utilities },
+  ];
+
+  return (
+    <section className="dashboard-card p-6 md:p-7">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-xl font-black text-slate-900">פירוט עלויות מגורים</h3>
+          <p className="mt-1 text-sm text-slate-500 font-semibold">שכר דירה ועלויות נלוות לנכס</p>
+        </div>
+        <CreditCard size={20} className="text-slate-300" />
+      </div>
+      <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {rows.map((row) => (
+          <div key={row.label} className="rounded-[20px] border border-slate-100 bg-slate-50/70 px-4 py-4">
+            <p className="text-xs font-black text-slate-400">{row.label}</p>
+            <p className="mt-2 text-xl font-black text-slate-900 tabular-nums">₪{row.value.toLocaleString()}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function InsuranceIntentCard({
+  preference,
+  onSelect,
+}: {
+  preference: NonNullable<User["insurancePreference"]>;
+  onSelect: (preference: NonNullable<User["insurancePreference"]>) => void;
+}) {
+  return (
+    <section className="dashboard-card border-blue-100 bg-blue-50/70 p-6 md:p-7">
+      <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h3 className="text-xl font-black text-slate-900">ביטוח דירה לשוכר</h3>
+          <p className="mt-2 text-sm leading-6 text-slate-600 font-semibold">
+            האם תרצה שנציע עבורך פוליסת ביטוח לנכס כחלק מהתהליך הדיגיטלי?
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={() => onSelect("interested")}
+            className={cn(
+              "rounded-[18px] px-4 py-3 text-sm font-black transition-all",
+              preference === "interested"
+                ? "bg-slate-900 text-white"
+                : "border border-slate-200 bg-white text-slate-700",
+            )}
+          >
+            כן, מעניין אותי
+          </button>
+          <button
+            onClick={() => onSelect("declined")}
+            className={cn(
+              "rounded-[18px] px-4 py-3 text-sm font-black transition-all",
+              preference === "declined"
+                ? "bg-slate-900 text-white"
+                : "border border-slate-200 bg-white text-slate-700",
+            )}
+          >
+            לא כרגע
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function DashboardHeader({
   user,
   address,
@@ -268,7 +366,7 @@ function DashboardHeader({
           </h1>
           <div className="mt-2 flex items-center gap-2 text-slate-500 min-w-0">
             <ShieldCheck size={15} className="text-blue-600 shrink-0" />
-            <span className="truncate text-sm font-semibold">{address}</span>
+            <span className="text-sm font-semibold">{address}</span>
           </div>
         </div>
       </div>
@@ -825,8 +923,8 @@ function ServiceCallRow({ call }: { call: ServiceCall }) {
           {statusConfig.icon}
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-black text-slate-900 truncate">{call.title}</p>
-          <p className="mt-1 text-sm text-slate-500 font-semibold truncate">
+          <p className="text-sm font-black text-slate-900">{call.title}</p>
+          <p className="mt-1 text-sm text-slate-500 font-semibold leading-relaxed">
             {mapServiceCategory(call.category)}
           </p>
         </div>

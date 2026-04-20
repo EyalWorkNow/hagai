@@ -1,9 +1,9 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "SF Hebrew", "SF Pro Display", "-apple-system", "BlinkMacSystemFont", "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "SF Hebrew", "SF Pro Display", "Outfit", sans-serif;
+  --font-sans: "Heebo", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Heebo", "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
   --color-slate-50: #F8FAFC;
@@ -27,10 +27,18 @@
 }
 
 @layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
   body {
     @apply bg-slate-50 text-slate-900 antialiased selection:bg-blue-100 selection:text-blue-900;
+    font-family: var(--font-sans);
     direction: rtl;
     text-align: right;
+    -webkit-text-size-adjust: 100%;
   }
 
   input,
@@ -38,6 +46,16 @@
   select {
     direction: rtl;
     text-align: right;
+    font: inherit;
+  }
+
+  img {
+    display: block;
+    max-width: 100%;
+  }
+
+  table {
+    min-width: 100%;
   }
 }
 

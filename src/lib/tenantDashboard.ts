@@ -137,6 +137,12 @@ interface DashboardFacts {
   address: string;
   contract: Contract | null;
   rentAmount: number | null;
+  buildingCommittee: number;
+  arnona: number;
+  utilities: number;
+  totalPaidAmount: number;
+  totalPaidRent: number;
+  totalPaidOther: number;
   failedPayment: Payment | null;
   overduePayment: Payment | null;
   nextPayment: Payment | null;
@@ -302,6 +308,15 @@ function collectFacts(input: TenantDashboardInput, now: Date): DashboardFacts {
     input.property?.address || contract?.propertyAddress || "כתובת הנכס תופיע כאן";
   const rentAmount = input.property?.rent ?? contract?.rentAmount ?? null;
   const payments = sortPaymentsByDate(input.payments);
+  const totalPaidAmount = payments
+    .filter((payment) => payment.status === "paid")
+    .reduce((sum, payment) => sum + payment.amount, 0);
+  const totalPaidRent = payments
+    .filter((payment) => payment.status === "paid" && payment.type === "rent")
+    .reduce((sum, payment) => sum + payment.amount, 0);
+  const totalPaidOther = payments
+    .filter((payment) => payment.status === "paid" && payment.type !== "rent")
+    .reduce((sum, payment) => sum + payment.amount, 0);
   const failedPayment = payments.find((payment) => payment.status === "failed") ?? null;
   const overduePayment =
     payments.find((payment) => isPaymentOverdue(payment, now)) ?? null;
@@ -323,6 +338,12 @@ function collectFacts(input: TenantDashboardInput, now: Date): DashboardFacts {
     address,
     contract,
     rentAmount,
+    buildingCommittee: input.property?.costs?.buildingCommittee ?? 0,
+    arnona: input.property?.costs?.arnona ?? 0,
+    utilities: input.property?.costs?.utilities ?? 0,
+    totalPaidAmount,
+    totalPaidRent,
+    totalPaidOther,
     failedPayment,
     overduePayment,
     nextPayment,
@@ -355,23 +376,14 @@ function buildHero(
   input: TenantDashboardInput,
   now: Date,
 ): TenantHeroViewModel {
-  const amountValue = formatCurrency(
-    facts.failedPayment?.amount ??
-      facts.overduePayment?.amount ??
-      facts.nextPayment?.amount ??
-      facts.currentMonthPaidPayment?.amount ??
-      facts.latestPaidPayment?.amount ??
-      facts.rentAmount ??
-      0,
-  );
+  const amountValue = formatCurrency(facts.totalPaidAmount || 0);
 
   const meta = [
-    { label: "נכס", value: facts.address },
+    { label: "שכר דירה", value: formatCurrency(facts.rentAmount ?? 0) },
+    { label: "ועד בית + ארנונה + שירותים", value: formatCurrency(facts.buildingCommittee + facts.arnona + facts.utilities) },
     {
-      label: "חוזה",
-      value: facts.contract?.endDate
-        ? `עד ${formatDateLabel(facts.contract.endDate)}`
-        : "טרם נקבע מועד סיום",
+      label: "פירוט ששולם",
+      value: `${formatCurrency(facts.totalPaidRent)} שכ\"ד • ${formatCurrency(facts.totalPaidOther)} נלווה`,
     },
   ];
 
@@ -382,7 +394,7 @@ function buildHero(
         badge: "טוען נתוני דייר",
         title: "מכינים עבורך את תמונת המצב",
         description: "המערכת אוספת כרגע את פרטי התשלומים, החוזה והתחזוקה.",
-        amountLabel: "שכר דירה חודשי",
+        amountLabel: "סה\"כ שולם עד כה",
         amountValue,
         meta,
       };
@@ -392,7 +404,7 @@ function buildHero(
         badge: "נדרש רענון",
         title: "לא הצלחנו לטעון את הדשבורד",
         description: "אפשר לנסות שוב בעוד רגע. אם זה נמשך, פנה לתמיכה מתוך ההודעות.",
-        amountLabel: "שכר דירה חודשי",
+        amountLabel: "סה\"כ שולם עד כה",
         amountValue,
         primaryActionLabel: "פתח הודעות",
         primaryAction: "openMessages",
@@ -404,7 +416,7 @@ function buildHero(
         badge: "ממתין להפעלה",
         title: "עדיין אין נתוני שכירות להצגה",
         description: "ברגע שהחוזה והתשלומים יחוברו לחשבון, הכול יופיע כאן בצורה מסודרת.",
-        amountLabel: "שכר דירה חודשי",
+        amountLabel: "סה\"כ שולם עד כה",
         amountValue,
         primaryActionLabel: "צפה במסמכים",
         primaryAction: "openContracts",
@@ -417,7 +429,7 @@ function buildHero(
         title: "נשארו כמה פרטים כדי להפעיל את הדירה",
         description:
           "השלם את שלבי הזיהוי, ההרשאה לחיוב והמסמכים כדי שנוכל להפעיל את החוזה והגבייה בצורה מלאה.",
-        amountLabel: "דמי שכירות שיפעלו לאחר השלמה",
+        amountLabel: "סה\"כ שולם עד כה",
         amountValue,
         primaryActionLabel: "המשך השלמת רישום",
         primaryAction: "openOnboarding",
@@ -436,7 +448,7 @@ function buildHero(
                 input.retryRequest.preferredRetryDate,
               )}.`
             : "הבקשה ממתינה לאישור ונעדכן אותך ברגע שתאושר.",
-        amountLabel: "סכום בבקשת החיוב",
+        amountLabel: "סה\"כ שולם עד כה",
         amountValue,
         primaryActionLabel: "למסך תשלומים",
         primaryAction: "openPayments",
@@ -451,7 +463,7 @@ function buildHero(
           facts.failedPayment?.failureReason
             ? `סיבת הדחייה המעודכנת: ${facts.failedPayment.failureReason}. אפשר לבקש ניסיון חוזר בתאריך שנוח לך.`
             : "אפשר לבחור סיבה, להוסיף הערה ולקבוע ניסיון חיוב חוזר מול הצוות.",
-        amountLabel: "סכום שלא נגבה",
+        amountLabel: "סה\"כ שולם עד כה",
         amountValue,
         primaryActionLabel: "תיאום ניסיון חיוב חוזר",
         primaryAction: "openRetryFlow",
@@ -470,7 +482,7 @@ function buildHero(
                 facts.overduePayment.date,
               )}. מומלץ להסדיר עכשיו כדי למנוע עיכובים נוספים.`
             : "מומלץ להסדיר את היתרה הפתוחה בהקדם.",
-        amountLabel: "יתרה פתוחה",
+        amountLabel: "סה\"כ שולם עד כה",
         amountValue,
         primaryActionLabel: "תיאום ניסיון חיוב חוזר",
         primaryAction: "openRetryFlow",
@@ -489,7 +501,7 @@ function buildHero(
                 facts.nextPayment.date,
               )}. שווה לוודא שיש יתרה מספקת ושפרטי החיוב מעודכנים.`
             : "החיוב הבא צפוי בימים הקרובים.",
-        amountLabel: "סכום לחיוב",
+        amountLabel: "סה\"כ שולם עד כה",
         amountValue,
         primaryActionLabel: "בדיקת פרטי תשלום",
         primaryAction: "openPayments",
@@ -508,7 +520,7 @@ function buildHero(
                 facts.currentMonthPaidPayment.date,
               )} והכול נראה תקין.`
             : "התשלום האחרון נקלט בהצלחה ואין כרגע פעולה דחופה.",
-        amountLabel: "סכום ששולם",
+        amountLabel: "סה\"כ שולם עד כה",
         amountValue,
         primaryActionLabel: "לארכיון תשלומים",
         primaryAction: "openPayments",
@@ -528,7 +540,7 @@ function buildHero(
                 facts.nextPayment.date,
               )}. אין כרגע פעולה דחופה, רק מעקב שוטף.`
             : `החיוב הבא יבוצע כרגיל במהלך ${formatMonthLabel(now)}.`,
-        amountLabel: "סכום לחיוב",
+        amountLabel: "סה\"כ שולם עד כה",
         amountValue,
         primaryActionLabel: "לפרטי תשלומים",
         primaryAction: "openPayments",
@@ -667,14 +679,12 @@ function buildSummaryCard(
         value: formatCurrency(facts.rentAmount ?? 0),
       },
       {
-        label: "סיום חוזה",
-        value: facts.contract?.endDate
-          ? formatDateLabel(facts.contract.endDate)
-          : "טרם עודכן",
+        label: "עלויות נוספות",
+        value: formatCurrency(facts.buildingCommittee + facts.arnona + facts.utilities),
       },
       {
-        label: "אמצעי תשלום",
-        value: input.user.onboardingComplete ? "חיוב אוטומטי מאומת" : "ממתין להשלמה",
+        label: "פירוט",
+        value: `ועד ${facts.buildingCommittee} • ארנונה ${facts.arnona} • שירותים ${facts.utilities}`,
       },
     ],
   };
@@ -734,16 +744,6 @@ function buildDocuments(
       emphasis: input.user.onboardingComplete ? "success" : "warning",
       actionLabel: input.user.onboardingComplete ? "למסמכים" : "להשלמה",
       action: input.user.onboardingComplete ? "openContracts" : "openOnboarding",
-    },
-    {
-      id: "guarantee",
-      label: "ערבות / ביטוח",
-      status: facts.contract?.guaranteeType
-        ? `סוג ערבות: ${mapGuaranteeType(facts.contract.guaranteeType)}`
-        : "פרטי הערבות יוצגו כאן",
-      emphasis: facts.contract?.guaranteeType ? "default" : "warning",
-      actionLabel: "לפרטים",
-      action: "openContracts",
     },
   ];
 }
@@ -819,7 +819,7 @@ function buildNextSteps(
         {
           id: "documents",
           title: "כל המסמכים במקום אחד",
-          description: "החוזה, הערבויות והאישורים מרוכזים במסך המסמכים.",
+          description: "החוזה, אישור החיוב והמסמכים התפעוליים מרוכזים במסך המסמכים.",
           actionLabel: "למסמכים",
           action: "openContracts",
         },
@@ -954,21 +954,6 @@ function formatMonthLabel(value: Date): string {
     month: "long",
     year: "numeric",
   }).format(value);
-}
-
-function mapGuaranteeType(value: Contract["guaranteeType"]): string {
-  switch (value) {
-    case "bank":
-      return "ערבות בנקאית";
-    case "cash":
-      return "פיקדון";
-    case "insurance":
-      return "ביטוח";
-    case "promissory":
-      return "שטר חוב";
-    default:
-      return "לא הוגדר";
-  }
 }
 
 function addDays(date: Date, amount: number): Date {

@@ -89,7 +89,7 @@ export default function App() {
   // 2. Login / Welcome Screen
   if (!user) {
     return (
-      <div className="h-screen w-full overflow-hidden bg-slate-50 flex flex-col">
+      <div className="min-h-screen w-full overflow-x-hidden bg-slate-50 flex flex-col">
         <WelcomeScreen />
       </div>
     );
@@ -109,7 +109,7 @@ export default function App() {
   }
 
   return (
-    <div className="relative flex h-screen bg-slate-100 font-sans text-right selection:bg-blue-100 selection:text-blue-900" dir="rtl">
+    <div className="relative flex min-h-screen flex-col bg-slate-100 font-sans text-right selection:bg-blue-100 selection:text-blue-900 md:h-screen md:flex-row" dir="rtl">
       {isMobileSidebarOpen && (
         <button
           onClick={() => setIsMobileSidebarOpen(false)}
@@ -202,8 +202,8 @@ export default function App() {
                 </div>
                 {isSidebarExpanded && (
                   <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-bold text-slate-900 truncate">{user.name}</p>
-                    <p className="text-[10px] font-medium text-slate-400 truncate tracking-wider">
+                    <p className="text-[13px] font-bold text-slate-900">{user.name}</p>
+                    <p className="text-[10px] font-medium text-slate-400 tracking-wider">
                        {user.role === "admin" ? "מנהל מערכת" : user.role === "landlord" ? "משכיר" : "שוכר"}
                     </p>
                   </div>
@@ -215,10 +215,10 @@ export default function App() {
       </aside>
 
       {/* 5. MAIN CONTENT AREA */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto relative bg-[#F9FBFB]">
+      <main className="flex-1 flex min-w-0 flex-col overflow-y-auto relative bg-[#F9FBFB]">
         
         {/* Top Header Bar */}
-        <header className="h-24 shrink-0 bg-white/70 backdrop-blur-xl border-b border-slate-200/40 flex items-center justify-between px-4 md:px-12 z-20 sticky top-0">
+        <header className="h-24 shrink-0 bg-white/70 backdrop-blur-xl border-b border-slate-200/40 flex items-center justify-between gap-3 px-4 md:px-12 z-20 sticky top-0">
           <div className="flex items-center gap-8 flex-1 min-w-0">
              <div className="relative group max-w-sm w-full hidden lg:block">
                 <Search size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-slate-900 transition-colors" />
@@ -230,7 +230,7 @@ export default function App() {
              </div>
           </div>
 
-          <div className="flex items-center gap-4 md:gap-8">
+          <div className="flex items-center gap-3 md:gap-8">
             <button
               onClick={() => setIsMobileSidebarOpen(true)}
               className="h-12 w-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-lg md:hidden"
@@ -245,9 +245,9 @@ export default function App() {
             <div className="hidden sm:block h-8 w-px bg-slate-200"></div>
             <div className="flex items-center gap-5 shrink-0">
               <div className="text-right hidden sm:block min-w-0">
-                <p className="text-[15px] font-bold text-slate-900 leading-none truncate max-w-[150px] font-display tracking-tight">{user.name}</p>
-                <p className="text-[10px] text-slate-400 font-bold mt-1.5 tracking-wide truncate">
-                  {user.role === "admin" ? "מנהל מערכת" : user.role === "landlord" ? "משכיר" : "שוכר מאומת"}
+                <p className="text-[15px] font-bold text-slate-900 leading-none max-w-[220px] font-display tracking-tight break-words">{user.name}</p>
+                <p className="mt-1.5 text-[10px] text-slate-400 font-bold tracking-wide">
+                  {user.role === "admin" ? "מנהל מערכת" : user.role === "landlord" ? "משכיר" : "שוכר"}
                 </p>
               </div>
               <button className="h-14 w-14 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-900 overflow-hidden hover:border-slate-900 shadow-sm transition-all group">
@@ -260,7 +260,7 @@ export default function App() {
         </header>
 
         {/* Content Scroll Area */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-10 lg:p-16 custom-scrollbar scroll-smooth">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-8 lg:p-12 custom-scrollbar scroll-smooth">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -349,7 +349,7 @@ function SidebarItem({ icon, label, active, onClick, collapsed, children, hasSub
           {icon}
         </span>
         {!collapsed && (
-          <span className="flex-1 min-w-0 truncate text-right text-[13px] font-bold tracking-tight">
+          <span className="flex-1 min-w-0 text-right text-[13px] font-bold tracking-tight">
             {label}
           </span>
         )}
@@ -427,7 +427,7 @@ function MessageUser({ name, avatar, collapsed, online, onClick }: { name: strin
         )} />
       </div>
       {!collapsed && (
-        <span className="flex-1 min-w-0 text-right text-[13px] font-bold text-slate-500 group-hover:text-slate-900 truncate">
+        <span className="flex-1 min-w-0 text-right text-[13px] font-bold text-slate-500 group-hover:text-slate-900">
           {name}
         </span>
       )}
@@ -508,7 +508,7 @@ export function WelcomeScreen() {
   };
 
   return (
-    <div className="flex h-screen w-full bg-white font-sans selection:bg-slate-900 selection:text-white overflow-hidden p-6" dir="rtl">
+    <div className="flex min-h-screen w-full flex-col bg-white font-sans selection:bg-slate-900 selection:text-white overflow-x-hidden p-3 sm:p-4 lg:flex-row lg:overflow-hidden lg:p-6" dir="rtl">
       
       {/* Left Side: Image & Branding (50%) */}
       <div className="hidden lg:flex w-1/2 relative rounded-[40px] overflow-hidden group shadow-2xl">
@@ -519,7 +519,7 @@ export function WelcomeScreen() {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/20 to-transparent"></div>
         
-        <div className="absolute inset-0 flex flex-col justify-end p-20 space-y-8 animate-in fade-in slide-in-from-bottom-10 duration-1000">
+        <div className="absolute inset-0 flex flex-col justify-end p-12 xl:p-20 space-y-8 animate-in fade-in slide-in-from-bottom-10 duration-1000">
           <div className="h-16 w-16 bg-white rounded-2xl flex items-center justify-center text-slate-950 text-3xl font-black italic shadow-2xl rotate-2">R</div>
           
           <div className="space-y-4">
@@ -546,8 +546,8 @@ export function WelcomeScreen() {
       </div>
 
       {/* Right Side: Auth Form (50%) */}
-      <div className="flex-1 flex flex-col items-center justify-center p-8 bg-white relative">
-        <div className="w-full max-w-md space-y-10">
+      <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 lg:p-8 bg-white relative">
+        <div className="w-full max-w-md space-y-8 lg:space-y-10">
           
           <div className="space-y-2">
             <h3 className="text-4xl font-black text-slate-900 tracking-tighter">
@@ -618,7 +618,7 @@ export function WelcomeScreen() {
               <span>התחברות עם Google</span>
             </button>
 
-             <div className="grid grid-cols-2 gap-2 mt-4">
+             <div className="grid grid-cols-1 gap-2 mt-4 sm:grid-cols-2">
                 <DemoBtn label="מנהל" onClick={() => handleDemoLogin("admin@admin.com")} color="bg-slate-100/80 text-slate-900 border border-slate-200" />
                 <DemoBtn label="משכיר" onClick={() => handleDemoLogin("landlord@landlord.com")} color="bg-slate-100/80 text-slate-900 border border-slate-200" />
                 <DemoBtn label="דייר מאושר" onClick={() => handleDemoLogin("tenant@tenant.com")} color="bg-blue-50 text-blue-700 border border-blue-100" />
@@ -677,13 +677,13 @@ function AuthInput({ label, icon, value, onChange, placeholder, type = "text" }:
 
 function RoleSelection({ onSelect }: { onSelect: (role: Role) => void }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-8 text-right font-sans selection:bg-slate-900 selection:text-white" dir="rtl">
-      <div className="w-full max-w-6xl space-y-20 animate-in zoom-in-95 duration-500 py-12">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4 md:p-8 text-right font-sans selection:bg-slate-900 selection:text-white" dir="rtl">
+      <div className="w-full max-w-6xl space-y-12 md:space-y-20 animate-in zoom-in-95 duration-500 py-8 md:py-12">
         <div className="text-center space-y-6">
-          <h1 className="text-6xl md:text-8xl font-black text-slate-900 tracking-tighter leading-tight italic font-display">
+          <h1 className="text-4xl sm:text-5xl md:text-8xl font-black text-slate-900 tracking-tighter leading-tight italic font-display">
             הבית שלך ב-<span className="text-blue-600">שליטה מלאה</span>
           </h1>
-          <p className="text-xl md:text-2xl text-slate-400 font-bold max-w-3xl mx-auto leading-relaxed italic">
+          <p className="text-lg md:text-2xl text-slate-400 font-bold max-w-3xl mx-auto leading-relaxed italic">
             ברוכים הבאים ל-RentFlow. ניהול שכירות מתקדם, שקוף ומאובטח לכל הצדדים מעולם לא היה פשוט כל כך.
           </p>
         </div>
@@ -727,7 +727,7 @@ function RoleCard({ title, desc, onSelect, color, icon }: any) {
   return (
     <button 
       onClick={onSelect}
-      className="group relative h-[450px] overflow-hidden rounded-[40px] bg-white p-12 text-right shadow-2xl transition-all hover:scale-[1.02] hover:-translate-y-3 border border-slate-100 flex flex-col justify-between items-start"
+      className="group relative min-h-[340px] md:h-[450px] overflow-hidden rounded-[40px] bg-white p-8 md:p-12 text-right shadow-2xl transition-all hover:scale-[1.02] hover:-translate-y-3 border border-slate-100 flex flex-col justify-between items-start"
     >
       <div className={cn("absolute top-0 right-0 h-3 w-full", color)}></div>
       <div className={cn("h-20 w-20 rounded-[28px] flex items-center justify-center text-white shadow-2xl shadow-current/20 transition-all group-hover:scale-110 group-hover:rotate-6 bg-slate-900", color)}>
@@ -748,7 +748,7 @@ function RoleCard({ title, desc, onSelect, color, icon }: any) {
 
 function LoadingScreen() {
   return (
-    <div className="flex h-screen flex-col items-center justify-center bg-slate-950 text-white font-sans overflow-hidden" dir="rtl">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-950 text-white font-sans overflow-hidden px-4" dir="rtl">
        {/* Background Elements */}
        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full pointer-events-none">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[600px] w-[600px] bg-blue-600/10 blur-[180px] rounded-full animate-pulse"></div>

@@ -125,7 +125,7 @@ function PhotoCard({ photo }: any) {
       
       {/* Content Info */}
       <div className="p-5">
-        <p className="font-black text-slate-900 text-sm tracking-tight truncate">{photo.title}</p>
+        <p className="font-black text-slate-900 text-sm tracking-tight">{photo.title}</p>
         <div className="flex items-center gap-2 mt-2">
           <Calendar size={12} className="text-slate-400" />
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{photo.date}</p>

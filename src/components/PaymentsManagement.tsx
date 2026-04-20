@@ -1,4 +1,4 @@
-import { useState, useEffect, ReactNode } from "react";
+import { useState, useMemo, ReactNode } from "react";
 import { 
   CreditCard, 
   DollarSign, 
@@ -7,43 +7,34 @@ import {
   AlertTriangle, 
   CheckCircle2, 
   History,
-  TrendingDown,
-  ArrowUpRight,
   TrendingUp,
   CreditCard as CardsIcon,
   Clock
 } from "lucide-react";
-import { User, Payment } from "../types";
+import { User } from "../types";
 import { cn } from "../lib/utils";
-import { db, handleFirestoreError, OperationType } from "../firebase";
-import { collection, query, where, onSnapshot, orderBy } from "firebase/firestore";
+import { useAppData } from "../lib/appData";
 
 /**
  * PaymentsManagement Component
  */
 export default function PaymentsManagement({ user }: { user: User }) {
   const [activeTab, setActiveTab] = useState<"history" | "future" | "debts">("history");
-  const [payments, setPayments] = useState<Payment[]>([]);
+  const { db: appDb } = useAppData();
 
-  // 1. Fetch Payments from Firestore
-  useEffect(() => {
-    if (!user.id) return;
-
-    let payQuery;
+  // Filter payments from local DB based on user role
+  const payments = useMemo(() => {
+    const all = appDb.payments;
+    let filtered;
     if (user.role === "admin") {
-      payQuery = query(collection(db, "payments"), orderBy("date", "desc"));
+      filtered = all;
     } else if (user.role === "landlord") {
-      payQuery = query(collection(db, "payments"), where("landlordId", "==", user.id), orderBy("date", "desc"));
+      filtered = all.filter((p) => p.landlordId === user.id);
     } else {
-      payQuery = query(collection(db, "payments"), where("tenantId", "==", user.id), orderBy("date", "desc"));
+      filtered = all.filter((p) => p.tenantId === user.id);
     }
-
-    const unsubscribe = onSnapshot(payQuery, (snapshot) => {
-      setPayments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Payment[]);
-    }, (err) => handleFirestoreError(err, OperationType.LIST, "payments"));
-
-    return () => unsubscribe();
-  }, [user.id]);
+    return [...filtered].sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
+  }, [appDb.payments, user.id, user.role]);
 
   const totalCollected = payments.filter(p => p.status === "paid").reduce((acc, p) => acc + p.amount, 0);
   const pendingAmount = payments.filter(p => p.status === "pending").reduce((acc, p) => acc + p.amount, 0);
@@ -58,7 +49,7 @@ export default function PaymentsManagement({ user }: { user: User }) {
           <h1 className="text-3xl font-black text-slate-900 tracking-tighter">ניהול כספים וגבייה</h1>
           <p className="text-slate-500 text-sm font-medium mt-1">פירוט תזרים מזומנים, היסטוריית תשלומים וייצוא דוחות</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
           <button className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-xs font-black text-slate-600 hover:bg-slate-50 shadow-sm transition-all active:scale-95 uppercase tracking-widest">
             <Download size={18} />
             <span>ייצוא דוח שנתי</span>
@@ -73,7 +64,7 @@ export default function PaymentsManagement({ user }: { user: User }) {
       </div>
 
       {/* 2. TAB NAVIGATION */}
-      <div className="flex border-b border-slate-200">
+      <div className="flex overflow-x-auto border-b border-slate-200 no-scrollbar">
         <TabButton active={activeTab === "history"} onClick={() => setActiveTab("history")} label="היסטוריית תשלומים" />
         <TabButton active={activeTab === "future"} onClick={() => setActiveTab("future")} label="תשלומים צפויים" />
         <TabButton active={activeTab === "debts"} onClick={() => setActiveTab("debts")} label="חובות ופיגורים" />
@@ -104,7 +95,8 @@ export default function PaymentsManagement({ user }: { user: User }) {
           </div>
 
           <div className="rounded-2xl bg-white shadow-sleek border border-slate-200 overflow-hidden">
-            <table className="w-full text-right">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] text-right">
               <thead className="bg-slate-50/50 border-b border-slate-200 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                 <tr>
                   <th className="px-8 py-5">תאריך ביצוע</th>
@@ -120,6 +112,7 @@ export default function PaymentsManagement({ user }: { user: User }) {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       )}
@@ -128,10 +121,10 @@ export default function PaymentsManagement({ user }: { user: User }) {
         <div className="space-y-8 animate-in zoom-in-95 duration-500">
           {/* Debt Summary Banner */}
           <div className={cn(
-            "rounded-2xl border p-10 flex flex-col md:flex-row items-center justify-between shadow-sm",
+            "rounded-2xl border p-6 md:p-10 flex flex-col md:flex-row items-center justify-between shadow-sm",
             unpaidCount > 0 ? "bg-red-50 border-red-100" : "bg-gradient-to-br from-green-50 to-blue-50 border-blue-100"
           )}>
-            <div className="flex gap-6 items-center">
+            <div className="flex flex-col gap-4 text-center md:flex-row md:items-center md:text-right">
               <div className={cn(
                 "h-16 w-16 rounded-2xl bg-white shadow-sleek flex items-center justify-center border",
                 unpaidCount > 0 ? "text-red-500 border-red-100" : "text-green-500 border-green-100"

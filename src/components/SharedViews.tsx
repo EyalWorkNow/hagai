@@ -928,10 +928,10 @@ export function ChatUI({ user }: { user: User }) {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-black text-slate-900">
+                    <p className="text-sm font-black text-slate-900">
                       {topic.title}
                     </p>
-                    <p className="mt-1 truncate text-xs font-semibold text-slate-500">
+                    <p className="mt-1 text-xs font-semibold text-slate-500 leading-relaxed">
                       {topicCounterparty?.name || "מערכת RentFlow"}
                     </p>
                   </div>
@@ -1330,8 +1330,8 @@ function MiniRow({
   return (
     <div className="flex items-center justify-between gap-4 rounded-[22px] border border-slate-100 bg-slate-50/70 p-4">
       <div className="min-w-0">
-        <p className="truncate text-sm font-black text-slate-900">{title}</p>
-        <p className="mt-1 truncate text-xs font-semibold text-slate-500">{subtitle}</p>
+        <p className="text-sm font-black text-slate-900">{title}</p>
+        <p className="mt-1 text-xs font-semibold text-slate-500 leading-relaxed">{subtitle}</p>
       </div>
       <span className="shrink-0 text-lg font-black text-slate-900">{value}</span>
     </div>

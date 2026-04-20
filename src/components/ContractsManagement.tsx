@@ -1,4 +1,4 @@
-import { useState, useEffect, ReactNode } from "react";
+import { useMemo, useState, ReactNode } from "react";
 import { 
   FileText, 
   Download, 
@@ -16,6 +16,7 @@ import {
 import { User, Contract, Property } from "../types";
 import { cn } from "../lib/utils";
 import { useAppData } from "../lib/appData";
+import { formatCurrencyCompact } from "../lib/analytics";
 
 /**
  * ContractsManagement Component
@@ -23,12 +24,44 @@ import { useAppData } from "../lib/appData";
 export default function ContractsManagement({ user }: { user: User }) {
   const { db, signContract, createContract } = useAppData();
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const contracts = db.contracts.filter((contract) => {
+
+  const contracts = useMemo(() => db.contracts.filter((contract) => {
     if (user.role === "admin") return true;
     if (user.role === "landlord") return contract.landlordId === user.id;
     return contract.tenantId === user.id;
-  });
-  const landlordProperties = db.properties.filter((property) => property.landlordId === user.id);
+  }), [db.contracts, user.id, user.role]);
+
+  const landlordProperties = useMemo(() =>
+    user.role === "admin"
+      ? db.properties
+      : db.properties.filter((property) => property.landlordId === user.id),
+    [db.properties, user.id, user.role]);
+
+  const contractMetrics = useMemo(() => {
+    const active = contracts.filter((contract) => contract.status === "active");
+    const waitingSignature = contracts.filter((contract) => contract.status === "waiting_signature");
+    const guarantees = contracts.reduce<Record<string, number>>((acc, contract) => {
+      acc[contract.guaranteeType || "none"] = (acc[contract.guaranteeType || "none"] || 0) + 1;
+      return acc;
+    }, {});
+    const linkedTransactions = db.transactions.filter((transaction) =>
+      contracts.some((contract) => contract.id === transaction.contractId),
+    );
+    const totalRent = contracts.reduce((sum, contract) => sum + contract.rentAmount, 0);
+    return {
+      total: contracts.length,
+      active: active.length,
+      waitingSignature,
+      linkedTransactionCount: linkedTransactions.length,
+      linkedTransactionVolume: linkedTransactions.reduce((sum, transaction) => sum + transaction.amount, 0),
+      totalRent,
+      insuranceGuarantees: guarantees.insurance || 0,
+      bankGuarantees: guarantees.bank || 0,
+      promissoryGuarantees: guarantees.promissory || 0,
+    };
+  }, [contracts, db.transactions]);
+  const latestSignatureRequest = contractMetrics.waitingSignature[0] || null;
+  const versionTemplates = db.contractTemplates;
 
   // Sign Document Logic
   const handleSignDoc = async (contractId: string) => {
@@ -47,7 +80,9 @@ export default function ContractsManagement({ user }: { user: User }) {
            </div>
            <div>
              <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter italic font-display leading-tight">ניהול חוזים והסכמים</h1>
-             <p className="text-slate-400 font-bold mt-2 text-[13px] tracking-[0.08em]">ארכיון דיגיטלי • חתימות מחייבות משפטית • מעקב ערבויות</p>
+             <p className="text-slate-400 font-bold mt-2 text-[13px] tracking-[0.08em]">
+               {contractMetrics.total.toLocaleString("he-IL")} חוזים • {contractMetrics.linkedTransactionCount.toLocaleString("he-IL")} עסקאות משויכות • ארכיון משפטי פעיל
+             </p>
            </div>
         </div>
         {user.role !== "tenant" && (
@@ -61,14 +96,14 @@ export default function ContractsManagement({ user }: { user: User }) {
         )}
       </div>
 
-      <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
+      <div className="grid gap-8 md:gap-10 lg:grid-cols-[1.1fr_0.9fr]">
         
         {/* 2. MAIN LIST - Contracts & Insurance */}
         <div className="space-y-10">
           
           {/* Contracts List Table */}
           <div className="rounded-[32px] bg-white shadow-sleek border border-slate-200 overflow-hidden relative">
-            <div className="p-8 border-b border-slate-100 flex items-center justify-between">
+            <div className="p-6 md:p-8 border-b border-slate-100 flex items-center justify-between">
               <h2 className="text-2xl font-black text-slate-900 tracking-tight italic font-display flex items-center gap-4">
                  <div className="h-8 w-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center">
                    <FileText size={18} />
@@ -79,7 +114,7 @@ export default function ContractsManagement({ user }: { user: User }) {
             
             <div className="overflow-x-auto">
               {contracts.length > 0 ? (
-                <table className="w-full text-right">
+                <table className="w-full min-w-[720px] text-right">
                   <thead className="bg-slate-50/80 text-[10px] font-black text-slate-400 uppercase tracking-[0.16em] border-b border-slate-100">
                     <tr>
                       <th className="px-8 py-5">נכס ותקופה</th>
@@ -117,17 +152,28 @@ export default function ContractsManagement({ user }: { user: User }) {
             
             <div className="grid gap-6 sm:grid-cols-2 relative z-10">
               <GuaranteeCard 
-                label="ערבות בנקאית / פיקדון" 
-                value="₪19,500" 
-                status="מוחזק בנאמנות" 
+                label="חוזים פעילים" 
+                value={contractMetrics.active.toLocaleString("he-IL")} 
+                status={`שכירות חודשית כוללת ${formatCurrencyCompact(contractMetrics.totalRent)}`} 
                 icon={<Lock size={20} />} 
               />
               <GuaranteeCard 
-                label="פוליסת ביטוח" 
-                value="הראל #22934" 
-                status="בתוקף עד 01/2025" 
+                label="נפח עסקאות משויך לחוזים" 
+                value={formatCurrencyCompact(contractMetrics.linkedTransactionVolume)} 
+                status={`${contractMetrics.linkedTransactionCount.toLocaleString("he-IL")} עסקאות משויכות`} 
                 icon={<ShieldCheck size={20} />} 
-                isDownloadable 
+              />
+              <GuaranteeCard 
+                label="ערבויות ביטוח" 
+                value={contractMetrics.insuranceGuarantees.toLocaleString("he-IL")} 
+                status="חוזים עם ביטוח ערבות פעיל" 
+                icon={<ShieldCheck size={20} />} 
+              />
+              <GuaranteeCard 
+                label="ערבויות בנקאיות ושטרי חוב" 
+                value={(contractMetrics.bankGuarantees + contractMetrics.promissoryGuarantees).toLocaleString("he-IL")} 
+                status="מכסה בנקאית והתחייבויות חוזיות" 
+                icon={<Lock size={20} />} 
               />
             </div>
           </div>
@@ -137,7 +183,7 @@ export default function ContractsManagement({ user }: { user: User }) {
         <div className="space-y-10">
           
           {/* Digital Signature Promotion/Action */}
-          <div className="rounded-[32px] bg-slate-950 p-10 text-white shadow-2xl relative overflow-hidden group border border-white/5">
+          <div className="rounded-[32px] bg-slate-950 p-6 md:p-10 text-white shadow-2xl relative overflow-hidden group border border-white/5">
             <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/20 blur-[100px] rounded-full mix-blend-screen transition-all group-hover:bg-blue-500/30"></div>
             <div className="absolute bottom-0 left-0 w-40 h-40 bg-purple-600/20 blur-[80px] rounded-full mix-blend-screen"></div>
             
@@ -158,17 +204,22 @@ export default function ContractsManagement({ user }: { user: User }) {
                     <Clock size={24} className="animate-pulse" />
                   </div>
                   <div>
-                    <p className="text-[15px] font-black text-white leading-none tracking-tight">ממתין לחתימה</p>
-                    <p className="text-[11px] text-slate-400 mt-2 font-bold max-w-[200px] truncate">נספח שינויים (סעיף בעלי חיים) - רוטשילד 42</p>
+                    <p className="text-[15px] font-black text-white leading-none tracking-tight">
+                      {latestSignatureRequest ? "ממתין לחתימה" : "אין מסמכים פתוחים לחתימה"}
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-2 font-bold max-w-[240px] leading-relaxed">
+                      {latestSignatureRequest
+                        ? `${latestSignatureRequest.propertyAddress || latestSignatureRequest.propertyId} • ${latestSignatureRequest.tenantName || "שוכר לא הוגדר"}`
+                        : `${contractMetrics.active.toLocaleString("he-IL")} חוזים פעילים כבר חתומים במערכת`}
+                    </p>
                   </div>
                 </div>
               </div>
               
-              {contracts.some(c => c.status === "waiting_signature" && (user.role === "admin" || (user.role === "tenant" && c.tenantId === user.id) || (user.role === "landlord" && c.landlordId === user.id))) && (
+              {latestSignatureRequest && (
                 <button 
                   onClick={() => {
-                    const pending = contracts.find(c => c.status === "waiting_signature");
-                    if (pending) handleSignDoc(pending.id);
+                    handleSignDoc(latestSignatureRequest.id);
                   }}
                   className="w-full py-5 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-2xl transition-all shadow-[0_0_40px_rgba(37,99,235,0.3)] hover:shadow-[0_0_60px_rgba(37,99,235,0.5)] active:scale-95 text-xs uppercase tracking-[0.16em] leading-none border border-blue-400/50"
                 >
@@ -185,7 +236,9 @@ export default function ContractsManagement({ user }: { user: User }) {
               <span>היסטוריית גרסאות משפטיות</span>
             </h2>
             <div className="space-y-3">
-              {[1, 2].map(i => <VersionItem key={i} version={3-i} />)}
+              {versionTemplates.map((template) => (
+                <VersionItem key={template.id} template={template} />
+              ))}
             </div>
           </div>
         </div>
@@ -255,9 +308,9 @@ function CreateContractModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 text-right" dir="rtl">
-      <div className="w-full max-w-2xl rounded-3xl bg-white p-10 shadow-2xl animate-in zoom-in-95 duration-200 h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-8">
-          <h2 className="text-3xl font-black text-slate-900 italic tracking-tighter">יצירת הסכם שכירות חדש</h2>
+      <div className="w-full max-w-2xl rounded-3xl bg-white p-5 sm:p-8 md:p-10 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+        <div className="mb-8 flex items-start justify-between gap-4">
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-900 italic tracking-tighter">יצירת הסכם שכירות חדש</h2>
           <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
             <X size={24} className="text-slate-400" />
           </button>
@@ -301,7 +354,7 @@ function CreateContractModal({
           </div>
         </div>
 
-        <div className="flex gap-4 mt-10">
+        <div className="mt-10 flex flex-col-reverse sm:flex-row gap-4">
           <button onClick={onClose} className="flex-1 py-4 text-sm font-black text-slate-400 hover:text-slate-900">ביטול</button>
           <button onClick={handleSubmit} disabled={isSubmitting} className="flex-[2] py-4 bg-blue-600 text-white rounded-2xl font-black shadow-sleek-blue hover:bg-blue-700 transition-all">
              {isSubmitting ? "מייצר הסכם..." : "שלח לחתימה דיגיטלית"}
@@ -404,7 +457,7 @@ function GuaranteeCard({ label, value, status, icon, isDownloadable = false }: a
   );
 }
 
-function VersionItem({ version }: any) {
+function VersionItem({ template }: any) {
   return (
     <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50/50 hover:bg-white border border-transparent hover:border-slate-200 hover:shadow-sm transition-all group cursor-pointer">
       <div className="flex items-center gap-4">
@@ -412,8 +465,8 @@ function VersionItem({ version }: any) {
           <History size={18} />
         </div>
         <div className="text-right">
-          <p className="text-[13px] font-black text-slate-900 tracking-tight leading-none">גרסה שנתית v{version}.0</p>
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1.5">עדכון אחרון: 15/05/2024</p>
+          <p className="text-[13px] font-black text-slate-900 tracking-tight leading-none">{template.name}</p>
+          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1.5">{template.version} • {template.summary}</p>
         </div>
       </div>
       <button className="h-10 w-10 rounded-xl border border-slate-200 bg-white flex items-center justify-center text-slate-300 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-all opacity-0 group-hover:opacity-100 translate-x-2 group-hover:translate-x-0">

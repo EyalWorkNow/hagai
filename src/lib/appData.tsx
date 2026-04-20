@@ -1,21 +1,25 @@
 import { ReactNode, createContext, useContext, useEffect, useState } from "react";
-import seedDb from "../data/rentflow-db.json";
 import {
   ChatMessage,
   Contract,
   DocumentRecord,
+  IntegrationRecord,
   Payment,
   PaymentRetryRequest,
+  PlatformTransaction,
   Property,
   RentflowDb,
   Role,
   ServiceCall,
   SessionState,
+  SupportIssue,
   User,
 } from "../types";
 
-const DB_STORAGE_KEY = "rentflow-json-db";
+const DB_STORAGE_KEY = "rentflow-json-db-v2";
 const SESSION_STORAGE_KEY = "rentflow-session";
+const STORAGE_WARNING =
+  "נפח הנתונים המקומי חרג ממגבלת הדפדפן. המערכת ממשיכה לעבוד, אך שינויים כבדים לא יישמרו מקומית.";
 
 type RegisterPayload = {
   name: string;
@@ -126,8 +130,202 @@ type AppDataContextValue = {
 
 const AppDataContext = createContext<AppDataContextValue | null>(null);
 
-function createSeedDb(): RentflowDb {
-  return structuredClone(seedDb as RentflowDb);
+// Minimal empty DB used while the real DB is loading asynchronously.
+// All arrays are empty so any filter / find returns safely.
+const EMPTY_DB: RentflowDb = {
+  users: [], authAccounts: [], properties: [], contracts: [],
+  payments: [], transfers: [], serviceRequests: [], serviceCalls: [],
+  documents: [], notifications: [], messageTopics: [], messages: [],
+  onboardingInvites: [], eligibilityChecks: [], integrations: [],
+  transactions: [], supportIssues: [], contractTemplates: [], legalCases: [],
+  retryRequests: [], utilityCharges: [], meta: { version: "1.0" },
+} as unknown as RentflowDb;
+
+function buildDefaultIntegrations(): IntegrationRecord[] {
+  return [
+    {
+      id: "integration_yad2",
+      provider: "yad2",
+      status: "connected",
+      syncHealth: "completed",
+      lastSyncAt: "2026-04-20T08:00:00.000Z",
+      transactionCount: 14,
+      revenue: 15200,
+    },
+    {
+      id: "integration_midrag",
+      provider: "midrag",
+      status: "connected",
+      syncHealth: "in_progress",
+      lastSyncAt: "2026-04-20T07:45:00.000Z",
+      transactionCount: 9,
+      revenue: 9800,
+    },
+    {
+      id: "integration_insurance",
+      provider: "insurance",
+      status: "warning",
+      syncHealth: "pending",
+      lastSyncAt: "2026-04-19T18:30:00.000Z",
+      transactionCount: 11,
+      revenue: 20000,
+    },
+  ];
+}
+
+function buildDefaultTransactions(db: RentflowDb): PlatformTransaction[] {
+  return [
+    {
+      id: "txn_1",
+      propertyId: db.properties[0]?.id,
+      contractId: db.contracts[0]?.id,
+      paymentId: db.payments[0]?.id,
+      provider: "insurance",
+      channel: "commercial_real_estate",
+      status: "completed",
+      amount: 6200,
+      revenue: 950,
+      createdAt: "2026-04-01T08:00:00.000Z",
+    },
+    {
+      id: "txn_2",
+      propertyId: db.properties[0]?.id,
+      contractId: db.contracts[0]?.id,
+      paymentId: db.payments[1]?.id,
+      provider: "midrag",
+      channel: "maintenance_companies",
+      status: "in_progress",
+      amount: 1800,
+      revenue: 420,
+      createdAt: "2026-04-08T10:00:00.000Z",
+    },
+    {
+      id: "txn_3",
+      propertyId: db.properties[2]?.id,
+      contractId: db.contracts[1]?.id,
+      provider: "yad2",
+      channel: "foreign_resident_agencies",
+      status: "pending",
+      amount: 7200,
+      revenue: 680,
+      createdAt: "2026-04-12T11:00:00.000Z",
+    },
+    {
+      id: "txn_4",
+      propertyId: db.properties[1]?.id,
+      contractId: db.contracts[2]?.id,
+      paymentId: db.payments[2]?.id,
+      provider: "insurance",
+      channel: "commercial_real_estate",
+      status: "completed",
+      amount: 8400,
+      revenue: 1100,
+      createdAt: "2026-04-15T09:30:00.000Z",
+    },
+    {
+      id: "txn_5",
+      propertyId: db.properties[1]?.id,
+      provider: "midrag",
+      channel: "maintenance_companies",
+      status: "completed",
+      amount: 2400,
+      revenue: 370,
+      createdAt: "2026-04-17T13:00:00.000Z",
+    },
+    {
+      id: "txn_6",
+      propertyId: db.properties[3]?.id,
+      contractId: db.contracts[3]?.id,
+      provider: "yad2",
+      channel: "foreign_resident_agencies",
+      status: "in_progress",
+      amount: 7800,
+      revenue: 760,
+      createdAt: "2026-04-18T16:30:00.000Z",
+    },
+  ];
+}
+
+function buildDefaultSupportIssues(): SupportIssue[] {
+  return [
+    {
+      id: "issue_1",
+      source: "insurance",
+      title: "עיכוב בוובהוק של ספק הביטוח",
+      severity: "high",
+      status: "open",
+      createdAt: "2026-04-19T14:00:00.000Z",
+    },
+    {
+      id: "issue_2",
+      source: "midrag",
+      title: "אי התאמה בסנכרון הציונים ממידרג",
+      severity: "medium",
+      status: "open",
+      createdAt: "2026-04-18T11:20:00.000Z",
+    },
+    {
+      id: "issue_3",
+      source: "platform",
+      title: "תיקון חירום לאגרגציית הספר הראשי",
+      severity: "low",
+      status: "resolved",
+      createdAt: "2026-04-16T09:00:00.000Z",
+    },
+  ];
+}
+
+function normalizeDb(rawDb: RentflowDb): RentflowDb {
+  // Use shallow spread instead of structuredClone to avoid deep-copying the entire 11MB JSON.
+  // We then spread arrays that need mutation so originals are not modified.
+  const db: RentflowDb = { ...rawDb };
+
+  db.properties = db.properties.map((property, index) => ({
+    ...property,
+    costs:
+      property.costs ??
+      [
+        { buildingCommittee: 380, arnona: 540, utilities: 460 },
+        { buildingCommittee: 520, arnona: 690, utilities: 610 },
+        { buildingCommittee: 300, arnona: 470, utilities: 380 },
+        { buildingCommittee: 410, arnona: 560, utilities: 430 },
+      ][index % 4],
+    insuranceOffered: property.insuranceOffered ?? property.tenantId !== undefined,
+  }));
+
+  db.users = db.users.map((user) => ({
+    ...user,
+    insurancePreference:
+      user.insurancePreference ?? (user.role === "tenant" ? "undecided" : undefined),
+  }));
+
+  db.integrations = db.integrations ?? buildDefaultIntegrations();
+  db.transactions = db.transactions ?? buildDefaultTransactions(db);
+  db.supportIssues = db.supportIssues ?? buildDefaultSupportIssues();
+
+  return db;
+}
+
+async function loadSeedDbAsync(): Promise<RentflowDb> {
+  const response = await fetch("/rentflow-db.json");
+  const seedDb = await response.json();
+  return normalizeDb(seedDb as RentflowDb);
+}
+
+async function loadDbStateAsync(): Promise<RentflowDb> {
+  const seededDb = await loadSeedDbAsync();
+  const storedDb = loadStoredValue<RentflowDb | null>(DB_STORAGE_KEY, null);
+
+  if (!storedDb) {
+    return seededDb;
+  }
+
+  return normalizeDb({
+    ...seededDb,
+    ...storedDb,
+    meta: storedDb.meta ?? seededDb.meta,
+    transactions: seededDb.transactions,
+  });
 }
 
 function loadStoredValue<T>(key: string, fallback: T): T {
@@ -143,8 +341,24 @@ function loadStoredValue<T>(key: string, fallback: T): T {
 
 function persistValue<T>(key: string, value: T) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(key, JSON.stringify(value));
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "QuotaExceededError") {
+      console.warn(STORAGE_WARNING);
+      return;
+    }
+    throw error;
+  }
 }
+
+function buildPersistableDbSnapshot(db: RentflowDb): RentflowDb {
+  return {
+    ...db,
+    transactions: [],
+  };
+}
+
 
 function findUser(db: RentflowDb, userId: string) {
   return db.users.find((user) => user.id === userId) ?? null;
@@ -214,31 +428,51 @@ function pushMessage(db: RentflowDb, message: ChatMessage) {
 }
 
 export function AppDataProvider({ children }: { children: ReactNode }) {
-  const [db, setDb] = useState<RentflowDb>(() =>
-    loadStoredValue<RentflowDb>(DB_STORAGE_KEY, createSeedDb()),
-  );
+  const [db, setDb] = useState<RentflowDb>(EMPTY_DB);
   const [session, setSession] = useState<SessionState>(() =>
     loadStoredValue<SessionState>(SESSION_STORAGE_KEY, { userId: null }),
   );
   const [isReady, setIsReady] = useState(false);
 
+  // Async DB initialization — avoids blocking the main thread on first render.
+  // We REMOVE any stale snapshot before loading so an old EMPTY_DB save never
+  // overwrites the seed data on subsequent visits.
   useEffect(() => {
-    persistValue(DB_STORAGE_KEY, db);
-  }, [db]);
+    // Clear any snapshot that was saved while db === EMPTY_DB (race condition guard)
+    const staleSnapshot = loadStoredValue<Record<string, unknown> | null>(DB_STORAGE_KEY, null);
+    const isStaleEmpty =
+      staleSnapshot &&
+      Array.isArray((staleSnapshot as any).authAccounts) &&
+      (staleSnapshot as any).authAccounts.length === 0;
+    if (isStaleEmpty) {
+      try { window.localStorage.removeItem(DB_STORAGE_KEY); } catch { /* ignore */ }
+    }
+
+    loadDbStateAsync().then((loadedDb) => {
+      setDb(loadedDb);
+      setIsReady(true);
+    });
+  }, []);
+
+  // Only persist AFTER the real DB is loaded (isReady gate prevents saving EMPTY_DB)
+  useEffect(() => {
+    if (isReady && db !== EMPTY_DB) {
+      persistValue(DB_STORAGE_KEY, buildPersistableDbSnapshot(db));
+    }
+  }, [db, isReady]);
 
   useEffect(() => {
     persistValue(SESSION_STORAGE_KEY, session);
   }, [session]);
 
-  useEffect(() => {
-    setIsReady(true);
-  }, []);
-
   const currentUser = session.userId ? findUser(db, session.userId) : null;
 
   const applyDbUpdate = (updater: (nextDb: RentflowDb) => void) => {
     setDb((previousDb) => {
-      const nextDb = structuredClone(previousDb);
+      // Shallow-clone only the top-level DB object so React sees a new reference,
+      // then mutate arrays in-place inside the updater. This avoids deep-copying
+      // the entire multi-MB dataset on every action.
+      const nextDb: RentflowDb = { ...(previousDb ?? EMPTY_DB) };
       updater(nextDb);
       return nextDb;
     });
@@ -292,13 +526,15 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   };
 
   const resetDatabase = () => {
-    setDb(createSeedDb());
-    if (session.userId) {
-      const nextUser = createSeedDb().users.find((user) => user.id === session.userId);
-      if (!nextUser) {
-        setSession({ userId: null });
+    loadSeedDbAsync().then((freshDb) => {
+      setDb(freshDb);
+      if (session.userId) {
+        const nextUser = freshDb.users.find((user) => user.id === session.userId);
+        if (!nextUser) {
+          setSession({ userId: null });
+        }
       }
-    }
+    });
   };
 
   const updateUser = (userId: string, patch: Partial<User>) => {
@@ -743,6 +979,12 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       Object.assign(serviceCall, patch);
       if (patch.status === "closed") {
         serviceCall.closedAt = nowIso();
+      } else if ("status" in patch) {
+        serviceCall.closedAt = undefined;
+      }
+      if ("vendorId" in patch && !patch.vendorId) {
+        serviceCall.vendorId = undefined;
+        serviceCall.assignedVendor = undefined;
       }
       if (patch.vendorId) {
         const vendor = nextDb.vendors.find((item) => item.id === patch.vendorId);
@@ -822,7 +1064,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   return (
     <AppDataContext.Provider
       value={{
-        db,
+        db: db ?? EMPTY_DB,
         currentUser,
         isReady,
         login,

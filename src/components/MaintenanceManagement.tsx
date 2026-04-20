@@ -39,6 +39,9 @@ export default function MaintenanceManagement({ user }: { user: User }) {
     if (user.role === "landlord") return serviceCall.landlordId === user.id;
     return serviceCall.tenantId === user.id;
   });
+  const partnerIntegrations = db.integrations.filter(
+    (integration) => integration.provider === "midrag" || integration.provider === "yad2",
+  );
 
   // Update Call Logic
   const handleUpdateCall = async (callId: string, data: Partial<ServiceCall>) => {
@@ -49,9 +52,9 @@ export default function MaintenanceManagement({ user }: { user: User }) {
     <div className="space-y-8 animate-in fade-in duration-500 text-right" dir="rtl">
       
       {/* 1. PAGE HEADER */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-4xl font-black text-slate-900 tracking-tighter italic">מרכז שירות ותחזוקה</h1>
+          <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tighter italic">מרכז שירות ותחזוקה</h1>
           <p className="text-slate-500 text-xs font-black mt-1 uppercase tracking-widest leading-none">ניהול תקלות • Marketplace בעלי מקצוע • בקרה ואיכות</p>
         </div>
         {user.role === "tenant" && (
@@ -70,8 +73,8 @@ export default function MaintenanceManagement({ user }: { user: User }) {
         {/* 2. ACTIVE SERVICE CALLS (Main Feed) */}
         <div className="lg:col-span-8 space-y-10">
           
-          <div className="rounded-3xl bg-white p-10 shadow-sleek border border-slate-200">
-             <div className="flex items-center justify-between mb-10">
+          <div className="rounded-3xl bg-white p-6 sm:p-10 shadow-sleek border border-slate-200">
+             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-10">
                 <h2 className="text-2xl font-black text-slate-900 tracking-tight italic">סטטוס קריאות שירות</h2>
                 <div className="flex items-center gap-2">
                    <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse"></span>
@@ -97,8 +100,8 @@ export default function MaintenanceManagement({ user }: { user: User }) {
 
           {/* Professional Marketplace (For Landlords & Admins) */}
           {(user.role === "landlord" || user.role === "admin") && (
-            <div className="rounded-3xl bg-white p-10 shadow-sleek border border-slate-200">
-              <div className="flex items-center justify-between mb-10">
+            <div className="rounded-3xl bg-white p-6 sm:p-10 shadow-sleek border border-slate-200">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-10">
                 <div>
                    <h2 className="text-2xl font-black text-slate-900 tracking-tight italic">Marketplace בעלי מקצוע</h2>
                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">שריינו את המומחים הטובים ביותר • מסלול ירוק לטיפול בתקלות</p>
@@ -113,13 +116,30 @@ export default function MaintenanceManagement({ user }: { user: User }) {
               </div>
             </div>
           )}
+
+          {(user.role === "landlord" || user.role === "admin") && (
+            <div className="rounded-3xl bg-white p-6 sm:p-10 shadow-sleek border border-slate-200">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-10">
+                <div>
+                  <h2 className="text-2xl font-black text-slate-900 tracking-tight italic">אינטגרציות ספקים</h2>
+                  <p className="text-xs text-slate-400 font-bold tracking-widest mt-1">חיבור ישיר למידרג וליד2 לטובת איתור ספקים וחשיפת נכסים</p>
+                </div>
+                <span className="text-[10px] font-black text-slate-900 tracking-widest px-4 py-1.5 bg-slate-100 border border-slate-200 rounded-2xl shadow-sm">חיבורים פעילים</span>
+              </div>
+              <div className="grid gap-6 md:grid-cols-2">
+                {partnerIntegrations.map((integration) => (
+                  <IntegrationStatusCard key={integration.id} integration={integration} />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 3. MAINTENANCE KPIS & TIPS SIDEBAR */}
         <div className="lg:col-span-4 space-y-8">
           
           {/* Actionable Tip Card */}
-          <div className="rounded-3xl bg-slate-950 p-10 text-white shadow-sleek-lg relative overflow-hidden group transition-all">
+          <div className="rounded-3xl bg-slate-950 p-6 sm:p-10 text-white shadow-sleek-lg relative overflow-hidden group transition-all">
             <div className="absolute top-0 right-0 w-48 h-64 bg-blue-600/20 skew-x-[-15deg] translate-x-10 translate-y-[-10%] group-hover:bg-blue-600/30 transition-all duration-700"></div>
             <h2 className="text-2xl font-black mb-6 tracking-tighter italic relative z-10">תחזוקה מונעת</h2>
             <p className="text-xs text-slate-400 leading-relaxed mb-8 font-medium relative z-10 uppercase tracking-wide">
@@ -215,18 +235,36 @@ function ServiceCallCard({ call, userRole, onUpdate }: { call: ServiceCall, user
              call.status === "closed" ? "קריאה סגורה" :
              "ממתין לאישור ביצוע"}
           </div>
+
+          {call.assignedVendor && (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-right w-full md:w-auto">
+              <p className="text-[10px] font-black tracking-[0.14em] text-slate-400">בעל מקצוע מוקצה</p>
+              <p className="mt-1 text-sm font-black text-slate-900">{call.assignedVendor}</p>
+            </div>
+          )}
           
           <div className="flex items-center gap-4 w-full md:w-auto">
             {userRole === "landlord" && call.status === "open" && (
                <button 
                   onClick={() => {
-                    onUpdate({ status: "in_progress", vendorId: "simulated_vendor_id" });
+                    onUpdate({ status: "in_progress", vendorId: "vendor_1" });
                     alert("בעל המקצוע הוקצה לקריאה. הוא ייצור קשר עם השוכר לתיאום הגעה.");
                   }}
                   className="flex-1 md:flex-none px-6 py-3 bg-blue-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-sleek-blue hover:bg-blue-700 transition-all"
                >
                  הקצה בעל מקצוע
                </button>
+            )}
+            {(userRole === "landlord" || userRole === "admin") && call.status === "in_progress" && (
+              <button
+                onClick={() => {
+                  onUpdate({ status: "open", vendorId: undefined, assignedVendor: undefined });
+                  alert("הקצאת בעל המקצוע בוטלה והקריאה חזרה להמתנה לאישור.");
+                }}
+                className="flex-1 md:flex-none px-6 py-3 bg-white text-slate-900 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-slate-200 hover:border-slate-900 transition-all"
+              >
+                בטל העברה לצוות טכני
+              </button>
             )}
             {userRole === "tenant" && call.status === "in_progress" && (
               <button 
@@ -240,6 +278,50 @@ function ServiceCallCard({ call, userRole, onUpdate }: { call: ServiceCall, user
               <MessageSquare size={22} />
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function IntegrationStatusCard({ integration }: { integration: { provider: "midrag" | "yad2" | "insurance"; status: string; syncHealth: string; transactionCount: number; revenue: number; lastSyncAt: string } }) {
+  const providerLabel = integration.provider === "midrag" ? "מידרג" : "יד2";
+  const providerDescription =
+    integration.provider === "midrag"
+      ? "איתור בעלי מקצוע, סינון לפי דירוג והזרמת לידים לטיפול מהיר."
+      : "פרסום נכסים, חשיפת מלאי והזרמת פניות ישירות למערכת.";
+  const healthLabel =
+    integration.syncHealth === "completed"
+      ? "מסונכרן"
+      : integration.syncHealth === "in_progress"
+        ? "סנכרון פעיל"
+        : "ממתין לסנכרון";
+  const healthClass =
+    integration.syncHealth === "completed"
+      ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+      : integration.syncHealth === "in_progress"
+        ? "bg-cyan-50 text-cyan-700 border-cyan-100"
+        : "bg-amber-50 text-amber-700 border-amber-100";
+
+  return (
+    <div className="rounded-[28px] border border-slate-200 bg-slate-50/60 p-6">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-lg font-black text-slate-900">{providerLabel}</p>
+          <p className="mt-2 text-sm leading-6 text-slate-500 font-semibold">{providerDescription}</p>
+        </div>
+        <span className={cn("rounded-full border px-3 py-1 text-[10px] font-black tracking-[0.12em]", healthClass)}>
+          {healthLabel}
+        </span>
+      </div>
+      <div className="mt-5 grid grid-cols-2 gap-4">
+        <div className="rounded-2xl bg-white p-4 border border-slate-100">
+          <p className="text-[10px] font-black tracking-[0.12em] text-slate-400">עסקאות</p>
+          <p className="mt-2 text-2xl font-black text-slate-900 tabular-nums">{integration.transactionCount}</p>
+        </div>
+        <div className="rounded-2xl bg-white p-4 border border-slate-100">
+          <p className="text-[10px] font-black tracking-[0.12em] text-slate-400">סנכרון אחרון</p>
+          <p className="mt-2 text-sm font-black text-slate-900">{new Date(integration.lastSyncAt).toLocaleDateString("he-IL")}</p>
         </div>
       </div>
     </div>
@@ -329,12 +411,12 @@ function NewCallModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-xl p-4 animate-in fade-in duration-500">
-      <div className="w-full max-w-2xl rounded-[40px] bg-white p-12 shadow-2xl border border-slate-200 text-right animate-in zoom-in-95 duration-300 relative overflow-hidden">
-        <button onClick={onClose} className="absolute top-8 left-8 text-slate-300 hover:text-slate-900 hover:rotate-90 transition-all">
+      <div className="w-full max-w-2xl rounded-[40px] bg-white p-5 sm:p-8 md:p-12 shadow-2xl border border-slate-200 text-right animate-in zoom-in-95 duration-300 relative overflow-hidden max-h-[90vh] overflow-y-auto">
+        <button onClick={onClose} className="absolute top-4 left-4 sm:top-8 sm:left-8 text-slate-300 hover:text-slate-900 hover:rotate-90 transition-all">
            <X size={24} />
         </button>
         
-        <h2 className="text-4xl font-black text-slate-900 mb-2 tracking-tighter italic">דיווח על תקלה בנכס</h2>
+        <h2 className="text-3xl md:text-4xl font-black text-slate-900 mb-2 tracking-tighter italic">דיווח על תקלה בנכס</h2>
         <p className="text-slate-400 text-xs font-black uppercase tracking-[0.3em] mb-10">שלב 2: תיאור הבעיה וצילום</p>
         
         <div className="space-y-8">
@@ -359,7 +441,7 @@ function NewCallModal({
             ></textarea>
           </div>
           
-          <div className="grid grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
             <div className="space-y-3">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-2">בדיקת דחיפות</label>
               <select 
@@ -395,7 +477,7 @@ function NewCallModal({
           </div>
         </div>
 
-        <div className="flex gap-6 mt-12">
+        <div className="mt-10 flex gap-6">
           <button 
             onClick={handleSubmit}
             disabled={isSubmitting || !formData.title || !formData.propertyId}

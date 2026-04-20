@@ -88,17 +88,17 @@ export default function ChatUI({ user }: { user: AppUser }) {
   };
 
   return (
-    <div className="flex h-[calc(100vh-14rem)] flex-col rounded-3xl bg-white shadow-sleek-lg border border-slate-200 overflow-hidden animate-in fade-in duration-500">
+    <div className="flex min-h-[60vh] h-[calc(100vh-12rem)] sm:h-[calc(100vh-14rem)] flex-col rounded-3xl bg-white shadow-sleek-lg border border-slate-200 overflow-hidden animate-in fade-in duration-500">
       
       {/* 1. CHAT HEADER */}
-      <div className="flex items-center justify-between border-b border-slate-100 p-5 bg-slate-50/50 backdrop-blur-md">
-        <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between gap-3 border-b border-slate-100 p-4 sm:p-5 bg-slate-50/50 backdrop-blur-md">
+        <div className="flex min-w-0 items-center gap-4">
           <div className="h-12 w-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-sleek-blue relative group overflow-hidden">
             <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
             {user.role === "tenant" ? <Home size={22} /> : <User size={22} />}
           </div>
-          <div>
-            <p className="font-black text-slate-900 tracking-tight text-base leading-none">
+          <div className="min-w-0">
+            <p className="font-black text-slate-900 tracking-tight text-sm sm:text-base leading-none">
               {user.role === "tenant" ? "אברהם (המשכיר שלך)" : "ישראל (השוכר)"}
             </p>
             <div className="flex items-center gap-1.5 mt-1.5">
@@ -115,7 +115,7 @@ export default function ChatUI({ user }: { user: AppUser }) {
       {/* 2. MESSAGES AREA */}
       <div 
         ref={scrollRef}
-        className="flex-1 overflow-y-auto p-8 space-y-6 scroll-smooth custom-scrollbar bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-fixed"
+        className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 space-y-6 scroll-smooth custom-scrollbar bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-fixed"
       >
         {messages.map((msg) => (
           <ChatMessage key={msg.id} msg={msg} currentUserId={user.id} />
@@ -123,9 +123,9 @@ export default function ChatUI({ user }: { user: AppUser }) {
       </div>
 
       {/* 3. INPUT AREA */}
-      <div className="p-5 bg-white border-t border-slate-100">
-        <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-3xl p-1.5 focus-within:ring-4 focus-within:ring-blue-500/10 focus-within:border-blue-500 transition-all">
-          <button className="h-11 w-11 flex items-center justify-center rounded-2xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all">
+      <div className="p-4 sm:p-5 bg-white border-t border-slate-100">
+        <div className="flex items-center gap-2 sm:gap-4 bg-slate-50 border border-slate-200 rounded-3xl p-1.5 focus-within:ring-4 focus-within:ring-blue-500/10 focus-within:border-blue-500 transition-all">
+          <button className="hidden sm:flex h-11 w-11 items-center justify-center rounded-2xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all">
             <Paperclip size={20} />
           </button>
           
@@ -138,13 +138,13 @@ export default function ChatUI({ user }: { user: AppUser }) {
             className="flex-1 bg-transparent px-2 py-3 text-sm focus:outline-none font-medium text-slate-900" 
           />
           
-          <button className="h-11 w-11 flex items-center justify-center rounded-2xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all">
+          <button className="hidden sm:flex h-11 w-11 items-center justify-center rounded-2xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all">
             <Smile size={20} />
           </button>
           
           <button 
             onClick={handleSend}
-            className="flex h-11 px-6 items-center justify-center gap-2 rounded-2xl bg-blue-600 text-white font-black text-sm shadow-sleek-blue hover:bg-blue-700 active:scale-95 transition-all group"
+            className="flex h-11 px-4 sm:px-6 items-center justify-center gap-2 rounded-2xl bg-blue-600 text-white font-black text-sm shadow-sleek-blue hover:bg-blue-700 active:scale-95 transition-all group"
           >
             <span>שלח</span>
             <Send size={16} className="rotate-180 group-hover:translate-x-1 transition-transform" />
@@ -178,7 +178,7 @@ function ChatMessage({ msg, currentUserId }: any) {
 
   return (
     <div className={cn(
-      "flex flex-col max-w-[80%] animate-in slide-in-from-bottom-2 duration-300",
+      "flex flex-col max-w-[88%] sm:max-w-[80%] animate-in slide-in-from-bottom-2 duration-300",
       isMine ? "mr-auto items-start" : "ml-auto items-end"
     )}>
       <div className={cn(
