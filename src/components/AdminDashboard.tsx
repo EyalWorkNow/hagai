@@ -1,6 +1,5 @@
 import { useState, useMemo, ReactNode } from "react";
 import { 
-  Shield, 
   Activity, 
   Map as MapIcon, 
   Scale,
@@ -14,31 +13,54 @@ import {
   Clock,
   ArrowRight,
   TrendingUp,
+  TrendingDown,
   PieChart as PieChartIcon,
   Check,
   X,
-  FileText
+  FileText,
+  Info
 } from "lucide-react";
 import { BDICheckStandalone } from "./Onboarding";
 import { cn } from "../lib/utils";
 import { User, Property, Payment, Contract } from "../types";
 import { useAppData } from "../lib/appData";
-import { Database } from "lucide-react";
 import {
   formatCurrencyCompact,
   formatChannelLabel,
   formatProviderLabel,
   getAdminDashboardMetrics,
   getPlatformFeeRate,
-  getPurchaseFlowPresentation,
 } from "../lib/analytics";
+
+const REGION_DEFINITIONS = [
+  {
+    label: "מרכז",
+    accent: "bg-slate-900",
+    matcher: /(תל אביב|רמת גן|גבעתיים|הרצליה|פתח תקווה|חולון|בת ים|בני ברק|ראשון לציון|ראשון)/,
+  },
+  {
+    label: "ירושלים והשפלה",
+    accent: "bg-blue-600",
+    matcher: /(ירושלים|מודיעין|בית שמש|רחובות|יבנה|לוד|רמלה)/,
+  },
+  {
+    label: "צפון",
+    accent: "bg-emerald-500",
+    matcher: /(חיפה|נצרת|עכו|נהריה|כרמיאל|טבריה|צפת|קריות)/,
+  },
+  {
+    label: "דרום",
+    accent: "bg-amber-500",
+    matcher: /.*/,
+  },
+] as const;
 
 /**
  * AdminDashboard Component
  */
-export default function AdminDashboard({ user: adminUser }: { user: User }) {
-  const { db, updateUser, resetDatabase } = useAppData();
-  const [activeTab, setActiveTab] = useState<"overview" | "users" | "bdi">("overview");
+export default function AdminDashboard({ user: _adminUser }: { user: User }) {
+  const { db, updateUser } = useAppData();
+  const [activeTab, setActiveTab] = useState<"overview" | "operations" | "users" | "bdi">("overview");
   const [searchQuery, setSearchQuery] = useState("");
   const allUsers = db.users;
   const allProperties = db.properties;
@@ -49,15 +71,87 @@ export default function AdminDashboard({ user: adminUser }: { user: User }) {
     .slice(0, 10), [db.payments]);
     
   const adminMetrics = useMemo(() => getAdminDashboardMetrics(db), [db]);
-  const annualTurnover = useMemo(() => {
-    const thisYear = new Date().getFullYear();
-    return db.transactions
-      .filter(t => {
-        const d = new Date(t.createdAt);
-        return !isNaN(d.getTime()) && d.getFullYear() === thisYear;
-      })
-      .reduce((sum, t) => sum + t.amount, 0);
-  }, [db.transactions]);
+  const heroMetrics = useMemo(() => {
+    const now = new Date();
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const previousMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+
+    const sumTransactionsInRange = (start: Date, end: Date) =>
+      db.transactions
+        .filter((transaction) => {
+          const createdAt = new Date(transaction.createdAt);
+          return !Number.isNaN(createdAt.getTime()) && createdAt >= start && createdAt <= end;
+        })
+        .reduce((sum, transaction) => sum + transaction.amount, 0);
+
+    const countTransactionsInRange = (start: Date, end: Date) =>
+      db.transactions.filter((transaction) => {
+        const createdAt = new Date(transaction.createdAt);
+        return !Number.isNaN(createdAt.getTime()) && createdAt >= start && createdAt <= end;
+      }).length;
+
+    const calculateChange = (current: number, previous: number) => {
+      const delta = current - previous;
+      const percentageChange =
+        previous === 0
+          ? current > 0
+            ? 100
+            : 0
+          : (delta / previous) * 100;
+
+      return { current, previous, delta, percentageChange };
+    };
+
+    const currentMonthlyTurnover = sumTransactionsInRange(currentMonthStart, now);
+    const previousMonthlyTurnover = sumTransactionsInRange(previousMonthStart, previousMonthEnd);
+    const platformFeeRate = getPlatformFeeRate();
+    const currentMonthlyRevenue = countTransactionsInRange(currentMonthStart, now) * platformFeeRate;
+    const previousMonthlyRevenue = countTransactionsInRange(previousMonthStart, previousMonthEnd) * platformFeeRate;
+    const currentOpenIssues = db.supportIssues.filter((issue) => issue.status === "open" && new Date(issue.createdAt) <= now).length;
+    const previousOpenIssues = db.supportIssues.filter((issue) => issue.status === "open" && new Date(issue.createdAt) <= previousMonthEnd).length;
+
+    return {
+      monthlyTurnover: calculateChange(currentMonthlyTurnover, previousMonthlyTurnover),
+      monthlyRevenue: calculateChange(currentMonthlyRevenue, previousMonthlyRevenue),
+      openIssues: calculateChange(currentOpenIssues, previousOpenIssues),
+    };
+  }, [db.supportIssues, db.transactions]);
+  const activeContractsMetrics = useMemo(() => {
+    const now = new Date();
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const previousMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+
+    const countActiveContractsInWindow = (windowStart: Date, windowEnd: Date) =>
+      db.contracts.filter((contract) => {
+        if (contract.status !== "active") return false;
+
+        const parsedStart = contract.startDate ? new Date(contract.startDate) : null;
+        const parsedEnd = contract.endDate ? new Date(contract.endDate) : null;
+        const contractStart = parsedStart && !Number.isNaN(parsedStart.getTime()) ? parsedStart : null;
+        const contractEnd = parsedEnd && !Number.isNaN(parsedEnd.getTime()) ? parsedEnd : null;
+
+        return (!contractStart || contractStart <= windowEnd) && (!contractEnd || contractEnd >= windowStart);
+      }).length;
+
+    const currentMonthActive = countActiveContractsInWindow(currentMonthStart, now);
+    const previousMonthActive = countActiveContractsInWindow(previousMonthStart, previousMonthEnd);
+    const delta = currentMonthActive - previousMonthActive;
+    const percentageChange =
+      previousMonthActive === 0
+        ? currentMonthActive > 0
+          ? 100
+          : 0
+        : (delta / previousMonthActive) * 100;
+
+    return {
+      currentMonthActive,
+      previousMonthActive,
+      delta,
+      percentageChange,
+    };
+  }, [db.contracts]);
 
   // Handling User Updates
   const updateUserStatus = async (userId: string, data: Partial<User>) => {
@@ -65,72 +159,91 @@ export default function AdminDashboard({ user: adminUser }: { user: User }) {
   };
 
   // Compute Funnel Data
-  const funnel = useMemo(() => ({
-    firstNotice: allUsers.filter(u => u.role === "tenant" && u.onboardingStep !== undefined && u.onboardingStep >= 0).length,
-    sentKYC: allUsers.filter(u => u.role === "tenant" && u.onboardingStep !== undefined && u.onboardingStep >= 1).length,
-    waitingLandlord: allContracts.filter(c => c.status === "pending" || c.status === "waiting_kyc" || c.status === "waiting_bdi").length,
-    waitingSignature: allContracts.filter(c => c.status === "waiting_signature").length,
-    completed: allContracts.filter(c => c.status === "active").length,
-  }), [allUsers, allContracts]);
+  const funnel = useMemo(() => {
+    const tenantUsers = allUsers.filter((user) => user.role === "tenant" && user.onboardingStep !== undefined);
 
-  const pendingKYC = useMemo(() => allUsers.filter(u => u.kycStatus === "submitted" || u.kycStatus === "pending").length, [allUsers]);
-  const totalVolume = useMemo(() => recentPayments.reduce((acc, p) => acc + p.amount, 0), [recentPayments]);
-  const regionalBreakdown = [
-    { label: "מרכז", share: 62, occupancy: 91, accent: "bg-slate-900" },
-    { label: "ירושלים והשפלה", share: 21, occupancy: 84, accent: "bg-blue-600" },
-    { label: "צפון", share: 10, occupancy: 76, accent: "bg-emerald-500" },
-    { label: "דרום", share: 7, occupancy: 68, accent: "bg-amber-500" },
-  ];
+    return {
+      firstNotice: Math.max(db.onboardingInvites.length, tenantUsers.length),
+      sentKYC: tenantUsers.filter((user) => (user.onboardingStep ?? 0) >= 1).length,
+      waitingLandlord: db.eligibilityChecks.filter((check) => check.status === "pending").length,
+      waitingSignature: allContracts.filter((contract) => contract.status === "waiting_signature").length,
+      completed: allContracts.filter((contract) => contract.status === "active").length,
+    };
+  }, [allContracts, allUsers, db.eligibilityChecks, db.onboardingInvites.length]);
+  const geoMetrics = useMemo(() => {
+    const seededRegions = REGION_DEFINITIONS.map((region) => ({
+      label: region.label,
+      accent: region.accent,
+      total: 0,
+      occupied: 0,
+    }));
+
+    for (const property of db.properties) {
+      const sourceText = `${property.city ?? ""} ${property.address ?? ""}`.trim();
+      const region =
+        seededRegions.find((entry, index) =>
+          REGION_DEFINITIONS[index].matcher.test(sourceText),
+        ) ?? seededRegions[seededRegions.length - 1];
+
+      region.total += 1;
+      if (property.status === "occupied") {
+        region.occupied += 1;
+      }
+    }
+
+    const totalProperties = seededRegions.reduce((sum, region) => sum + region.total, 0);
+    const occupiedProperties = seededRegions.reduce((sum, region) => sum + region.occupied, 0);
+    const averageOccupancy = totalProperties === 0 ? 0 : (occupiedProperties / totalProperties) * 100;
+    const breakdown = seededRegions.map((region) => ({
+      ...region,
+      share: totalProperties === 0 ? 0 : Math.round((region.total / totalProperties) * 100),
+      occupancy: region.total === 0 ? 0 : Math.round((region.occupied / region.total) * 100),
+    }));
+    const regionsWithInventory = breakdown.filter((region) => region.total > 0);
+    const topRegion = regionsWithInventory.reduce((best, current) => (current.share > best.share ? current : best), regionsWithInventory[0] ?? breakdown[0]);
+    const weakestRegion = regionsWithInventory.reduce((lowest, current) => (current.occupancy < lowest.occupancy ? current : lowest), regionsWithInventory[0] ?? breakdown[0]);
+    const laggingRegions = breakdown.filter((region) => region.total > 0 && region.occupancy < averageOccupancy).length;
+
+    return {
+      breakdown,
+      topRegion,
+      weakestRegion,
+      averageOccupancy: Math.round(averageOccupancy),
+      laggingRegions,
+    };
+  }, [db.properties]);
 
   return (
     <div className="space-y-10 animate-in slide-in-from-bottom-6 duration-1000">
       
       {/* 0. ADMIN HEADER ACTIONS */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between pb-10 border-b border-slate-200/60 mb-10 gap-6">
+      <div className="mb-8 border-b border-slate-200/60 pb-8 sm:mb-10 sm:pb-10">
         <div>
-           <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter italic font-display">לוח בקרה <span className="text-blue-600">ניהולי</span></h1>
-           <p className="text-slate-400 font-bold mt-3 text-[11px] tracking-[0.08em] leading-relaxed uppercase">
+           <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-slate-900 tracking-tighter italic font-display">לוח בקרה <span className="text-blue-600">ניהולי</span></h1>
+           <p className="mt-3 text-[10px] sm:text-[11px] text-slate-400 font-bold tracking-[0.08em] leading-relaxed uppercase">
              פיקוח מערכתי • אישור KYC • ניטור {adminMetrics.totalTransactions.toLocaleString("he-IL")} עסקאות בזמן אמת
            </p>
            
-           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8 max-w-2xl">
-             <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-all hover:shadow-md">
-               <p className="text-sm font-medium text-slate-500">מחזור עסקאות חודשי</p>
-               <div className="mt-3 flex items-baseline gap-3">
-                 <span className="text-3xl font-semibold text-slate-900 tabular-nums tracking-tight">₪{Math.round(adminMetrics.currentMonthTransfers).toLocaleString()}</span>
-                 <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded text-left" dir="ltr">
-                   <TrendingUp size={12} />
-                   +14%
-                 </span>
-               </div>
-             </div>
-             
-             <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-all hover:shadow-md">
-               <p className="text-sm font-medium text-slate-500">מחזור עסקאות שנתי</p>
-               <div className="mt-3 flex items-baseline gap-3">
-                 <span className="text-3xl font-semibold text-slate-900 tabular-nums tracking-tight">₪{Math.round(annualTurnover).toLocaleString()}</span>
-                 <span className="flex items-center gap-1 text-[11px] font-bold text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-100 text-left" dir="ltr">
-                   <BarChart3 size={12} />
-                   YTD
-                 </span>
-               </div>
-             </div>
+           <div className="mt-6 grid max-w-5xl grid-cols-1 gap-4 lg:grid-cols-3">
+             <HeroMetricCard
+               title="הכנסות חודשיות"
+               value={formatCurrencyCompact(heroMetrics.monthlyRevenue.current)}
+               change={heroMetrics.monthlyRevenue}
+               helpText="סך עמלות הפלטפורמה שנצברו החודש מכל העסקאות שנקלטו במערכת."
+             />
+             <HeroMetricCard
+               title="מחזור עסקאות חודשי"
+               value={`₪${Math.round(heroMetrics.monthlyTurnover.current).toLocaleString("he-IL")}`}
+               change={heroMetrics.monthlyTurnover}
+               helpText="סך היקף הכסף שעבר דרך עסקאות הפלטפורמה מתחילת החודש הנוכחי."
+             />
+             <HeroMetricCard
+               title="תקלות פתוחות"
+               value={heroMetrics.openIssues.current.toLocaleString("he-IL")}
+               change={heroMetrics.openIssues}
+               helpText="מספר התקלות והקריאות שעדיין פתוחות ודורשות טיפול בפלטפורמה ובאינטגרציות."
+             />
            </div>
-        </div>
-         <div className="flex items-center gap-6">
-            <button 
-              onClick={() => {
-                resetDatabase();
-                alert("נתוני הפרוקסי אופסו ונטענו מחדש.");
-              }}
-              className="px-6 py-3.5 bg-white border border-slate-200 rounded-2xl text-[11px] font-black tracking-[0.12em] text-slate-900 hover:border-slate-900 transition-all shadow-sm flex items-center gap-3"
-            >
-              <Database size={18} />
-              <span>הזנת נתוני פרוקסי</span>
-            </button>
-            <div className="h-16 w-16 rounded-[24px] bg-slate-900 flex items-center justify-center text-white shadow-2xl shadow-slate-950/20 rotate-3">
-               <Shield size={28} />
-            </div>
         </div>
       </div>
 
@@ -139,6 +252,11 @@ export default function AdminDashboard({ user: adminUser }: { user: User }) {
           active={activeTab === "overview"} 
           onClick={() => setActiveTab("overview")} 
           label="סקירה מערכתית" 
+        />
+        <TabHeader 
+          active={activeTab === "operations"} 
+          onClick={() => setActiveTab("operations")} 
+          label="ניהול וגבייה" 
         />
         <TabHeader 
           active={activeTab === "users"} 
@@ -155,27 +273,27 @@ export default function AdminDashboard({ user: adminUser }: { user: User }) {
       {activeTab === "overview" && (
         <>
           {/* 2. SYSTEM METRICS GRID (The "Greenest" View) */}
-          <div className="grid gap-8 md:grid-cols-4">
+          <div className="grid gap-8 md:grid-cols-2">
             <MetricCard 
-              icon={<TrendingUp size={20} />} 
-              title="הועבר החודש" 
-              value={formatCurrencyCompact(adminMetrics.currentMonthTransfers)} 
-              subtitle={`סה"כ ${adminMetrics.totalTransactions.toLocaleString("he-IL")} עסקאות במערכת`} 
+              icon={<FileText size={20} />} 
+              title="חוזים פעילים החודש" 
+              value={activeContractsMetrics.currentMonthActive.toLocaleString("he-IL")} 
+              subtitle={`בחודש הקודם: ${activeContractsMetrics.previousMonthActive.toLocaleString("he-IL")} חוזים`}
+              badge={{
+                tone:
+                  activeContractsMetrics.delta > 0
+                    ? "positive"
+                    : activeContractsMetrics.delta < 0
+                      ? "negative"
+                      : "neutral",
+                label:
+                  activeContractsMetrics.delta > 0
+                    ? `עלייה של ${Math.round(Math.abs(activeContractsMetrics.percentageChange)).toLocaleString("he-IL")}%`
+                    : activeContractsMetrics.delta < 0
+                      ? `ירידה של ${Math.round(Math.abs(activeContractsMetrics.percentageChange)).toLocaleString("he-IL")}%`
+                      : "ללא שינוי",
+              }}
               color="text-emerald-500" 
-            />
-            <MetricCard 
-              icon={<DollarSign size={20} />} 
-              title="יתרה במערכת" 
-              value={`₪${Math.round(adminMetrics.currentBalance).toLocaleString()}`} 
-              subtitle="מחזור עסקאות חודשי" 
-              color="text-slate-900" 
-            />
-            <MetricCard 
-              icon={<Users size={20} />} 
-              title="הכנסות חודשיות" 
-              value={formatCurrencyCompact(adminMetrics.monthlyRevenue)} 
-              subtitle="" 
-              color="text-slate-900" 
             />
             <MetricCard 
               icon={<Scale size={20} />} 
@@ -186,62 +304,40 @@ export default function AdminDashboard({ user: adminUser }: { user: User }) {
             />
           </div>
 
-          <div className="grid gap-8 lg:grid-cols-3">
-            <div className="rounded-3xl bg-white p-8 shadow-sleek border border-slate-200 lg:col-span-2">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-black text-slate-900 tracking-tight italic">אינטגרציות וערוצי הכנסה</h2>
-                <BarChart3 size={22} className="text-slate-300" />
-              </div>
-              <div className="grid gap-4 md:grid-cols-3">
-                {adminMetrics.providerMetrics.map((metric) => (
-                  <div key={metric.provider} className="rounded-[24px] border border-slate-100 bg-slate-50/70 p-5">
-                    <p className="text-[11px] font-black tracking-[0.14em] text-slate-400 uppercase">
-                      {formatProviderLabel(metric.provider)}
-                    </p>
-                    <p className="mt-3 text-3xl font-black text-slate-900 tabular-nums">{metric.count}</p>
-                    <p className="mt-2 text-sm font-semibold text-slate-500">
-                      הכנסה: {formatCurrencyCompact(metric.revenue)}
-                    </p>
-                  </div>
-                ))}
-              </div>
+          <div className="rounded-3xl bg-white p-5 sm:p-6 md:p-8 shadow-sleek border border-slate-200">
+            <div className="mb-6 flex items-center justify-between gap-3">
+              <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight italic">ערוצי הכנסה נוספים</h2>
+              <BarChart3 size={22} className="text-slate-300" />
             </div>
-
-            <div className="rounded-3xl bg-white p-8 shadow-sleek border border-slate-200">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-black text-slate-900 tracking-tight italic">סטטוס תהליך הרכישה</h2>
-                <Activity size={22} className="text-slate-300" />
-              </div>
-              <div className="space-y-3">
-                {adminMetrics.purchaseFlow.map((item) => {
-                  const presentation = getPurchaseFlowPresentation(item.status);
-                  return (
-                    <div key={item.status} className="flex items-center justify-between rounded-[20px] border border-slate-100 bg-slate-50/70 px-4 py-4">
-                      <span className={cn("rounded-full border px-3 py-1 text-[10px] font-black tracking-[0.12em]", presentation.className)}>
-                        {presentation.label}
-                      </span>
-                      <span className="text-lg font-black tabular-nums text-slate-900">{item.count}</span>
-                    </div>
-                  );
-                })}
-              </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              {adminMetrics.providerMetrics.map((metric) => (
+                <div key={metric.provider} className="rounded-[24px] border border-slate-100 bg-slate-50/70 p-5">
+                  <p className="text-[11px] font-black tracking-[0.14em] text-slate-400 uppercase">
+                    {metric.provider === "insurance" ? "עסקאות ביטוח נכסים ורכוש פעילים החודש" : formatProviderLabel(metric.provider)}
+                  </p>
+                  <p className="mt-3 text-3xl font-black text-slate-900 tabular-nums">{metric.count}</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-500">
+                    הכנסה: {formatCurrencyCompact(metric.revenue)}
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
 
           {/* 3. ONBOARDING FUNNEL (Pipeline Efficiency) */}
-          <div className="mt-10 dashboard-card p-10 md:p-14">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-16">
+          <div className="mt-10 dashboard-card p-5 sm:p-8 md:p-12">
+            <div className="mb-10 flex flex-col gap-4 md:mb-12 md:flex-row md:items-center md:justify-between">
               <div>
-                <h2 className="text-3xl font-black text-slate-900 tracking-tight italic font-display">משפך אונבורדינג</h2>
-                <p className="text-slate-400 text-[11px] font-bold tracking-[0.12em] mt-3">מעקב התקדמות הרישום מחלונית ההזמנה ועד לחתימה</p>
+                <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight italic font-display">משפך אונבורדינג</h2>
+                <p className="mt-3 text-[10px] sm:text-[11px] text-slate-400 font-bold tracking-[0.12em]">מעקב התקדמות הרישום מחלונית ההזמנה ועד לחתימה</p>
               </div>
-              <div className="flex items-center gap-3 bg-slate-900 text-white px-5 py-2.5 rounded-full shadow-lg">
+              <div className="flex w-fit items-center gap-3 rounded-full bg-slate-900 px-4 py-2.5 text-white shadow-lg">
                 <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse"></span>
                 <span className="text-[10px] font-black tracking-[0.12em] leading-none mt-0.5">ניטור חי</span>
               </div>
             </div>
             
-            <div className="flex min-w-max justify-between items-start gap-2 md:gap-4 px-4">
+            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-5">
               <FunnelStep label="הודעה ראשונה" count={funnel.firstNotice.toString()} color="bg-slate-900" />
               <FunnelStep label="שלחו KYC" count={funnel.sentKYC.toString()} color="bg-slate-900" />
               <FunnelStep label="מתנה לאישור" count={funnel.waitingLandlord.toString()} color="bg-slate-900" />
@@ -249,88 +345,18 @@ export default function AdminDashboard({ user: adminUser }: { user: User }) {
               <FunnelStep label="הושלם" count={funnel.completed.toString()} color="bg-blue-600" isLast={true} />
             </div>
             
-            <div className="mt-16 flex items-center justify-between text-[11px] font-black text-slate-400 tracking-[0.12em] border-t border-slate-100 pt-10">
-              <div className="flex gap-10">
+            <div className="mt-10 flex flex-col gap-4 border-t border-slate-100 pt-6 text-[10px] sm:text-[11px] font-black text-slate-400 tracking-[0.12em] md:mt-12 md:flex-row md:items-center md:justify-between md:pt-8">
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-6">
                  <span>סה"כ נכסים: {allProperties.length}</span>
                  <span className="text-slate-900">משתמשים בתהליך: {allUsers.filter(u => u.onboardingStep !== undefined && u.onboardingStep < 4).length}</span>
               </div>
-              <span className="bg-slate-50 px-4 py-2 rounded-full border border-slate-100">אחוז המרה: {((funnel.completed / (funnel.firstNotice || 1)) * 100).toFixed(0)}%</span>
+              <span className="w-fit rounded-full border border-slate-100 bg-slate-50 px-4 py-2">אחוז המרה: {((funnel.completed / (funnel.firstNotice || 1)) * 100).toFixed(0)}%</span>
             </div>
           </div>
 
-          {/* 4. REAL-TIME MONITORING & GEOGRAPHY */}
-          <div className="grid gap-8 lg:grid-cols-2 mt-8">
-            {/* Live Transaction Feed */}
-            <div className="rounded-3xl bg-white p-8 shadow-sleek border border-slate-200">
-              <div className="flex items-center justify-between mb-8">
-                <h2 className="text-xl font-black text-slate-900 tracking-tight italic flex items-center gap-3">
-                  <Activity className="text-blue-500" size={24} />
-                  <span>ניטור עסקאות בזמן אמת</span>
-                </h2>
-                <button className="text-[10px] font-black text-slate-400 tracking-[0.12em] hover:text-blue-600 transition-colors">היסטוריה מלאה</button>
-              </div>
-              <div className="space-y-4">
-                {recentPayments.length > 0 ? (
-                  recentPayments.map((p, i) => <TransactionItem key={p.id} payment={p} index={i} />)
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-16 text-slate-300">
-                     <DollarSign size={48} className="opacity-10 mb-4" />
-                     <p className="text-sm font-bold tracking-[0.12em]">אין תשלומים אחרונים במערכת</p>
-                  </div>
-                )}
-              </div>
-              <button className="w-full mt-8 py-4 text-xs font-black text-blue-600 bg-blue-50/50 hover:bg-blue-600 hover:text-white rounded-2xl transition-all tracking-[0.12em] shadow-sm">
-                הפק דוח גבייה חודשי
-              </button>
-            </div>
-
-            {/* National Property Analytics */}
-            <div className="rounded-3xl bg-white p-8 shadow-sleek border border-slate-200 flex flex-col min-h-[450px]">
-              <div className="flex items-center justify-between mb-8">
-                <h2 className="text-xl font-black text-slate-900 tracking-tight italic flex items-center gap-3">
-                  <MapIcon className="text-indigo-500" size={24} />
-                  <span>פיזור נכסים ותפוסה</span>
-                </h2>
-                <PieChartIcon size={20} className="text-slate-400" />
-              </div>
-              <div className="flex-1 rounded-3xl bg-slate-50 border border-slate-100 relative overflow-hidden shadow-inner p-6">
-                <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr] h-full">
-                  <div className="rounded-[28px] bg-slate-950 text-white p-6 relative overflow-hidden">
-                    <div className="absolute inset-y-0 left-0 w-2/3 bg-blue-600/10 blur-3xl"></div>
-                    <div className="relative z-10">
-                      <p className="text-xs text-slate-400 font-black mb-2">תמונה ארצית</p>
-                      <h3 className="text-3xl font-black tracking-tight">תפוסה גבוהה במרכז, מקום לשיפור בפריפריה</h3>
-                      <p className="mt-3 text-sm leading-6 text-slate-300 font-semibold">
-                        הדשבורד מדגיש איפה מרוכזים הנכסים הפעילים ואיפה עדיין יש פער בין היצע, חתימות ותפוסה בפועל.
-                      </p>
-
-                      <div className="mt-8 space-y-4">
-                        {regionalBreakdown.map((region) => (
-                          <RegionalBar key={region.label} region={region} />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 content-start">
-                    <GeoMetricCard label="נכסים במרכז" value="62%" helper="ריכוז עיקרי של פורטפוליו קיים" tone="indigo" />
-                    <GeoMetricCard label="תפוסה ממוצעת" value="86%" helper="בכלל האזורים הפעילים" tone="slate" />
-                    <GeoMetricCard label="אזורים בפער" value="2" helper="דורשים חיזוק שיווקי/תפעולי" tone="amber" />
-                    <div className="rounded-[24px] border border-slate-200 bg-white p-5">
-                      <p className="text-sm font-black text-slate-900">מוקד תשומת לב</p>
-                      <p className="mt-2 text-sm leading-6 text-slate-500 font-semibold">
-                        ירושלים והשפלה מציגים יחס טוב בין היצע לתפוסה, בעוד שבצפון ובדרום כדאי לחזק חידושי חוזה וגיוס שוכרים.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-3xl bg-white p-8 shadow-sleek border border-slate-200">
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="text-2xl font-black text-slate-900 tracking-tight italic">פילוח עסקאות והכנסות</h2>
+          <div className="rounded-3xl bg-white p-5 sm:p-6 md:p-8 shadow-sleek border border-slate-200">
+            <div className="mb-8 flex items-center justify-between gap-3">
+              <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight italic">פילוח עסקאות והכנסות</h2>
               <PieChartIcon size={22} className="text-slate-300" />
             </div>
             <div className="grid gap-4 md:grid-cols-3">
@@ -344,7 +370,7 @@ export default function AdminDashboard({ user: adminUser }: { user: User }) {
                 </div>
               ))}
             </div>
-            <div className="mt-6 rounded-[24px] bg-slate-950 p-6 text-white">
+            <div className="mt-6 rounded-[24px] bg-slate-950 p-5 sm:p-6 text-white">
               <p className="text-[11px] font-black tracking-[0.16em] text-slate-400">סיכום עסקאות כולל</p>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <div>
@@ -361,11 +387,88 @@ export default function AdminDashboard({ user: adminUser }: { user: User }) {
         </>
       )}
 
+      {activeTab === "operations" && (
+        <div className="mt-8 grid gap-6 lg:grid-cols-2 lg:gap-8">
+          <div className="rounded-3xl bg-white p-5 sm:p-6 md:p-8 shadow-sleek border border-slate-200">
+            <div className="mb-8 flex items-start justify-between gap-3">
+              <h2 className="flex items-center gap-3 text-lg sm:text-xl font-black text-slate-900 tracking-tight italic">
+                <Activity className="text-blue-500" size={24} />
+                <span>ניטור עסקאות בזמן אמת</span>
+              </h2>
+              <button className="text-[10px] font-black text-slate-400 tracking-[0.12em] hover:text-blue-600 transition-colors">היסטוריה מלאה</button>
+            </div>
+            <div className="space-y-4">
+              {recentPayments.length > 0 ? (
+                recentPayments.map((p, i) => <TransactionItem key={p.id} payment={p} index={i} />)
+              ) : (
+                <div className="flex flex-col items-center justify-center py-16 text-slate-300">
+                   <DollarSign size={48} className="opacity-10 mb-4" />
+                   <p className="text-sm font-bold tracking-[0.12em]">אין תשלומים אחרונים במערכת</p>
+                </div>
+              )}
+            </div>
+            <button className="w-full mt-8 py-4 text-xs font-black text-blue-600 bg-blue-50/50 hover:bg-blue-600 hover:text-white rounded-2xl transition-all tracking-[0.12em] shadow-sm">
+              הפק דוח גבייה חודשי
+            </button>
+          </div>
+
+          <div className="flex min-h-[450px] flex-col rounded-3xl bg-white p-5 sm:p-6 md:p-8 shadow-sleek border border-slate-200">
+            <div className="mb-8 flex items-start justify-between gap-3">
+              <h2 className="flex items-center gap-3 text-lg sm:text-xl font-black text-slate-900 tracking-tight italic">
+                <MapIcon className="text-indigo-500" size={24} />
+                <span>פיזור נכסים ותפוסה</span>
+              </h2>
+              <PieChartIcon size={20} className="text-slate-400" />
+            </div>
+            <div className="relative flex-1 overflow-hidden rounded-3xl border border-slate-100 bg-slate-50 p-4 shadow-inner sm:p-5 md:p-6">
+              <div className="grid h-full gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+                <div className="relative overflow-hidden rounded-[28px] bg-slate-950 p-5 sm:p-6 text-white">
+                  <div className="absolute inset-y-0 left-0 w-2/3 bg-blue-600/10 blur-3xl"></div>
+                  <div className="relative z-10">
+                    <p className="text-xs text-slate-400 font-black mb-2">תמונה ארצית</p>
+                    <h3 className="text-2xl sm:text-3xl font-black tracking-tight">
+                      {geoMetrics.topRegion.total > 0
+                        ? `${geoMetrics.topRegion.label} מוביל בפריסת הנכסים, ${geoMetrics.weakestRegion.label} דורש תשומת לב`
+                        : "תמונת מצב אזורית תופיע כאן כשיהיו נכסים בדאטה"}
+                    </h3>
+                    <p className="mt-3 text-sm leading-6 text-slate-300 font-semibold">
+                      {geoMetrics.topRegion.total > 0
+                        ? `האזור הדומיננטי כרגע הוא ${geoMetrics.topRegion.label} עם ${geoMetrics.topRegion.share}% מהנכסים, בעוד שב-${geoMetrics.weakestRegion.label} התפוסה היא ${geoMetrics.weakestRegion.occupancy}% בלבד.`
+                        : "ברגע שיוזנו נכסים למערכת, הדשבורד יחשב את חלוקת הפריסה והתפוסה האזורית אוטומטית."}
+                    </p>
+
+                    <div className="mt-8 space-y-4">
+                      {geoMetrics.breakdown.map((region) => (
+                        <RegionalBar key={region.label} region={region} />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid content-start gap-4">
+                  <GeoMetricCard label={`נכסים ב${geoMetrics.topRegion.label}`} value={`${geoMetrics.topRegion.share}%`} helper="חלקו היחסי של האזור הדומיננטי מתוך כלל הנכסים במערכת" tone="indigo" />
+                  <GeoMetricCard label="תפוסה ממוצעת" value={`${geoMetrics.averageOccupancy}%`} helper="תפוסה מחושבת בפועל לפי סטטוס הנכסים בדאטה" tone="slate" />
+                  <GeoMetricCard label="אזורים בפער" value={geoMetrics.laggingRegions.toLocaleString("he-IL")} helper="אזורים עם תפוסה נמוכה מהממוצע המערכתי" tone="amber" />
+                  <div className="rounded-[24px] border border-slate-200 bg-white p-5">
+                    <p className="text-sm font-black text-slate-900">מוקד תשומת לב</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-500 font-semibold">
+                      {geoMetrics.weakestRegion.total > 0
+                        ? `${geoMetrics.weakestRegion.label} הוא כרגע האזור עם התפוסה הנמוכה ביותר (${geoMetrics.weakestRegion.occupancy}%).`
+                        : "אין כרגע מספיק נכסים כדי להפיק תובנת פערים אזורית יציבה."}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {activeTab === "users" && (
           <div className="rounded-3xl bg-white shadow-sleek-lg border border-slate-200 overflow-hidden animate-in slide-in-from-bottom-5 duration-500">
           <div className="p-6 sm:p-10 border-b border-slate-100 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between bg-slate-50/50">
             <div>
-              <h2 className="text-3xl font-black text-slate-900 tracking-tight italic">ניהול משתמשים ו-KYC</h2>
+              <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight italic">ניהול משתמשים ו-KYC</h2>
               <p className="text-slate-500 text-sm font-medium mt-1">פיקוח על זהות המשתמשים, אישורי KYC ובדיקות אמינות</p>
             </div>
             <div className="relative group w-full sm:w-auto">
@@ -381,14 +484,14 @@ export default function AdminDashboard({ user: adminUser }: { user: User }) {
           </div>
           
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[920px] text-right">
+            <table className="w-full min-w-[760px] text-right md:min-w-[920px]">
               <thead className="bg-slate-50/80 text-[10px] font-black text-slate-400 tracking-[0.16em] border-b border-slate-100">
                 <tr>
-                  <th className="px-10 py-6 text-right">פרופיל משתמש</th>
-                  <th className="px-10 py-6 text-center">סטטוס KYC</th>
-                  <th className="px-10 py-6 text-center">מערכת נתוני אשראי SCORE</th>
-                  <th className="px-10 py-6 text-center">תפקיד</th>
-                  <th className="px-10 py-6 text-right">פעולות אישור</th>
+                  <th className="px-4 py-4 text-right sm:px-6 md:px-10 md:py-6">פרופיל משתמש</th>
+                  <th className="px-4 py-4 text-center sm:px-6 md:px-10 md:py-6">סטטוס KYC</th>
+                  <th className="px-4 py-4 text-center sm:px-6 md:px-10 md:py-6">מערכת נתוני אשראי SCORE</th>
+                  <th className="px-4 py-4 text-center sm:px-6 md:px-10 md:py-6">תפקיד</th>
+                  <th className="px-4 py-4 text-right sm:px-6 md:px-10 md:py-6">פעולות אישור</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -405,7 +508,7 @@ export default function AdminDashboard({ user: adminUser }: { user: User }) {
             </table>
           </div>
           
-          <div className="p-8 bg-slate-50 border-t border-slate-100 flex items-center justify-center">
+          <div className="flex items-center justify-center border-t border-slate-100 bg-slate-50 p-6 sm:p-8">
             <p className="text-[10px] font-black text-slate-400 text-center tracking-[0.18em] leading-relaxed">
               מציג {allUsers.length} משתמשים במערכת RentFlow • כל הנתונים מאובטחים
             </p>
@@ -414,7 +517,7 @@ export default function AdminDashboard({ user: adminUser }: { user: User }) {
       )}
 
       {activeTab === "bdi" && (
-        <div className="py-20 animate-in fade-in duration-700 bg-[radial-gradient(circle_at_center,_white_0%,_#f8fafc_100%)] rounded-3xl border border-slate-100">
+        <div className="rounded-3xl border border-slate-100 bg-[radial-gradient(circle_at_center,_white_0%,_#f8fafc_100%)] py-10 sm:py-14 md:py-20 animate-in fade-in duration-700">
           <BDICheckStandalone />
         </div>
       )}
@@ -431,7 +534,7 @@ function TabHeader({ active, onClick, label }: { active: boolean, onClick: () =>
     <button 
       onClick={onClick}
       className={cn(
-        "px-10 py-8 text-[13px] font-bold transition-all border-b-4 relative tracking-[0.14em]",
+        "relative border-b-4 px-5 py-5 text-[11px] sm:px-7 sm:py-6 sm:text-[12px] md:px-10 md:py-8 md:text-[13px] font-bold transition-all tracking-[0.14em] whitespace-nowrap",
         active ? "border-slate-900 text-slate-900" : "border-transparent text-slate-400 hover:text-slate-900"
       )}
     >
@@ -441,10 +544,78 @@ function TabHeader({ active, onClick, label }: { active: boolean, onClick: () =>
   );
 }
 
-function MetricCard({ icon, title, value, status, subtitle, color }: any) {
+function HeroMetricCard({
+  title,
+  value,
+  change,
+  helpText,
+}: {
+  title: string;
+  value: string;
+  change: { current: number; previous: number; delta: number; percentageChange: number };
+  helpText: string;
+}) {
+  const tone =
+    change.delta > 0 ? "positive" : change.delta < 0 ? "negative" : "neutral";
+  const toneClassName =
+    tone === "positive"
+      ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+      : tone === "negative"
+        ? "bg-rose-50 text-rose-700 border-rose-100"
+        : "bg-slate-100 text-slate-600 border-slate-200";
+  const Icon = tone === "positive" ? TrendingUp : tone === "negative" ? TrendingDown : ArrowRight;
+  const changeLabel =
+    tone === "positive"
+      ? `עלייה של ${Math.round(Math.abs(change.percentageChange)).toLocaleString("he-IL")}%`
+      : tone === "negative"
+        ? `ירידה של ${Math.round(Math.abs(change.percentageChange)).toLocaleString("he-IL")}%`
+        : "ללא שינוי";
+
   return (
-    <div className="dashboard-card p-7 border-slate-100 hover:border-slate-300 transition-all hover:-translate-y-1 group min-w-0">
-      <div className="flex items-center gap-5 mb-8 min-w-0">
+    <div className="relative overflow-hidden rounded-[28px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 pt-6 shadow-[0_14px_30px_rgba(15,23,42,0.05)] transition-all hover:-translate-y-0.5 hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)] sm:p-6 sm:pt-7 md:p-7">
+      <div className="absolute left-4 top-4 z-10">
+        <div className="group relative">
+          <button
+            type="button"
+            className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white/90 text-slate-400 shadow-sm transition-colors hover:text-slate-900"
+            aria-label={`מידע על ${title}`}
+          >
+            <Info size={12} />
+          </button>
+          <div className="pointer-events-none absolute left-0 top-8 z-20 w-64 rounded-2xl bg-slate-950 px-4 py-3 text-right text-xs font-bold leading-5 text-white opacity-0 shadow-2xl transition-opacity group-hover:opacity-100">
+            {helpText}
+          </div>
+        </div>
+      </div>
+      <p className="max-w-[calc(100%-2.75rem)] pl-1 text-[11px] sm:text-[12px] font-black tracking-[0.16em] text-slate-400">{title}</p>
+      <div className="mt-5 flex flex-col gap-3">
+        <span className="max-w-full break-words text-[1.8rem] sm:text-[2rem] md:text-4xl font-black tracking-tighter text-slate-900 tabular-nums font-display leading-none">{value}</span>
+        <span className={cn("inline-flex w-fit items-center gap-1 rounded-full border px-3 py-1 text-[10px] sm:text-[11px] font-black", toneClassName)} dir="ltr">
+          <Icon size={12} />
+          {changeLabel}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function MetricCard({ icon, title, value, status, subtitle, badge, color }: any) {
+  const badgeToneClassName =
+    badge?.tone === "positive"
+      ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+      : badge?.tone === "negative"
+        ? "bg-rose-50 text-rose-700 border-rose-100"
+        : "bg-slate-100 text-slate-600 border-slate-200";
+  const badgeIcon =
+    badge?.tone === "positive"
+      ? <TrendingUp size={12} />
+      : badge?.tone === "negative"
+        ? <TrendingDown size={12} />
+        : <ArrowRight size={12} />;
+
+  return (
+    <div className="dashboard-card min-w-0 border-slate-100 p-5 sm:p-6 md:p-7 hover:border-slate-300 transition-all hover:-translate-y-1 group">
+      <div className="mb-6 flex min-w-0 items-center gap-4 sm:gap-5">
         <div className={cn("h-12 w-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform shrink-0", color)}>
           {icon}
         </div>
@@ -457,7 +628,13 @@ function MetricCard({ icon, title, value, status, subtitle, color }: any) {
         </div>
       ) : (
         <>
-          <p className="text-3xl md:text-4xl font-black text-slate-900 tracking-tighter leading-none tabular-nums font-display break-words">{value}</p>
+          <p className="break-words text-[2rem] sm:text-3xl md:text-4xl font-black text-slate-900 tracking-tighter leading-none tabular-nums font-display">{value}</p>
+          {badge && (
+            <div className={cn("mt-4 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-black tracking-[0.08em]", badgeToneClassName)}>
+              {badgeIcon}
+              <span>{badge.label}</span>
+            </div>
+          )}
           {subtitle && <p className="mt-4 text-[10px] text-slate-400 font-bold tracking-[0.14em] leading-relaxed">{subtitle}</p>}
         </>
       )}
@@ -469,17 +646,17 @@ function FunnelStep({ label, count, color, isLast }: { label: string, count: str
   const isComplete = color.includes("blue");
   
   return (
-    <div className="relative flex flex-col items-center group min-w-0 flex-1">
+    <div className="group relative flex min-w-0 flex-col items-center">
       {/* Connector Line */}
       {!isLast && (
-        <div className="absolute top-8 left-1/2 w-full h-[2px] bg-slate-100 -z-10 transform -translate-x-1/2">
+        <div className="absolute left-1/2 top-8 hidden h-[2px] w-full -translate-x-1/2 bg-slate-100 xl:block -z-10">
            <div className={cn("h-full transition-all duration-1000", isComplete ? "bg-blue-600 w-full" : "bg-transparent w-0 group-hover:w-1/2 bg-slate-200")} />
         </div>
       )}
       
       {/* Step Circle */}
       <div className={cn(
-        "h-16 w-16 rounded-2xl flex items-center justify-center text-2xl font-black tabular-nums transition-all duration-500 shadow-sm z-10 font-display",
+        "z-10 flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-2xl text-xl sm:text-2xl font-black tabular-nums transition-all duration-500 shadow-sm font-display",
         isComplete 
           ? "bg-blue-600 text-white shadow-blue-600/20 shadow-xl scale-110" 
           : "bg-white border-2 border-slate-100 text-slate-900 group-hover:border-slate-300"
@@ -489,7 +666,7 @@ function FunnelStep({ label, count, color, isLast }: { label: string, count: str
       
       {/* Label */}
       <p className={cn(
-        "text-[11px] font-bold mt-6 tracking-[0.12em] text-center max-w-[100px] break-words leading-tight transition-colors",
+        "mt-4 sm:mt-6 max-w-[120px] break-words text-center text-[10px] sm:text-[11px] font-bold tracking-[0.12em] leading-tight transition-colors",
         isComplete ? "text-blue-600" : "text-slate-400 group-hover:text-slate-600"
       )}>
         {label}
@@ -500,8 +677,8 @@ function FunnelStep({ label, count, color, isLast }: { label: string, count: str
 
 function TransactionItem({ payment, index }: { payment: Payment, index: number }) {
   return (
-    <div className="flex items-center justify-between p-5 rounded-2xl hover:bg-slate-50 transition-all border border-transparent hover:border-slate-100 group">
-      <div className="flex items-center gap-5 min-w-0">
+    <div className="group flex items-center justify-between gap-3 rounded-2xl border border-transparent p-4 sm:p-5 transition-all hover:border-slate-100 hover:bg-slate-50">
+      <div className="flex min-w-0 items-center gap-3 sm:gap-5">
         <div className="h-12 w-12 rounded-2xl bg-white border border-slate-100 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm shrink-0">
           <DollarSign size={24} className="text-slate-400 group-hover:text-white shrink-0" />
         </div>
@@ -516,8 +693,8 @@ function TransactionItem({ payment, index }: { payment: Payment, index: number }
           </div>
         </div>
       </div>
-      <div className="text-right font-sans">
-        <p className="text-xl font-black text-slate-900 tracking-tighter tabular-nums">₪{payment.amount.toLocaleString()}</p>
+      <div className="shrink-0 text-right font-sans">
+        <p className="text-lg sm:text-xl font-black text-slate-900 tracking-tighter tabular-nums">₪{payment.amount.toLocaleString()}</p>
         <span className={cn(
           "flex items-center justify-end gap-1.5 text-[9px] font-black tracking-[0.12em] mt-1",
           payment.status === "paid" ? "text-emerald-500" : payment.status === "failed" ? "text-red-500" : "text-purple-500"
@@ -580,37 +757,37 @@ function UserTableRow({ user: u, onUpdate }: { user: User, onUpdate: (data: Part
 
   return (
     <tr className="hover:bg-slate-50 transition-colors group">
-      <td className="px-10 py-8 min-w-[250px]">
-        <div className="flex items-center gap-5 min-w-0">
-          <div className="h-14 w-14 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-lg font-black text-slate-900 shrink-0 group-hover:scale-110 group-hover:rotate-3 transition-all shadow-sm font-display tracking-[0.08em]">
+      <td className="min-w-[220px] px-4 py-5 sm:px-6 sm:py-6 md:px-10 md:py-8">
+        <div className="flex min-w-0 items-center gap-3 sm:gap-4 md:gap-5">
+          <div className="flex h-11 w-11 sm:h-12 sm:w-12 md:h-14 md:w-14 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-base md:text-lg font-black text-slate-900 group-hover:scale-110 group-hover:rotate-3 transition-all shadow-sm font-display tracking-[0.08em]">
             {u.name.charAt(0)}
           </div>
           <div className="min-w-0">
-            <p className="text-[17px] font-black text-slate-900 leading-none tracking-tight font-display italic">{u.name}</p>
+            <p className="text-[15px] sm:text-[16px] md:text-[17px] font-black text-slate-900 leading-none tracking-tight font-display italic">{u.name}</p>
             <p className="mt-2 text-[11px] text-slate-400 font-bold tracking-[0.08em] break-all">{u.email}</p>
           </div>
         </div>
       </td>
-      <td className="px-10 py-8 text-center">
-        <div className={cn("inline-flex items-center gap-3 px-5 py-2 rounded-full text-[11px] font-bold tracking-[0.12em] shadow-sm", statusStyles[u.kycStatus || "pending"])}>
+      <td className="px-4 py-5 text-center sm:px-6 sm:py-6 md:px-10 md:py-8">
+        <div className={cn("inline-flex items-center gap-2 sm:gap-3 rounded-full px-3 py-2 sm:px-4 md:px-5 text-[10px] sm:text-[11px] font-bold tracking-[0.12em] shadow-sm", statusStyles[u.kycStatus || "pending"])}>
           {u.kycStatus === "approved" ? <CheckCircle2 size={14} /> : u.kycStatus === "rejected" ? <XCircle size={14} /> : <Clock size={14} />}
           <span className="mt-0.5">{statusLabels[u.kycStatus || "pending"]}</span>
         </div>
       </td>
-      <td className="px-10 py-8 text-center text-[15px] font-black tabular-nums font-display tracking-widest">
+      <td className="px-4 py-5 text-center text-[13px] sm:text-[14px] md:text-[15px] font-black tabular-nums font-display tracking-widest sm:px-6 sm:py-6 md:px-10 md:py-8">
         {u.bdiStatus?.toUpperCase() || "N/A"}
       </td>
-      <td className="px-10 py-8 text-center">
+      <td className="px-4 py-5 text-center sm:px-6 sm:py-6 md:px-10 md:py-8">
         <span className={cn(
-          "px-4 py-2 rounded-2xl text-[11px] font-bold tracking-[0.12em] border shadow-sm",
+          "rounded-2xl border px-3 py-2 sm:px-4 text-[10px] sm:text-[11px] font-bold tracking-[0.12em] shadow-sm",
           u.role === "tenant" ? "text-blue-600 bg-blue-50 border-blue-100" : "text-slate-900 bg-white border-slate-200"
         )}>
           {u.role === "tenant" ? "שוכר" : "משכיר"}
         </span>
       </td>
-      <td className="px-10 py-8">
+      <td className="px-4 py-5 sm:px-6 sm:py-6 md:px-10 md:py-8">
          {u.kycStatus !== "approved" && (
-           <div className="flex items-center justify-end gap-3">
+           <div className="flex items-center justify-end gap-2 sm:gap-3">
               <button 
                 onClick={() => onUpdate({ kycStatus: "approved", onboardingStep: 1 })}
                 className="btn-pill bg-slate-900 text-white shadow-xl shadow-slate-900/20 hover:bg-black transition-all"

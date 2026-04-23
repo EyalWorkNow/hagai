@@ -12,12 +12,20 @@ import {
   Role,
   ServiceCall,
   SessionState,
+  SiteAccessSession,
   SupportIssue,
   User,
 } from "../types";
+import {
+  authenticateSiteAccess,
+  isSiteAccessSessionValid,
+  SiteAccessActivationMap,
+} from "./siteAccess";
 
 const DB_STORAGE_KEY = "rentflow-json-db-v2";
 const SESSION_STORAGE_KEY = "rentflow-session";
+const SITE_ACCESS_SESSION_STORAGE_KEY = "rentflow-site-access-session";
+const SITE_ACCESS_ACTIVATIONS_STORAGE_KEY = "rentflow-site-access-activations";
 const STORAGE_WARNING =
   "נפח הנתונים המקומי חרג ממגבלת הדפדפן. המערכת ממשיכה לעבוד, אך שינויים כבדים לא יישמרו מקומית.";
 
@@ -100,7 +108,10 @@ type CreateUtilityChargePayload = {
 type AppDataContextValue = {
   db: RentflowDb;
   currentUser: User | null;
+  siteAccessSession: SiteAccessSession | null;
   isReady: boolean;
+  requestSiteAccess: (username: string, password: string) => void;
+  clearSiteAccess: () => void;
   login: (email: string, password: string) => void;
   register: (payload: RegisterPayload) => void;
   logout: () => void;
@@ -432,6 +443,12 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<SessionState>(() =>
     loadStoredValue<SessionState>(SESSION_STORAGE_KEY, { userId: null }),
   );
+  const [siteAccessSession, setSiteAccessSession] = useState<SiteAccessSession | null>(() =>
+    loadStoredValue<SiteAccessSession | null>(SITE_ACCESS_SESSION_STORAGE_KEY, null),
+  );
+  const [siteAccessActivations, setSiteAccessActivations] = useState<SiteAccessActivationMap>(() =>
+    loadStoredValue<SiteAccessActivationMap>(SITE_ACCESS_ACTIVATIONS_STORAGE_KEY, {}),
+  );
   const [isReady, setIsReady] = useState(false);
 
   // Async DB initialization — avoids blocking the main thread on first render.
@@ -465,6 +482,23 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     persistValue(SESSION_STORAGE_KEY, session);
   }, [session]);
 
+  useEffect(() => {
+    persistValue(SITE_ACCESS_SESSION_STORAGE_KEY, siteAccessSession);
+  }, [siteAccessSession]);
+
+  useEffect(() => {
+    persistValue(SITE_ACCESS_ACTIVATIONS_STORAGE_KEY, siteAccessActivations);
+  }, [siteAccessActivations]);
+
+  useEffect(() => {
+    if (
+      siteAccessSession &&
+      !isSiteAccessSessionValid({ session: siteAccessSession, activations: siteAccessActivations })
+    ) {
+      setSiteAccessSession(null);
+    }
+  }, [siteAccessSession, siteAccessActivations]);
+
   const currentUser = session.userId ? findUser(db, session.userId) : null;
 
   const applyDbUpdate = (updater: (nextDb: RentflowDb) => void) => {
@@ -490,6 +524,22 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     }
 
     setSession({ userId: account.userId });
+  };
+
+  const requestSiteAccess = (username: string, password: string) => {
+    const result = authenticateSiteAccess({
+      username,
+      password,
+      activations: siteAccessActivations,
+    });
+
+    setSiteAccessActivations(result.activations);
+
+    if (!result.ok || !result.session) {
+      throw new Error(result.error || "הגישה נדחתה");
+    }
+
+    setSiteAccessSession(result.session);
   };
 
   const register = ({ name, email, password, role }: RegisterPayload) => {
@@ -523,6 +573,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     setSession({ userId: null });
+  };
+
+  const clearSiteAccess = () => {
+    setSiteAccessSession(null);
   };
 
   const resetDatabase = () => {
@@ -1066,7 +1120,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       value={{
         db: db ?? EMPTY_DB,
         currentUser,
+        siteAccessSession,
         isReady,
+        requestSiteAccess,
+        clearSiteAccess,
         login,
         register,
         logout,

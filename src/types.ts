@@ -345,3 +345,10 @@ export interface RentflowDb {
 export interface SessionState {
   userId: string | null;
 }
+
+export interface SiteAccessSession {
+  username: string;
+  grantedAt: string;
+  expiresAt: string | null;
+  mode: "admin" | "temporary";
+}

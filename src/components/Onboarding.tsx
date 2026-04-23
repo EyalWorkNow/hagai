@@ -38,6 +38,15 @@ const STEPS = [
   { id: "finish", title: "סיום", icon: <CheckCircle2 size={20} /> },
 ];
 
+const BANK_OPTIONS = [
+  { id: "hapoalim", name: "בנק הפועלים", code: "12", accent: "bg-red-500", mark: "פועלים" },
+  { id: "leumi", name: "בנק לאומי", code: "10", accent: "bg-blue-600", mark: "לאומי" },
+  { id: "discount", name: "דיסקונט", code: "11", accent: "bg-emerald-500", mark: "דיסקונט" },
+  { id: "mizrahi", name: "מזרחי טפחות", code: "20", accent: "bg-orange-500", mark: "טפחות" },
+  { id: "beinleumi", name: "הבינלאומי", code: "31", accent: "bg-violet-500", mark: "FIBI" },
+  { id: "yahav", name: "בנק יהב", code: "04", accent: "bg-sky-500", mark: "יהב" },
+] as const;
+
 // -----------------------------------------------------------------------------
 // Main Onboarding Component
 // -----------------------------------------------------------------------------
@@ -321,6 +330,9 @@ function BDIStep() {
 }
 
 function PaymentMethodStep() {
+  const [selectedBankId, setSelectedBankId] = useState<(typeof BANK_OPTIONS)[number]["id"]>("hapoalim");
+  const selectedBank = BANK_OPTIONS.find((bank) => bank.id === selectedBankId) ?? BANK_OPTIONS[0];
+
   return (
     <div className="space-y-10">
       <div className="text-center">
@@ -329,8 +341,44 @@ function PaymentMethodStep() {
       </div>
 
       <div className="space-y-6">
+        <div className="space-y-4">
+          <div className="text-right">
+            <p className="text-[11px] font-black tracking-[0.18em] text-slate-400">בחירת הבנק</p>
+            <p className="mt-2 text-sm font-bold text-slate-500">בחר את הלוגו של הבנק שלך כדי למלא את טופס ההרשאה מהר יותר.</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+            {BANK_OPTIONS.map((bank) => {
+              const isActive = bank.id === selectedBankId;
+              return (
+                <button
+                  key={bank.id}
+                  type="button"
+                  onClick={() => setSelectedBankId(bank.id)}
+                  className={cn(
+                    "rounded-[28px] border p-4 text-right transition-all",
+                    isActive
+                      ? "border-slate-900 bg-slate-900 text-white shadow-xl"
+                      : "border-slate-200 bg-white text-slate-900 hover:border-slate-400 hover:-translate-y-0.5",
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className={cn("flex h-12 min-w-12 items-center justify-center rounded-2xl px-3 text-xs font-black text-white", bank.accent)}>
+                      {bank.mark}
+                    </div>
+                    <span className={cn("rounded-full px-2 py-1 text-[10px] font-black", isActive ? "bg-white/10 text-white/80" : "bg-slate-100 text-slate-500")}>
+                      קוד {bank.code}
+                    </span>
+                  </div>
+                  <p className={cn("mt-4 text-sm font-black", isActive ? "text-white" : "text-slate-900")}>{bank.name}</p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-          <InputField label="שם הבנק" placeholder="בנק הפועלים (12)" />
+          <InputField label="שם הבנק" value={`${selectedBank.name} (${selectedBank.code})`} readOnly />
           <InputField label="מספר סניף" placeholder="612" />
           <InputField label="מספר חשבון" placeholder="12345678" />
         </div>
@@ -570,14 +618,32 @@ function UploadCard({ label, icon, sub, status }: { label: string, icon: ReactNo
   );
 }
 
-function InputField({ label, placeholder }: { label: string, placeholder?: string }) {
+function InputField({
+  label,
+  placeholder,
+  value,
+  readOnly = false,
+}: {
+  label: string;
+  placeholder?: string;
+  value?: string;
+  readOnly?: boolean;
+}) {
   return (
     <div className="space-y-3">
       <label className="block text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none mr-3">{label}</label>
       <input 
         type="text" 
-        className="w-full rounded-2xl border border-slate-200 bg-white p-5 text-[15px] focus:outline-none focus:ring-4 focus:ring-slate-900/5 focus:border-slate-900 transition-all font-bold shadow-sm placeholder:text-slate-300"
+        className={cn(
+          "w-full rounded-2xl border p-5 text-[15px] transition-all font-bold shadow-sm",
+          readOnly
+            ? "border-slate-200 bg-slate-100 text-slate-900"
+            : "border-slate-200 bg-white focus:outline-none focus:ring-4 focus:ring-slate-900/5 focus:border-slate-900 placeholder:text-slate-300",
+        )}
         placeholder={placeholder}
+        value={value}
+        readOnly={readOnly}
+        onChange={() => undefined}
       />
     </div>
   );

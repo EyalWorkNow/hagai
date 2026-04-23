@@ -15,6 +15,7 @@ import {
   MoreVertical,
   Search,
   ShieldAlert,
+  Info,
   TrendingUp,
   X,
 } from "lucide-react";
@@ -137,7 +138,7 @@ function transactionStatusLabel(status: PlatformTransaction["status"]) {
     case "completed":
       return "הושלם";
     case "in_progress":
-      return "בתהליך";
+      return "תשלומים שנכשלו";
     case "pending":
       return "ממתין";
     default:
@@ -186,7 +187,7 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
         contractLabel: contract?.id || transaction.contractId || "ללא חוזה משויך",
         providerLabel:
           transaction.provider === "insurance"
-            ? "ביטוח"
+            ? "עסקאות ביטוח נכסים ורכוש פעילים החודש"
             : transaction.provider === "midrag"
               ? "מידרג"
               : "יד2",
@@ -318,26 +319,26 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
 
   return (
     <div className="space-y-10 animate-in fade-in duration-700 text-right" dir="rtl">
-      <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-5xl font-black tracking-tighter text-slate-900 italic font-display">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tighter text-slate-900 italic font-display">
             ניהול פיננסי מערכתי
           </h1>
-          <p className="mt-3 text-[13px] font-bold tracking-[0.12em] text-slate-400">
+          <p className="mt-3 text-[11px] sm:text-[13px] font-bold tracking-[0.12em] text-slate-400">
             נפח עסקאות, עמלות פלטפורמה וסטטוסי השלמה מתוך מסד העסקאות המעודכן
           </p>
         </div>
 
-        <div className="flex items-center gap-4">
-          <button className="flex items-center gap-3 rounded-[20px] border border-slate-200 bg-white px-8 py-4 text-[13px] font-black tracking-[0.12em] text-slate-900 shadow-sm transition-all hover:bg-slate-50">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+          <button className="flex items-center justify-center gap-3 rounded-[20px] border border-slate-200 bg-white px-5 py-3 sm:px-8 sm:py-4 text-[11px] sm:text-[13px] font-black tracking-[0.12em] text-slate-900 shadow-sm transition-all hover:bg-slate-50">
             <Download size={18} />
             <span>ייצוא דוח שנתי</span>
           </button>
 
           <div className="hidden h-14 w-px bg-slate-200 lg:block" />
 
-          <div className="flex items-center gap-4 rounded-2xl bg-slate-900 p-2 text-white shadow-2xl">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600">
+          <div className="flex items-center gap-3 rounded-2xl bg-slate-900 p-2 text-white shadow-2xl">
+            <div className="flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-xl bg-blue-600">
               <ShieldAlert size={24} />
             </div>
             <div className="pl-4 pr-2 text-right">
@@ -352,7 +353,7 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 xl:grid-cols-4">
         <KPIItem
           label="נפח עסקאות מערכתי"
           value={formatCurrency(stats.totalVolume)}
@@ -360,6 +361,7 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
           trendUp={stats.collectionRate >= 70}
           icon={<TrendingUp size={22} />}
           color="blue"
+          helpText="סך כל נפח הכסף שעבר דרך העסקאות במערכת על בסיס מסד העסקאות המחובר."
         />
         <KPIItem
           label="עמלות פלטפורמה"
@@ -368,6 +370,7 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
           trendUp
           icon={<BarChart3 size={22} />}
           color="emerald"
+          helpText="סך ההכנסות שנצברו מעמלות הפלטפורמה מתוך כל העסקאות שנקלטו."
         />
         <KPIItem
           label="עסקאות שהושלמו"
@@ -376,19 +379,21 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
           trendUp
           icon={<CheckCircle2 size={22} />}
           color="indigo"
+          helpText="כמות העסקאות שהסתיימו בהצלחה ונרשמו כהושלמו במערכת הגבייה."
         />
         <KPIItem
-          label="עסקאות ממתינות/בתהליך"
+          label="עסקאות ממתינות/תשלומים שנכשלו"
           value={(stats.pendingCount + stats.inProgressCount).toLocaleString("he-IL")}
           trend={formatCompactCurrency(stats.pendingVolume)}
           trendUp={stats.pendingCount + stats.inProgressCount < stats.completedCount}
           icon={<AlertCircle size={22} />}
           color="rose"
+          helpText="עסקאות שעדיין פתוחות לטיפול, כולל ממתינות ותשלומים שנכשלו ודורשים מעקב."
         />
       </div>
 
-      <div className="grid gap-10 lg:grid-cols-12">
-        <div className="dashboard-card flex min-h-[400px] flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-8 md:p-8">
+      <div className="grid gap-6 lg:grid-cols-12 lg:gap-10">
+        <div className="dashboard-card flex min-h-[400px] flex-col rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 md:p-8 shadow-sm lg:col-span-8">
           <div className="mb-8 flex flex-col gap-5 border-b border-slate-100 pb-6 md:flex-row md:items-start md:justify-between">
             <div className="space-y-4">
               <div className="flex items-center gap-2">
@@ -406,7 +411,7 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
                 <p className="text-[11px] font-black tracking-[0.16em] text-slate-400">
                   {chartTimeRange === "Year" ? "מחזור שנתי" : chartTimeRange === "Half Year" ? "מחזור חצי שנתי" : "מחזור בטווח הנבחר"}
                 </p>
-                <h2 className="text-4xl font-light leading-none tracking-tighter text-slate-900 font-display tabular-nums md:text-[52px]">
+                <h2 className="text-[2rem] sm:text-[2.4rem] md:text-4xl lg:text-[52px] font-light leading-none tracking-tighter text-slate-900 font-display tabular-nums">
                   {formatCurrency(Math.round(chartSummary.visibleTotal))}
                 </h2>
                 <p className="text-sm font-bold text-slate-500">
@@ -421,7 +426,7 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
               </div>
             </div>
             
-            <div className="flex items-center overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm shrink-0">
+            <div className="flex max-w-full shrink-0 items-center overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
                {(["Day", "Week", "Month", "Half Year", "Year", "All Time"] as ChartTimeRange[]).map((range) => (
                   <button 
                     key={range}
@@ -549,7 +554,7 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
         </div>
 
         <div className="space-y-8 lg:col-span-4">
-          <div className="dashboard-card relative overflow-hidden bg-slate-950 p-10 text-white shadow-2xl">
+          <div className="dashboard-card relative overflow-hidden bg-slate-950 p-6 sm:p-8 md:p-10 text-white shadow-2xl">
             <div className="absolute right-0 top-0 h-48 w-48 translate-x-12 -translate-y-12 rounded-full bg-blue-600/10 blur-3xl" />
             <h3 className="relative z-10 mb-8 border-r-4 border-blue-600 px-2 text-xl font-black tracking-tighter">
               תובנות סיכון
@@ -561,7 +566,7 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
                 color="text-amber-400"
               />
               <RiskMetric
-                label="עסקאות בתהליך"
+                label="תשלומים שנכשלו"
                 value={stats.inProgressCount.toLocaleString("he-IL")}
                 color="text-rose-400"
               />
@@ -576,7 +581,7 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
             </button>
           </div>
 
-          <div className="dashboard-card border-slate-100 p-8">
+          <div className="dashboard-card border-slate-100 p-5 sm:p-6 md:p-8">
             <h3 className="mb-6 text-xs font-black tracking-[0.14em] text-slate-400">
               יעדי השלמה ועמלות
             </h3>
@@ -593,9 +598,9 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
       </div>
 
       <div className="dashboard-card overflow-hidden border-slate-100 p-0 shadow-sleek">
-        <div className="flex flex-col items-center justify-between gap-8 border-b border-slate-100 bg-slate-50/50 p-8 md:flex-row md:p-10">
+        <div className="flex flex-col items-stretch justify-between gap-5 border-b border-slate-100 bg-slate-50/50 p-5 sm:p-6 md:flex-row md:items-center md:p-8 lg:p-10">
           <div className="flex w-full flex-col gap-4 md:w-auto md:flex-row md:items-center">
-            <div className="group relative w-full md:w-96">
+            <div className="group relative w-full md:w-80 lg:w-96">
               <Search size={18} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300" />
               <input
                 type="text"
@@ -609,39 +614,39 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
             <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
               <FilterButton active={filterStatus === "all"} label="הכל" onClick={() => { setFilterStatus("all"); setCurrentPage(1); }} />
               <FilterButton active={filterStatus === "completed"} label="הושלם" tone="emerald" onClick={() => { setFilterStatus("completed"); setCurrentPage(1); }} />
-              <FilterButton active={filterStatus === "in_progress"} label="בתהליך" tone="rose" onClick={() => { setFilterStatus("in_progress"); setCurrentPage(1); }} />
+              <FilterButton active={filterStatus === "in_progress"} label="תשלומים שנכשלו" tone="rose" onClick={() => { setFilterStatus("in_progress"); setCurrentPage(1); }} />
               <FilterButton active={filterStatus === "pending"} label="ממתין" tone="purple" onClick={() => { setFilterStatus("pending"); setCurrentPage(1); }} />
             </div>
           </div>
 
-          <p className="text-[10px] font-black tracking-[0.12em] text-slate-400">
+          <p className="text-[10px] font-black tracking-[0.12em] text-slate-400 md:text-left">
             מציג {filteredTransactions.length.toLocaleString("he-IL")} מתוך {transactions.length.toLocaleString("he-IL")} עסקאות
           </p>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] border-collapse text-right">
+          <table className="w-full min-w-[760px] border-collapse text-right md:min-w-[980px]">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/80 text-[10px] font-black tracking-[0.16em] text-slate-400">
-                <th className="px-10 py-6">פרטי העסקה</th>
-                <th className="px-10 py-6 text-center">שוכר / נכס</th>
-                <th className="px-10 py-6 text-center">ערוץ / ספק</th>
-                <th className="px-10 py-6 text-center">סטטוס</th>
-                <th className="px-10 py-6 text-center">סכום</th>
-                <th className="px-10 py-6 text-center">פעולות</th>
+                <th className="px-4 py-4 sm:px-6 md:px-10 md:py-6">פרטי העסקה</th>
+                <th className="px-4 py-4 text-center sm:px-6 md:px-10 md:py-6">שוכר / נכס</th>
+                <th className="px-4 py-4 text-center sm:px-6 md:px-10 md:py-6">ערוץ / ספק</th>
+                <th className="px-4 py-4 text-center sm:px-6 md:px-10 md:py-6">סטטוס</th>
+                <th className="px-4 py-4 text-center sm:px-6 md:px-10 md:py-6">סכום</th>
+                <th className="px-4 py-4 text-center sm:px-6 md:px-10 md:py-6">פעולות</th>
               </tr>
             </thead>
 
             <tbody className="divide-y divide-slate-100">
               {filteredTransactions.slice((currentPage - 1) * 10, currentPage * 10).map((row) => (
                 <tr key={row.transaction.id} className="group transition-all hover:bg-slate-50/80">
-                  <td className="px-10 py-8">
-                    <div className="flex items-center gap-5">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-sm transition-all group-hover:rotate-3 group-hover:scale-110">
+                  <td className="px-4 py-5 sm:px-6 sm:py-6 md:px-10 md:py-8">
+                    <div className="flex items-center gap-3 sm:gap-5">
+                      <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-sm transition-all group-hover:rotate-3 group-hover:scale-110">
                         <CreditCard size={22} className="text-blue-600" />
                       </div>
                       <div>
-                        <p className="text-base font-black leading-none text-slate-900 italic font-display">
+                        <p className="text-sm sm:text-base font-black leading-none text-slate-900 italic font-display">
                           ID-{row.transaction.id.slice(-8).toUpperCase()}
                         </p>
                         <p className="mt-2 text-[10px] font-bold tracking-[0.12em] text-slate-400">
@@ -650,7 +655,7 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
                       </div>
                     </div>
                   </td>
-                  <td className="px-10 py-8 text-center">
+                  <td className="px-4 py-5 text-center sm:px-6 sm:py-6 md:px-10 md:py-8">
                     <p className="text-sm font-black leading-none text-slate-900 italic">
                       {row.tenantLabel}
                     </p>
@@ -658,12 +663,12 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
                       {row.propertyLabel}
                     </p>
                   </td>
-                  <td className="px-10 py-8 text-center">
+                  <td className="px-4 py-5 text-center sm:px-6 sm:py-6 md:px-10 md:py-8">
                     <span className="inline-flex rounded-xl border border-slate-100 bg-white px-3 py-1.5 text-[9px] font-black tracking-[0.12em] text-slate-900">
                       {row.channelLabel} • {row.providerLabel}
                     </span>
                   </td>
-                  <td className="px-10 py-8 text-center">
+                  <td className="px-4 py-5 text-center sm:px-6 sm:py-6 md:px-10 md:py-8">
                     <div
                       className={cn(
                         "inline-flex items-center gap-2 rounded-2xl border px-4 py-2 text-[10px] font-black tracking-[0.12em] shadow-sm",
@@ -686,12 +691,12 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
                       <span>{transactionStatusLabel(row.transaction.status)}</span>
                     </div>
                   </td>
-                  <td className="px-10 py-8 text-center">
-                    <p className="text-2xl font-black text-slate-900 italic font-display">
+                  <td className="px-4 py-5 text-center sm:px-6 sm:py-6 md:px-10 md:py-8">
+                    <p className="text-xl sm:text-2xl font-black text-slate-900 italic font-display">
                       {formatCurrency(row.transaction.amount)}
                     </p>
                   </td>
-                  <td className="px-10 py-8 text-center">
+                  <td className="px-4 py-5 text-center sm:px-6 sm:py-6 md:px-10 md:py-8">
                     <button
                       onClick={() => setSelectedTransaction({
                         transaction: row.transaction,
@@ -711,7 +716,7 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
         </div>
 
         {filteredTransactions.length > 10 && (
-          <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/30 px-10 py-6">
+          <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/30 px-4 py-4 sm:px-6 md:px-10 md:py-6">
             <button
                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                disabled={currentPage === 1}
@@ -743,8 +748,8 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
       </div>
 
       {selectedTransaction && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 p-6 backdrop-blur-xl animate-in fade-in duration-500">
-          <div className="relative w-full max-w-xl overflow-hidden rounded-[40px] bg-white p-6 sm:p-12 text-right shadow-2xl animate-in zoom-in-95">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 p-4 sm:p-6 backdrop-blur-xl animate-in fade-in duration-500">
+          <div className="relative w-full max-w-xl overflow-hidden rounded-[32px] sm:rounded-[40px] bg-white p-5 sm:p-8 md:p-12 text-right shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
             <div className="absolute right-0 top-0 h-2 w-full bg-blue-600" />
             <button
               onClick={() => setSelectedTransaction(null)}
@@ -758,7 +763,7 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
                 <DollarSign size={36} />
               </div>
               <div>
-                <h2 className="text-4xl font-black tracking-tighter text-slate-900 italic font-display">
+                <h2 className="text-3xl sm:text-4xl font-black tracking-tighter text-slate-900 italic font-display">
                   פרטי עסקה
                 </h2>
                 <p className="mt-2 text-xs font-bold tracking-[0.12em] text-slate-400">
@@ -767,12 +772,12 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
               </div>
             </div>
 
-            <div className="space-y-6 rounded-[32px] border border-slate-100 bg-slate-50 p-8">
+            <div className="space-y-5 rounded-[32px] border border-slate-100 bg-slate-50 p-5 sm:p-6 md:p-8">
               <DetailRow label="מזהה" value={selectedTransaction.transaction.id} />
               <DetailRow label="שוכר" value={selectedTransaction.tenantLabel} />
               <DetailRow label="נכס" value={selectedTransaction.propertyLabel} />
               <DetailRow label="חוזה" value={selectedTransaction.contractLabel} />
-              <DetailRow label="ספק" value={selectedTransaction.transaction.provider === "insurance" ? "ביטוח" : selectedTransaction.transaction.provider === "midrag" ? "מידרג" : "יד2"} />
+              <DetailRow label="ספק" value={selectedTransaction.transaction.provider === "insurance" ? "עסקאות ביטוח נכסים ורכוש פעילים החודש" : selectedTransaction.transaction.provider === "midrag" ? "מידרג" : "יד2"} />
               <DetailRow label="ערוץ" value={selectedTransaction.transaction.channel === "maintenance_companies" ? "חברות תחזוקה" : selectedTransaction.transaction.channel === "foreign_resident_agencies" ? "משרדי נדל\"ן לתושבי חוץ" : "נדל\"ן מסחרי"} />
               <DetailRow label="תאריך" value={formatDate(selectedTransaction.transaction.createdAt)} />
               <DetailRow label="סטטוס" value={transactionStatusLabel(selectedTransaction.transaction.status)} />
@@ -803,6 +808,7 @@ function KPIItem({
   trendUp,
   icon,
   color,
+  helpText,
 }: {
   label: string;
   value: string;
@@ -810,6 +816,7 @@ function KPIItem({
   trendUp: boolean;
   icon: React.ReactNode;
   color: "blue" | "emerald" | "indigo" | "rose";
+  helpText: string;
 }) {
   const colors = {
     blue: "text-blue-600 bg-blue-50 border-blue-100",
@@ -819,14 +826,43 @@ function KPIItem({
   };
 
   return (
-    <div className="dashboard-card flex flex-col border-slate-100 p-10 transition-all group hover:-translate-y-1">
-      <div className="mb-8 flex items-center justify-between">
-        <div className={cn("flex h-12 w-12 items-center justify-center rounded-2xl border shadow-sm", colors[color])}>
-          {icon}
+    <div className="dashboard-card group relative flex min-h-[230px] flex-col border border-slate-100 p-4 sm:p-5 transition-all hover:-translate-y-1">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="group/info relative">
+            <button
+              type="button"
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 shadow-[0_4px_12px_rgba(15,23,42,0.06)] transition-colors hover:text-slate-900"
+              aria-label={`מידע על ${label}`}
+            >
+              <Info size={13} />
+            </button>
+            <div className="pointer-events-none absolute left-0 top-11 z-20 w-64 rounded-2xl bg-slate-950 px-4 py-3 text-right text-xs font-bold leading-5 text-white opacity-0 shadow-2xl transition-opacity group-hover/info:opacity-100">
+              {helpText}
+            </div>
+          </div>
+          <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border shadow-[0_6px_14px_rgba(59,130,246,0.10)]", colors[color])}>
+            {icon}
+          </div>
         </div>
+        <div className="min-w-0 flex-1 pt-1 text-center">
+          <p className="text-[10px] sm:text-[11px] font-black tracking-[0.04em] leading-5 text-slate-400 break-words">
+            {label}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-1 items-center justify-center py-2">
+        <p className="text-center text-[clamp(1.8rem,2.35vw,2.85rem)] font-black leading-none tracking-[-0.05em] text-slate-900 italic font-display whitespace-nowrap">
+          {value}
+        </p>
+      </div>
+
+      <div className="mt-auto flex justify-start" dir="ltr">
         <div
+          dir="rtl"
           className={cn(
-            "flex items-center gap-1.5 rounded-full px-3 py-1 text-[9px] font-black tracking-[0.12em]",
+            "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[10px] font-black tracking-[0.08em]",
             trendUp ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600",
           )}
         >
@@ -834,11 +870,6 @@ function KPIItem({
           <span>{trend}</span>
         </div>
       </div>
-
-      <p className="mb-3 text-[10px] font-black tracking-[0.12em] text-slate-400">{label}</p>
-      <p className="text-4xl font-black leading-tight tracking-tighter text-slate-900 italic font-display">
-        {value}
-      </p>
     </div>
   );
 }

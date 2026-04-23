@@ -54,7 +54,7 @@ type AppNavItem = {
  * RentFlow Main Application
  */
 export default function App() {
-  const { currentUser: user, isReady, logout } = useAppData();
+  const { currentUser: user, siteAccessSession, isReady, logout } = useAppData();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -87,7 +87,16 @@ export default function App() {
     return <LoadingScreen />;
   }
 
-  // 2. Login / Welcome Screen
+  // 2. Site Access Gate
+  if (!siteAccessSession) {
+    return (
+      <div className="min-h-screen w-full overflow-x-hidden bg-slate-50 flex flex-col">
+        <SiteAccessScreen />
+      </div>
+    );
+  }
+
+  // 3. Login / Welcome Screen
   if (!user) {
     return (
       <div className="min-h-screen w-full overflow-x-hidden bg-slate-50 flex flex-col">
@@ -437,9 +446,10 @@ function MessageUser({ name, avatar, collapsed, online, onClick }: { name: strin
 }
 
 export function WelcomeScreen() {
-  const { login, register } = useAppData();
+  const { db, login, register, clearSiteAccess } = useAppData();
   const [isRegister, setIsRegister] = useState(false);
   const [showRoleSelection, setShowRoleSelection] = useState(false);
+  const [showPropertyBoard, setShowPropertyBoard] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -508,6 +518,16 @@ export function WelcomeScreen() {
     setShowRoleSelection(true);
   };
 
+  const publicProperties = db.properties
+    .filter((property) => !property.isArchived && property.catalogStatus !== "archived")
+    .sort((left, right) => {
+      if (left.status === right.status) return 0;
+      if (left.status === "vacant") return -1;
+      if (right.status === "vacant") return 1;
+      return 0;
+    })
+    .slice(0, 6);
+
   return (
     <div className="flex min-h-screen w-full flex-col bg-white font-sans selection:bg-slate-900 selection:text-white overflow-x-hidden p-3 sm:p-4 lg:flex-row lg:overflow-hidden lg:p-6" dir="rtl">
       
@@ -520,16 +540,23 @@ export function WelcomeScreen() {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/20 to-transparent"></div>
         
-        <div className="absolute inset-0 flex flex-col justify-end p-12 xl:p-20 space-y-8 animate-in fade-in slide-in-from-bottom-10 duration-1000">
-          <img src={hagaiLogo} alt="Logo" className="h-16 w-auto object-contain drop-shadow-2xl self-start" />
-          
+        <div className="absolute inset-0 flex flex-col justify-between p-12 xl:p-20 animate-in fade-in slide-in-from-bottom-10 duration-1000">
+          <div className="flex items-center gap-5 self-start rounded-[28px] bg-white/10 px-6 py-5 backdrop-blur-md">
+            <img src={hagaiLogo} alt="גרים פה" className="h-24 w-auto object-contain drop-shadow-2xl xl:h-28" />
+            <div className="space-y-1 text-right">
+              <p className="text-[11px] font-black uppercase tracking-[0.32em] text-white/60">Housing Platform</p>
+              <h1 className="text-4xl font-black tracking-tight text-white xl:text-5xl">גרים פה</h1>
+            </div>
+          </div>
+
+          <div className="space-y-8">
           <div className="space-y-4">
             <h2 className="text-6xl font-black text-white leading-tight tracking-tighter">
-              הדרך הנכונה <br/>
-              <span className="text-blue-400">לנהל נכס.</span>
+              הדרך הנכונה והקלה <br/>
+              <span className="text-blue-400">לנהל לטפל בתשלומי שכר דירה.</span>
             </h2>
             <p className="text-xl text-slate-200 font-bold leading-relaxed max-w-lg">
-              RentFlow מעניקה לך ניהול חכם של הנכסים שלך, גבייה אוטומטית, ותקשורת שקופה מול השוכרים. הכל במקום אחד.
+              מחליפים את הצקים הפיזים בביטחון דיגיטלי מלא - וודאות מוחלטת למשכיר נוחות מקסימלית לשוכר
             </p>
           </div>
           
@@ -542,6 +569,7 @@ export function WelcomeScreen() {
                 <p className="text-sm font-black text-white/40 uppercase tracking-widest">שביעות רצון</p>
                 <p className="text-3xl font-black text-white mt-1 italic tracking-tighter tabular-nums">98.4%</p>
              </div>
+          </div>
           </div>
         </div>
       </div>
@@ -628,15 +656,218 @@ export function WelcomeScreen() {
           </div>
 
           <div className="text-center pt-4">
-             <p className="text-sm font-bold text-slate-500">
-               {isRegister ? "כבר רשום?" : "עוד לא רשום?"}{" "}
-               <button 
-                 onClick={() => { setIsRegister(!isRegister); setError(null); }}
-                 className="text-slate-950 font-black border-b border-slate-950 hover:pb-0.5 transition-all ml-1 italic"
+             <div className="flex flex-col items-center gap-3">
+               <p className="text-sm font-bold text-slate-500">
+                 {isRegister ? "כבר רשום?" : "עוד לא רשום?"}{" "}
+                 <button 
+                   onClick={() => { setIsRegister(!isRegister); setError(null); }}
+                   className="text-slate-950 font-black border-b border-slate-950 hover:pb-0.5 transition-all ml-1 italic"
+                 >
+                   {isRegister ? "כניסה למערכת" : "צור חשבון חדש"}
+                 </button>
+               </p>
+               <button
+                 type="button"
+                 onClick={() => setShowPropertyBoard(true)}
+                 className="text-sm font-black text-blue-700 border-b border-blue-200 hover:border-blue-700 transition-colors"
                >
-                 {isRegister ? "כניסה למערכת" : "צור חשבון חדש"}
+                 לוח דירות
                </button>
-             </p>
+               <button
+                 type="button"
+                 onClick={clearSiteAccess}
+                 className="text-xs font-black text-slate-500 border-b border-slate-200 hover:border-slate-500 transition-colors"
+               >
+                 החלף קוד גישה
+               </button>
+             </div>
+          </div>
+        </div>
+
+        {showPropertyBoard && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-5xl overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-2xl">
+              <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+                <div className="text-right">
+                  <p className="text-xs font-black uppercase tracking-[0.24em] text-slate-400">גרים פה</p>
+                  <h2 className="text-2xl font-black text-slate-900">לוח דירות</h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPropertyBoard(false)}
+                  className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-900"
+                  aria-label="סגור לוח דירות"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="max-h-[70vh] overflow-y-auto p-6">
+                {publicProperties.length > 0 ? (
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {publicProperties.map((property) => (
+                      <article
+                        key={property.id}
+                        className="rounded-[28px] border border-slate-200 bg-slate-50 p-5 text-right shadow-sm"
+                      >
+                        <div className="mb-4 flex items-center justify-between gap-3">
+                          <span
+                            className={cn(
+                              "rounded-full px-3 py-1 text-[11px] font-black",
+                              property.status === "vacant"
+                                ? "bg-emerald-100 text-emerald-700"
+                                : property.status === "maintenance"
+                                  ? "bg-amber-100 text-amber-700"
+                                  : "bg-slate-200 text-slate-700",
+                            )}
+                          >
+                            {property.status === "vacant"
+                              ? "פנויה"
+                              : property.status === "maintenance"
+                                ? "בתחזוקה"
+                                : "מאוכלסת"}
+                          </span>
+                          <span className="text-sm font-black text-slate-900">
+                            ₪{property.rent.toLocaleString("he-IL")}
+                          </span>
+                        </div>
+                        <h3 className="text-lg font-black text-slate-900">{property.address}</h3>
+                        <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
+                          {property.description || "דירה מנוהלת בפלטפורמה עם פרטי שכירות דיגיטליים ומעקב מלא."}
+                        </p>
+                        <div className="mt-4 flex flex-wrap gap-2 text-xs font-black text-slate-500">
+                          {property.city && <span className="rounded-full bg-white px-3 py-1">{property.city}</span>}
+                          {property.rooms && <span className="rounded-full bg-white px-3 py-1">{property.rooms} חדרים</span>}
+                          {property.sizeSqm && <span className="rounded-full bg-white px-3 py-1">{property.sizeSqm} מ״ר</span>}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-[28px] border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center">
+                    <p className="text-lg font-black text-slate-900">אין כרגע דירות זמינות להצגה.</p>
+                    <p className="mt-2 text-sm font-bold text-slate-500">כשהנכסים יעודכנו במערכת, הם יופיעו כאן.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SiteAccessScreen() {
+  const { requestSiteAccess } = useAppData();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      requestSiteAccess(username, password);
+    } catch (err: any) {
+      setError(err?.message || "הגישה נדחתה");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex min-h-screen w-full flex-col bg-white p-3 font-sans selection:bg-slate-900 selection:text-white sm:p-4 lg:flex-row lg:overflow-hidden lg:p-6" dir="rtl">
+      <div className="hidden lg:flex relative w-1/2 overflow-hidden rounded-[40px] shadow-2xl">
+        <img
+          src={welcomeImage}
+          className="absolute inset-0 h-full w-full object-cover"
+          alt="כניסה למערכת"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/25 to-transparent" />
+        <div className="relative flex h-full flex-col justify-between p-12 xl:p-20 text-white">
+          <div className="flex items-center gap-5 self-start rounded-[28px] bg-white/10 px-6 py-5 backdrop-blur-md">
+            <img src={hagaiLogo} alt="גרים פה" className="h-20 w-auto object-contain drop-shadow-2xl xl:h-24" />
+            <div className="space-y-1 text-right">
+              <p className="text-[11px] font-black uppercase tracking-[0.32em] text-white/60">Access Control</p>
+              <h1 className="text-4xl font-black tracking-tight text-white xl:text-5xl">גרים פה</h1>
+            </div>
+          </div>
+
+          <div className="space-y-5">
+            <h2 className="text-5xl font-black leading-tight tracking-tighter">
+              בקשת גישה
+              <br />
+              <span className="text-blue-400">לפני הכניסה למערכת.</span>
+            </h2>
+            <p className="max-w-lg text-lg font-bold leading-relaxed text-slate-200">
+              משתמש `admin` פעיל ללא הגבלת זמן. כל קוד גישה זמני אחר מופעל ברגע הכניסה הראשונה ונשאר זמין ל־24 שעות בלבד.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="relative flex flex-1 flex-col items-center justify-center bg-white p-4 sm:p-6 lg:p-8">
+        <div className="w-full max-w-md space-y-8 lg:space-y-10">
+          <div className="space-y-3">
+            <div className="flex h-16 w-16 items-center justify-center rounded-[24px] bg-slate-950 text-white shadow-xl">
+              <ShieldCheck size={30} />
+            </div>
+            <h3 className="text-4xl font-black tracking-tighter text-slate-900">כניסה מוקדמת לאתר</h3>
+            <p className="text-base font-bold text-slate-400">
+              לפני מסך ההתחברות וההרשמה יש להזין שם משתמש וסיסמה של שכבת הגישה.
+            </p>
+          </div>
+
+          {error && (
+            <div className="flex items-center gap-3 rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-black text-red-600">
+              <AlertCircle size={18} />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <AuthInput
+              label="שם משתמש"
+              icon={<UserIcon size={18} />}
+              value={username}
+              onChange={setUsername}
+              placeholder="admin / metering01"
+            />
+            <AuthInput
+              label="סיסמה"
+              icon={<Lock size={18} />}
+              value={password}
+              onChange={setPassword}
+              placeholder="••••••••"
+              type="password"
+            />
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="flex h-14 w-full items-center justify-center gap-3 rounded-2xl bg-slate-950 text-base font-black italic text-white shadow-xl transition-all active:scale-[0.98] hover:bg-black disabled:bg-slate-400"
+            >
+              {isLoading ? (
+                <div className="h-5 w-5 rounded-full border-2 border-white/30 border-t-white animate-spin"></div>
+              ) : (
+                <>
+                  <LogIn size={18} />
+                  <span>אישור גישה</span>
+                </>
+              )}
+            </button>
+          </form>
+
+          <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-5 text-right">
+            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">חוקיות כניסה</p>
+            <div className="mt-4 space-y-3 text-sm font-bold leading-6 text-slate-600">
+              <p>20 המשתמשים הזמניים מופעלים בכניסה הראשונה ונחסמים אוטומטית אחרי 24 שעות.</p>
+              <p>אחרי אישור הגישה תעבור למסך ההתחברות או ההרשמה הרגיל של המערכת.</p>
+            </div>
           </div>
         </div>
       </div>

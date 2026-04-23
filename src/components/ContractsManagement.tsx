@@ -44,6 +44,17 @@ export default function ContractsManagement({ user }: { user: User }) {
       acc[contract.guaranteeType || "none"] = (acc[contract.guaranteeType || "none"] || 0) + 1;
       return acc;
     }, {});
+    const activeInsuranceGuarantees = active.filter((contract) => contract.guaranteeType === "insurance");
+    const insuranceDocuments = db.documents.filter((document) =>
+      document.category === "insurance" &&
+      document.ownerType === "contract" &&
+      contracts.some((contract) => contract.id === document.ownerId),
+    );
+    const guaranteeDocuments = db.documents.filter((document) =>
+      document.category === "guarantee" &&
+      document.ownerType === "contract" &&
+      contracts.some((contract) => contract.id === document.ownerId),
+    );
     const linkedTransactions = db.transactions.filter((transaction) =>
       contracts.some((contract) => contract.id === transaction.contractId),
     );
@@ -56,10 +67,13 @@ export default function ContractsManagement({ user }: { user: User }) {
       linkedTransactionVolume: linkedTransactions.reduce((sum, transaction) => sum + transaction.amount, 0),
       totalRent,
       insuranceGuarantees: guarantees.insurance || 0,
+      activeInsuranceGuarantees: activeInsuranceGuarantees.length,
       bankGuarantees: guarantees.bank || 0,
       promissoryGuarantees: guarantees.promissory || 0,
+      guaranteeDocumentsReady: guaranteeDocuments.filter((document) => document.status === "ready").length,
+      insuranceDocumentsReady: insuranceDocuments.filter((document) => document.status === "ready").length,
     };
-  }, [contracts, db.transactions]);
+  }, [contracts, db.documents, db.transactions]);
   const latestSignatureRequest = contractMetrics.waitingSignature[0] || null;
   const versionTemplates = db.contractTemplates;
 
@@ -73,14 +87,14 @@ export default function ContractsManagement({ user }: { user: User }) {
     <div className="space-y-10 animate-in fade-in duration-700" dir="rtl">
       
       {/* 1. PAGE HEADER */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 pb-6 border-b border-slate-200/60">
-        <div className="flex items-center gap-5">
-           <div className="h-16 w-16 bg-white border border-slate-100 shadow-sm rounded-[20px] flex items-center justify-center text-blue-600 rotate-3 transition-transform hover:scale-110">
+      <div className="flex flex-col gap-5 border-b border-slate-200/60 pb-6 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-start gap-4 sm:items-center sm:gap-5">
+           <div className="flex h-12 w-12 sm:h-14 sm:w-14 md:h-16 md:w-16 items-center justify-center rounded-[20px] border border-slate-100 bg-white text-blue-600 rotate-3 shadow-sm transition-transform hover:scale-110">
               <FileText size={32} />
            </div>
            <div>
-             <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter italic font-display leading-tight">ניהול חוזים והסכמים</h1>
-             <p className="text-slate-400 font-bold mt-2 text-[13px] tracking-[0.08em]">
+             <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-slate-900 tracking-tighter italic font-display leading-tight">ניהול חוזים והסכמים</h1>
+             <p className="mt-2 text-[11px] sm:text-[13px] text-slate-400 font-bold tracking-[0.08em] leading-relaxed">
                {contractMetrics.total.toLocaleString("he-IL")} חוזים • {contractMetrics.linkedTransactionCount.toLocaleString("he-IL")} עסקאות משויכות • ארכיון משפטי פעיל
              </p>
            </div>
@@ -88,7 +102,7 @@ export default function ContractsManagement({ user }: { user: User }) {
         {user.role !== "tenant" && (
           <button 
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-3 rounded-2xl bg-slate-900 px-6 py-4 text-[13px] font-black text-white shadow-xl hover:shadow-2xl hover:bg-black active:scale-95 transition-all uppercase tracking-widest italic"
+            className="flex w-full sm:w-auto items-center justify-center gap-3 rounded-2xl bg-slate-900 px-5 py-3 sm:px-6 sm:py-4 text-[11px] sm:text-[13px] font-black text-white shadow-xl hover:shadow-2xl hover:bg-black active:scale-95 transition-all uppercase tracking-widest italic"
           >
             <Plus size={18} />
             <span>יצירת חוזה חדש</span>
@@ -96,15 +110,15 @@ export default function ContractsManagement({ user }: { user: User }) {
         )}
       </div>
 
-      <div className="grid gap-8 md:gap-10 lg:grid-cols-[1.1fr_0.9fr]">
+      <div className="grid gap-6 md:gap-8 lg:gap-10 xl:grid-cols-[1.1fr_0.9fr]">
         
         {/* 2. MAIN LIST - Contracts & Insurance */}
         <div className="space-y-10">
           
           {/* Contracts List Table */}
-          <div className="rounded-[32px] bg-white shadow-sleek border border-slate-200 overflow-hidden relative">
-            <div className="p-6 md:p-8 border-b border-slate-100 flex items-center justify-between">
-              <h2 className="text-2xl font-black text-slate-900 tracking-tight italic font-display flex items-center gap-4">
+          <div className="relative overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-sleek">
+            <div className="flex items-center justify-between border-b border-slate-100 p-5 sm:p-6 md:p-8">
+              <h2 className="flex items-center gap-3 sm:gap-4 text-xl sm:text-2xl font-black text-slate-900 tracking-tight italic font-display">
                  <div className="h-8 w-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center">
                    <FileText size={18} />
                  </div>
@@ -114,13 +128,13 @@ export default function ContractsManagement({ user }: { user: User }) {
             
             <div className="overflow-x-auto">
               {contracts.length > 0 ? (
-                <table className="w-full min-w-[720px] text-right">
+                <table className="w-full min-w-[640px] text-right md:min-w-[720px]">
                   <thead className="bg-slate-50/80 text-[10px] font-black text-slate-400 uppercase tracking-[0.16em] border-b border-slate-100">
                     <tr>
-                      <th className="px-8 py-5">נכס ותקופה</th>
-                      {user.role !== "tenant" && <th className="px-8 py-5">שוכר</th>}
-                      <th className="px-8 py-5 text-center">סטטוס</th>
-                      <th className="px-8 py-5 text-left">מסמכים</th>
+                      <th className="px-4 py-4 sm:px-6 md:px-8 md:py-5">נכס ותקופה</th>
+                      {user.role !== "tenant" && <th className="px-4 py-4 sm:px-6 md:px-8 md:py-5">שוכר</th>}
+                      <th className="px-4 py-4 sm:px-6 md:px-8 md:py-5 text-center">סטטוס</th>
+                      <th className="px-4 py-4 sm:px-6 md:px-8 md:py-5 text-left">מסמכים</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
@@ -139,10 +153,10 @@ export default function ContractsManagement({ user }: { user: User }) {
           </div>
 
           {/* Guarantees & Insurance Status */}
-          <div className="rounded-[32px] bg-white p-8 md:p-10 shadow-sleek border border-slate-200 relative overflow-hidden">
+          <div className="relative overflow-hidden rounded-[32px] border border-slate-200 bg-white p-5 sm:p-6 md:p-8 lg:p-10 shadow-sleek">
             <div className="absolute top-0 right-0 h-40 w-40 bg-blue-50/50 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
-            <div className="relative z-10 flex items-center justify-between mb-8">
-              <h2 className="text-2xl font-black text-slate-900 tracking-tight italic font-display flex items-center gap-4">
+            <div className="relative z-10 mb-8 flex items-center justify-between">
+              <h2 className="flex items-center gap-3 sm:gap-4 text-xl sm:text-2xl font-black text-slate-900 tracking-tight italic font-display">
                 <div className="h-8 w-8 bg-slate-900 text-white rounded-lg flex items-center justify-center">
                   <ShieldCheck size={18} />
                 </div>
@@ -165,14 +179,14 @@ export default function ContractsManagement({ user }: { user: User }) {
               />
               <GuaranteeCard 
                 label="ערבויות ביטוח" 
-                value={contractMetrics.insuranceGuarantees.toLocaleString("he-IL")} 
-                status="חוזים עם ביטוח ערבות פעיל" 
+                value={contractMetrics.activeInsuranceGuarantees.toLocaleString("he-IL")} 
+                status={`${contractMetrics.insuranceDocumentsReady.toLocaleString("he-IL")} מסמכי ביטוח מוכנים במערכת`} 
                 icon={<ShieldCheck size={20} />} 
               />
               <GuaranteeCard 
                 label="ערבויות בנקאיות ושטרי חוב" 
                 value={(contractMetrics.bankGuarantees + contractMetrics.promissoryGuarantees).toLocaleString("he-IL")} 
-                status="מכסה בנקאית והתחייבויות חוזיות" 
+                status={`${contractMetrics.guaranteeDocumentsReady.toLocaleString("he-IL")} מסמכי ערבות חתומים/מוכנים`} 
                 icon={<Lock size={20} />} 
               />
             </div>
@@ -183,34 +197,60 @@ export default function ContractsManagement({ user }: { user: User }) {
         <div className="space-y-10">
           
           {/* Digital Signature Promotion/Action */}
-          <div className="rounded-[32px] bg-slate-950 p-6 md:p-10 text-white shadow-2xl relative overflow-hidden group border border-white/5">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/20 blur-[100px] rounded-full mix-blend-screen transition-all group-hover:bg-blue-500/30"></div>
-            <div className="absolute bottom-0 left-0 w-40 h-40 bg-purple-600/20 blur-[80px] rounded-full mix-blend-screen"></div>
+          <div className="group relative overflow-hidden rounded-[34px] border border-slate-800/80 bg-[radial-gradient(circle_at_top_right,_rgba(59,130,246,0.16),_transparent_30%),linear-gradient(180deg,#081127_0%,#050b1d_100%)] p-5 sm:p-6 md:p-8 lg:p-10 text-white shadow-[0_30px_80px_rgba(15,23,42,0.45)]">
+            <div className="absolute inset-x-0 top-0 h-px bg-white/20"></div>
+            <div className="absolute top-0 right-0 h-64 w-64 rounded-full bg-blue-500/15 blur-[110px] transition-all group-hover:bg-blue-400/25"></div>
+            <div className="absolute bottom-0 left-0 h-40 w-40 rounded-full bg-indigo-500/15 blur-[90px]"></div>
+            <div className="absolute inset-x-6 top-24 h-px bg-gradient-to-l from-transparent via-white/10 to-transparent"></div>
             
-            <div className="relative z-10">
-              <div className="flex items-center gap-4 mb-6">
-                <div className="h-14 w-14 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20 backdrop-blur-md">
-                   <span className="text-2xl">✍️</span>
-                </div>
-                <div>
-                  <h2 className="text-2xl font-black tracking-tight italic font-display">חתימה דיגיטלית</h2>
-                  <p className="text-[10px] text-slate-400 mt-1 font-bold uppercase tracking-[0.2em]">אבטחה מקסימלית • תוקף משפטי</p>
-                </div>
-              </div>
-              
-              <div className="space-y-4 mb-10 mt-8">
-                <div className="flex items-center gap-5 p-5 rounded-2xl bg-white/[0.03] border border-white/10 hover:bg-white/[0.05] transition-all">
-                  <div className="h-12 w-12 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
-                    <Clock size={24} className="animate-pulse" />
+            <div className="relative z-10 space-y-7">
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-3">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-blue-100/80">
+                    <span className="h-2 w-2 rounded-full bg-blue-400"></span>
+                    אבטחה מקסימלית
                   </div>
                   <div>
-                    <p className="text-[15px] font-black text-white leading-none tracking-tight">
+                    <h2 className="text-2xl sm:text-[2rem] font-black tracking-tight italic font-display">חתימה דיגיטלית</h2>
+                    <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">תוקף משפטי מלא • אישור בזמן אמת</p>
+                  </div>
+                </div>
+
+                <div className="flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-[22px] border border-white/15 bg-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] backdrop-blur-xl">
+                  <span className="text-2xl sm:text-[28px]">✍️</span>
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-[1.2fr_0.8fr]">
+                <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-5 sm:p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-blue-400/15 bg-blue-500/15 text-blue-300">
+                      <Clock size={22} className={latestSignatureRequest ? "animate-pulse" : ""} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-lg font-black leading-none tracking-tight text-white">
                       {latestSignatureRequest ? "ממתין לחתימה" : "אין מסמכים פתוחים לחתימה"}
+                      </p>
+                      <p className="mt-3 max-w-[280px] text-[12px] font-bold leading-6 text-slate-300">
+                        {latestSignatureRequest
+                          ? `${latestSignatureRequest.propertyAddress || latestSignatureRequest.propertyId} • ${latestSignatureRequest.tenantName || "שוכר לא הוגדר"}`
+                          : `${contractMetrics.active.toLocaleString("he-IL")} חוזים פעילים כבר חתומים במערכת`}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-3">
+                  <div className="rounded-[24px] border border-white/10 bg-white/[0.05] p-4">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">מסמכים פתוחים</p>
+                    <p className="mt-2 text-3xl font-black font-display tabular-nums text-white">
+                      {latestSignatureRequest ? "1" : "0"}
                     </p>
-                    <p className="text-[11px] text-slate-400 mt-2 font-bold max-w-[240px] leading-relaxed">
-                      {latestSignatureRequest
-                        ? `${latestSignatureRequest.propertyAddress || latestSignatureRequest.propertyId} • ${latestSignatureRequest.tenantName || "שוכר לא הוגדר"}`
-                        : `${contractMetrics.active.toLocaleString("he-IL")} חוזים פעילים כבר חתומים במערכת`}
+                  </div>
+                  <div className="rounded-[24px] border border-white/10 bg-white/[0.05] p-4">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">חוזים פעילים</p>
+                    <p className="mt-2 text-3xl font-black font-display tabular-nums text-white">
+                      {contractMetrics.active.toLocaleString("he-IL")}
                     </p>
                   </div>
                 </div>
@@ -221,7 +261,7 @@ export default function ContractsManagement({ user }: { user: User }) {
                   onClick={() => {
                     handleSignDoc(latestSignatureRequest.id);
                   }}
-                  className="w-full py-5 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-2xl transition-all shadow-[0_0_40px_rgba(37,99,235,0.3)] hover:shadow-[0_0_60px_rgba(37,99,235,0.5)] active:scale-95 text-xs uppercase tracking-[0.16em] leading-none border border-blue-400/50"
+                  className="w-full rounded-[24px] border border-blue-300/40 bg-gradient-to-l from-blue-500 to-blue-600 py-4 sm:py-5 text-[10px] sm:text-xs font-black uppercase tracking-[0.16em] leading-none text-white transition-all shadow-[0_20px_45px_rgba(37,99,235,0.35)] hover:-translate-y-0.5 hover:from-blue-400 hover:to-blue-500 hover:shadow-[0_28px_60px_rgba(37,99,235,0.45)] active:scale-95"
                 >
                   חתום כעת על המסמך
                 </button>
@@ -230,8 +270,8 @@ export default function ContractsManagement({ user }: { user: User }) {
           </div>
 
           {/* Audit Trail / Version History */}
-          <div className="rounded-[32px] bg-white p-8 md:p-10 shadow-sleek border border-slate-200">
-            <h2 className="text-xl font-black text-slate-900 mb-8 tracking-tight italic font-display flex items-center gap-3">
+          <div className="rounded-[32px] border border-slate-200 bg-white p-5 sm:p-6 md:p-8 lg:p-10 shadow-sleek">
+            <h2 className="mb-8 flex items-center gap-3 text-lg sm:text-xl font-black text-slate-900 tracking-tight italic font-display">
               <History size={24} className="text-slate-400" />
               <span>היסטוריית גרסאות משפטיות</span>
             </h2>
@@ -390,14 +430,14 @@ function ContractRow({ contract, userRole }: { contract: Contract, userRole: str
   const currentStatus = statusConfig[contract.status] || statusConfig.waiting_signature;
 
   return (
-    <tr className="group hover:bg-slate-50/80 transition-all cursor-pointer">
-      <td className="px-8 py-6">
-        <div className="flex items-center gap-4">
-          <div className="h-10 w-10 shrink-0 bg-white border border-slate-200 rounded-xl flex items-center justify-center text-slate-300 group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 transition-all shadow-sm">
+    <tr className="group cursor-pointer transition-all hover:bg-slate-50/80">
+      <td className="px-4 py-4 sm:px-6 sm:py-5 md:px-8 md:py-6">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-300 shadow-sm transition-all group-hover:border-blue-600 group-hover:bg-blue-600 group-hover:text-white">
              <FileText size={18} />
           </div>
           <div className="flex flex-col text-right">
-            <span className="text-[15px] font-black text-slate-900 italic font-display">{contract.propertyAddress || contract.propertyId}</span>
+            <span className="text-sm sm:text-[15px] font-black text-slate-900 italic font-display">{contract.propertyAddress || contract.propertyId}</span>
             <div className="flex items-center gap-2 mt-1">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest tabular-nums">
                 {contract.startDate} — {contract.endDate}
@@ -416,12 +456,12 @@ function ContractRow({ contract, userRole }: { contract: Contract, userRole: str
           </div>
         </td>
       )}
-      <td className="px-8 py-6 text-center">
-        <span className={cn("inline-flex items-center justify-center rounded-xl px-4 py-2 text-[10px] font-black uppercase border tracking-widest", currentStatus.color)}>
+      <td className="px-4 py-4 text-center sm:px-6 sm:py-5 md:px-8 md:py-6">
+        <span className={cn("inline-flex items-center justify-center rounded-xl border px-3 py-2 sm:px-4 text-[9px] sm:text-[10px] font-black uppercase tracking-widest", currentStatus.color)}>
           {currentStatus.label}
         </span>
       </td>
-      <td className="px-8 py-6 text-left">
+      <td className="px-4 py-4 text-left sm:px-6 sm:py-5 md:px-8 md:py-6">
         <div className="flex items-center justify-end gap-3">
           <button className="h-10 w-10 flex items-center justify-center rounded-xl text-slate-400 bg-white border border-slate-200 hover:text-blue-600 hover:bg-blue-50 transition-all hover:border-blue-200 shadow-sm">
             <Download size={18} />
@@ -434,9 +474,9 @@ function ContractRow({ contract, userRole }: { contract: Contract, userRole: str
 
 function GuaranteeCard({ label, value, status, icon, isDownloadable = false }: any) {
   return (
-    <div className="p-6 rounded-[24px] border border-slate-100 bg-slate-50/50 group hover:bg-white hover:shadow-xl hover:border-slate-200 transition-all duration-300 text-right cursor-pointer min-h-[140px] flex flex-col justify-between">
-      <div className="flex items-center justify-between mb-4">
-        <div className="h-12 w-12 rounded-2xl bg-white border border-slate-100 flex items-center justify-center text-blue-500 shadow-sm transition-transform duration-500 group-hover:scale-110 group-hover:rotate-6 group-hover:bg-blue-600 group-hover:text-white">
+    <div className="group flex min-h-[140px] cursor-pointer flex-col justify-between rounded-[24px] border border-slate-100 bg-slate-50/50 p-5 sm:p-6 text-right transition-all duration-300 hover:border-slate-200 hover:bg-white hover:shadow-xl">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-2xl border border-slate-100 bg-white text-blue-500 shadow-sm transition-transform duration-500 group-hover:scale-110 group-hover:rotate-6 group-hover:bg-blue-600 group-hover:text-white">
           {icon}
         </div>
         {isDownloadable && (
@@ -447,7 +487,7 @@ function GuaranteeCard({ label, value, status, icon, isDownloadable = false }: a
       </div>
       <div>
         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">{label}</p>
-        <p className="text-xl font-black text-slate-900 leading-none italic font-display">{value}</p>
+        <p className="text-lg sm:text-xl font-black text-slate-900 leading-none italic font-display">{value}</p>
         <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider mt-3 flex items-center gap-1.5">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
           {status}
@@ -459,14 +499,14 @@ function GuaranteeCard({ label, value, status, icon, isDownloadable = false }: a
 
 function VersionItem({ template }: any) {
   return (
-    <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50/50 hover:bg-white border border-transparent hover:border-slate-200 hover:shadow-sm transition-all group cursor-pointer">
-      <div className="flex items-center gap-4">
-        <div className="h-10 w-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 group-hover:text-slate-900 transition-colors shadow-sm">
+    <div className="group flex items-center justify-between gap-3 rounded-2xl border border-transparent bg-slate-50/50 p-4 transition-all cursor-pointer hover:border-slate-200 hover:bg-white hover:shadow-sm">
+      <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-400 shadow-sm transition-colors group-hover:text-slate-900">
           <History size={18} />
         </div>
-        <div className="text-right">
+        <div className="min-w-0 text-right">
           <p className="text-[13px] font-black text-slate-900 tracking-tight leading-none">{template.name}</p>
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1.5">{template.version} • {template.summary}</p>
+          <p className="mt-1.5 text-[10px] text-slate-400 font-bold uppercase tracking-widest break-words">{template.version} • {template.summary}</p>
         </div>
       </div>
       <button className="h-10 w-10 rounded-xl border border-slate-200 bg-white flex items-center justify-center text-slate-300 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-all opacity-0 group-hover:opacity-100 translate-x-2 group-hover:translate-x-0">
