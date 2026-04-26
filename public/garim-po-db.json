@@ -1,6 +1,6 @@
 {
   "meta": {
-    "version": "2026-04-spec-v1",
+    "version": "2026-04-garim-po-onboarding-v1",
     "seededAt": "2026-04-19T09:00:00.000Z"
   },
   "authAccounts": [
@@ -97,7 +97,7 @@
     {
       "id": "vendor_1",
       "name": "אברהם אינסטלציה",
-      "email": "vendor-plumbing@rentflow.local",
+      "email": "vendor-plumbing@garim-po.local",
       "role": "vendor",
       "phone": "050-5550606",
       "rating": 4.9,
@@ -106,7 +106,7 @@
     {
       "id": "vendor_2",
       "name": "שי החשמלאי",
-      "email": "vendor-electric@rentflow.local",
+      "email": "vendor-electric@garim-po.local",
       "role": "vendor",
       "phone": "050-5550707",
       "rating": 4.8,
@@ -128,7 +128,12 @@
       "rooms": 3,
       "sizeSqm": 82,
       "floor": "4",
-      "catalogStatus": "published"
+      "catalogStatus": "published",
+      "costs": {
+        "buildingCommittee": 380,
+        "arnona": 540,
+        "utilities": 460
+      }
     },
     {
       "id": "property_2",
@@ -147,7 +152,12 @@
       "catalogStatus": "published",
       "partners": [
         "tenant_2"
-      ]
+      ],
+      "costs": {
+        "buildingCommittee": 520,
+        "arnona": 690,
+        "utilities": 610
+      }
     },
     {
       "id": "property_3",
@@ -162,7 +172,12 @@
       "rooms": 2,
       "sizeSqm": 68,
       "floor": "2",
-      "catalogStatus": "draft"
+      "catalogStatus": "draft",
+      "costs": {
+        "buildingCommittee": 300,
+        "arnona": 470,
+        "utilities": 380
+      }
     },
     {
       "id": "property_4",
@@ -177,7 +192,12 @@
       "rooms": 3,
       "sizeSqm": 87,
       "floor": "1",
-      "catalogStatus": "published"
+      "catalogStatus": "published",
+      "costs": {
+        "buildingCommittee": 410,
+        "arnona": 560,
+        "utilities": 430
+      }
     }
   ],
   "contracts": [
@@ -198,7 +218,15 @@
       "createdAt": "2025-05-20T10:00:00.000Z",
       "templateId": "template_standard",
       "signedByTenantAt": "2025-05-20T10:30:00.000Z",
-      "signedByLandlordAt": "2025-05-20T11:00:00.000Z"
+      "signedByLandlordAt": "2025-05-20T11:00:00.000Z",
+      "buildingCommitteeAmount": 380,
+      "arnonaAmount": 540,
+      "utilityPaymentMode": "separate",
+      "monthlyPaymentAmount": 6200,
+      "contractUploadedAt": "2025-05-20T10:00:00.000Z",
+      "contractClausesApprovedAt": "2025-05-20T10:00:00.000Z",
+      "tenantQrScannedAt": "2025-05-20T10:00:00.000Z",
+      "landlordQrScannedAt": "2025-05-20T10:00:00.000Z"
     },
     {
       "id": "contract_2",
@@ -218,7 +246,11 @@
       "guaranteeType": "insurance",
       "documentUrl": "/mock/contracts/contract-2.pdf",
       "createdAt": "2026-04-11T09:00:00.000Z",
-      "templateId": "template_split"
+      "templateId": "template_split",
+      "buildingCommitteeAmount": 300,
+      "arnonaAmount": 470,
+      "utilityPaymentMode": "combined",
+      "monthlyPaymentAmount": 7970
     },
     {
       "id": "contract_3",
@@ -240,7 +272,15 @@
       "createdAt": "2025-10-15T09:00:00.000Z",
       "templateId": "template_split",
       "signedByTenantAt": "2025-10-16T09:30:00.000Z",
-      "signedByLandlordAt": "2025-10-16T10:00:00.000Z"
+      "signedByLandlordAt": "2025-10-16T10:00:00.000Z",
+      "buildingCommitteeAmount": 520,
+      "arnonaAmount": 690,
+      "utilityPaymentMode": "combined",
+      "monthlyPaymentAmount": 9610,
+      "contractUploadedAt": "2025-10-15T09:00:00.000Z",
+      "contractClausesApprovedAt": "2025-10-15T09:00:00.000Z",
+      "tenantQrScannedAt": "2025-10-15T09:00:00.000Z",
+      "landlordQrScannedAt": "2025-10-15T09:00:00.000Z"
     },
     {
       "id": "contract_4",
@@ -256,7 +296,11 @@
       "guaranteeType": "cash",
       "documentUrl": "/mock/contracts/contract-4.pdf",
       "createdAt": "2024-02-20T09:00:00.000Z",
-      "templateId": "template_standard"
+      "templateId": "template_standard",
+      "buildingCommitteeAmount": 410,
+      "arnonaAmount": 560,
+      "utilityPaymentMode": "separate",
+      "monthlyPaymentAmount": 7800
     }
   ],
   "payments": [

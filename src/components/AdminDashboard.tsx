@@ -24,6 +24,7 @@ import { BDICheckStandalone } from "./Onboarding";
 import { cn } from "../lib/utils";
 import { User, Property, Payment, Contract } from "../types";
 import { useAppData } from "../lib/appData";
+import { BRAND_NAME } from "../lib/brand";
 import {
   formatCurrencyCompact,
   formatChannelLabel,
@@ -348,7 +349,7 @@ export default function AdminDashboard({ user: _adminUser }: { user: User }) {
             <div className="mt-10 flex flex-col gap-4 border-t border-slate-100 pt-6 text-[10px] sm:text-[11px] font-black text-slate-400 tracking-[0.12em] md:mt-12 md:flex-row md:items-center md:justify-between md:pt-8">
               <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-6">
                  <span>סה"כ נכסים: {allProperties.length}</span>
-                 <span className="text-slate-900">משתמשים בתהליך: {allUsers.filter(u => u.onboardingStep !== undefined && u.onboardingStep < 4).length}</span>
+                 <span className="text-slate-900">משתמשים בתהליך: {allUsers.filter(u => u.onboardingStep !== undefined && u.onboardingStep < 5).length}</span>
               </div>
               <span className="w-fit rounded-full border border-slate-100 bg-slate-50 px-4 py-2">אחוז המרה: {((funnel.completed / (funnel.firstNotice || 1)) * 100).toFixed(0)}%</span>
             </div>
@@ -510,7 +511,7 @@ export default function AdminDashboard({ user: _adminUser }: { user: User }) {
           
           <div className="flex items-center justify-center border-t border-slate-100 bg-slate-50 p-6 sm:p-8">
             <p className="text-[10px] font-black text-slate-400 text-center tracking-[0.18em] leading-relaxed">
-              מציג {allUsers.length} משתמשים במערכת RentFlow • כל הנתונים מאובטחים
+              מציג {allUsers.length} משתמשים במערכת {BRAND_NAME} • כל הנתונים מאובטחים
             </p>
           </div>
         </div>

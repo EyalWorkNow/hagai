@@ -13,7 +13,7 @@ import {
   X,
   Plus
 } from "lucide-react";
-import { User, Contract, Property } from "../types";
+import { User, Contract, Property, UtilityPaymentMode } from "../types";
 import { cn } from "../lib/utils";
 import { useAppData } from "../lib/appData";
 import { formatCurrencyCompact } from "../lib/analytics";
@@ -312,6 +312,9 @@ function CreateContractModal({
     startDate: string;
     endDate: string;
     rentAmount: number;
+    buildingCommitteeAmount?: number;
+    arnonaAmount?: number;
+    utilityPaymentMode?: UtilityPaymentMode;
     guaranteeType: "bank" | "insurance" | "cash" | "promissory";
   }) => void;
   onClose: () => void;
@@ -323,9 +326,13 @@ function CreateContractModal({
     startDate: new Date().toISOString().split('T')[0],
     endDate: "",
     rentAmount: "0",
+    buildingCommitteeAmount: "0",
+    arnonaAmount: "0",
+    utilityPaymentMode: "separate" as UtilityPaymentMode,
     guaranteeType: "bank" as const
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const selectedProperty = properties.find((property) => property.id === formData.propertyId) ?? null;
 
   const handleSubmit = async () => {
     if (!formData.propertyId || !formData.tenantName || !formData.endDate) return;
@@ -338,6 +345,9 @@ function CreateContractModal({
         startDate: formData.startDate,
         endDate: formData.endDate,
         rentAmount: Number(formData.rentAmount),
+        buildingCommitteeAmount: Number(formData.buildingCommitteeAmount),
+        arnonaAmount: Number(formData.arnonaAmount),
+        utilityPaymentMode: formData.utilityPaymentMode,
         guaranteeType: formData.guaranteeType,
       });
       onClose();
@@ -361,7 +371,16 @@ function CreateContractModal({
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-2">בחר נכס</label>
             <select 
               value={formData.propertyId} 
-              onChange={e => setFormData({...formData, propertyId: e.target.value})}
+              onChange={e => {
+                const property = properties.find((item) => item.id === e.target.value);
+                setFormData({
+                  ...formData,
+                  propertyId: e.target.value,
+                  rentAmount: property?.rent?.toString() ?? formData.rentAmount,
+                  buildingCommitteeAmount: property?.costs?.buildingCommittee?.toString() ?? formData.buildingCommitteeAmount,
+                  arnonaAmount: property?.costs?.arnona?.toString() ?? formData.arnonaAmount,
+                });
+              }}
               className="w-full mt-2 rounded-2xl bg-slate-50 border border-slate-100 p-4 text-sm font-bold focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none"
             >
               <option value="">בחר נכס מהרשימה...</option>
@@ -371,13 +390,15 @@ function CreateContractModal({
             </select>
           </div>
 
-          <Input label="שלו שם השוכר המלא" value={formData.tenantName} onChange={(v: string) => setFormData({...formData, tenantName: v})} placeholder="למשל: ישראל ישראלי" />
+          <Input label="שם השוכר המלא" value={formData.tenantName} onChange={(v: string) => setFormData({...formData, tenantName: v})} placeholder="למשל: ישראל ישראלי" />
           <Input label="אימייל השוכר" value={formData.tenantEmail} onChange={(v: string) => setFormData({...formData, tenantEmail: v})} placeholder="email@example.com" />
           
           <Input label="תאריך תחילת חוזה" type="date" value={formData.startDate} onChange={(v: string) => setFormData({...formData, startDate: v})} />
           <Input label="תאריך סיום חוזה" type="date" value={formData.endDate} onChange={(v: string) => setFormData({...formData, endDate: v})} />
           
           <Input label="דמי שכירות חודשיים (₪)" type="number" value={formData.rentAmount} onChange={(v: string) => setFormData({...formData, rentAmount: v})} />
+          <Input label="ועד בית חודשי (₪)" type="number" value={formData.buildingCommitteeAmount} onChange={(v: string) => setFormData({...formData, buildingCommitteeAmount: v})} />
+          <Input label="ארנונה חודשית (₪)" type="number" value={formData.arnonaAmount} onChange={(v: string) => setFormData({...formData, arnonaAmount: v})} />
           
           <div>
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-2">סוג ערבות</label>
@@ -391,6 +412,32 @@ function CreateContractModal({
               <option value="cash">פיקדון מזומן</option>
               <option value="promissory">שטר חוב</option>
             </select>
+          </div>
+          <div className="md:col-span-2 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-2">אופן תשלום ועד בית וארנונה</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <label className="flex items-start gap-3 rounded-2xl bg-white p-4 text-sm font-bold text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={formData.utilityPaymentMode === "combined"}
+                  onChange={() => setFormData({...formData, utilityPaymentMode: "combined"})}
+                  className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
+                />
+                <span>תשלום משולב בתשלום החודשי</span>
+              </label>
+              <label className="flex items-start gap-3 rounded-2xl bg-white p-4 text-sm font-bold text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={formData.utilityPaymentMode === "separate"}
+                  onChange={() => setFormData({...formData, utilityPaymentMode: "separate"})}
+                  className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
+                />
+                <span>תשלום נפרד על ידי השוכר</span>
+              </label>
+            </div>
+            <p className="mt-3 text-xs font-bold text-slate-400">
+              {selectedProperty ? `ערכי ברירת המחדל נטענו מהנכס: ${selectedProperty.address}` : "בחר נכס כדי לטעון עלויות קיימות מה-DB."}
+            </p>
           </div>
         </div>
 

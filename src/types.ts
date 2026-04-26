@@ -3,6 +3,7 @@ export type KYCStatus = "pending" | "submitted" | "approved" | "rejected";
 export type BDIStatus = "green" | "yellow" | "red" | "pending";
 export type PurchaseFlowStatus = "pending" | "in_progress" | "completed";
 export type IntegrationProvider = "yad2" | "midrag" | "insurance";
+export type UtilityPaymentMode = "combined" | "separate";
 export type TransactionChannel =
   | "maintenance_companies"
   | "foreign_resident_agencies"
@@ -105,6 +106,14 @@ export interface Contract {
   startDate: string;
   endDate: string;
   rentAmount: number;
+  buildingCommitteeAmount?: number;
+  arnonaAmount?: number;
+  utilityPaymentMode?: UtilityPaymentMode;
+  monthlyPaymentAmount?: number;
+  contractUploadedAt?: string;
+  contractClausesApprovedAt?: string;
+  tenantQrScannedAt?: string;
+  landlordQrScannedAt?: string;
   status:
     | "active"
     | "pending"

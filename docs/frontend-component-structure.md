@@ -23,5 +23,5 @@
 ## Data Layer
 - `src/lib/appData.tsx`
   Local in-browser state, mock persistence, and app mutations.
-- `src/data/rentflow-db.json`
+- `src/data/garim-po-db.json`
   Seed data for demo/runtime bootstrap.

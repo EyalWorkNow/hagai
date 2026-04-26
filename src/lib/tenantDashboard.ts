@@ -228,80 +228,6 @@ export function shouldShowRenewalBanner(
   return daysUntilEnd >= 0 && daysUntilEnd <= 45;
 }
 
-export function createTenantDashboardDemoData(
-  user: User,
-  now: Date = new Date(),
-): TenantDashboardDataBundle {
-  const property: Property = {
-    id: "demo-property",
-    address: "שדרות רוטשילד 45, תל אביב",
-    rent: 6200,
-    status: "occupied",
-    tenantId: user.id,
-  };
-
-  const contracts: Contract[] = [
-    {
-      id: "demo-contract",
-      propertyId: property.id,
-      propertyAddress: property.address,
-      tenantId: user.id,
-      tenantName: user.name,
-      startDate: formatInputDate(addDays(now, -320)),
-      endDate: formatInputDate(addDays(now, 38)),
-      rentAmount: property.rent,
-      guaranteeType: "bank",
-      status: user.onboardingComplete ? "active" : "waiting_bank_auth",
-    },
-  ];
-
-  const payments: Payment[] = user.onboardingComplete
-    ? [
-        {
-          id: "demo-payment-upcoming",
-          propertyId: property.id,
-          propertyAddress: property.address,
-          tenantId: user.id,
-          amount: property.rent,
-          date: formatInputDate(addDays(now, 3)),
-          status: "pending",
-          type: "rent",
-        },
-        {
-          id: "demo-payment-last",
-          propertyId: property.id,
-          propertyAddress: property.address,
-          tenantId: user.id,
-          amount: property.rent,
-          date: formatInputDate(addDays(now, -27)),
-          status: "paid",
-          type: "rent",
-        },
-      ]
-    : [];
-
-  const serviceCalls: ServiceCall[] = [
-    {
-      id: "demo-service",
-      propertyId: property.id,
-      propertyAddress: property.address,
-      tenantId: user.id,
-      title: "בדיקת מזגן בסלון",
-      status: "in_progress",
-      priority: "medium",
-      category: "general",
-      createdAt: addDays(now, -2).toISOString(),
-    },
-  ];
-
-  return {
-    payments,
-    serviceCalls,
-    property,
-    contracts,
-  };
-}
-
 function collectFacts(input: TenantDashboardInput, now: Date): DashboardFacts {
   const contract = pickPrimaryContract(input.contracts, now);
   const address =
@@ -954,17 +880,4 @@ function formatMonthLabel(value: Date): string {
     month: "long",
     year: "numeric",
   }).format(value);
-}
-
-function addDays(date: Date, amount: number): Date {
-  const copy = new Date(date);
-  copy.setDate(copy.getDate() + amount);
-  return copy;
-}
-
-function formatInputDate(date: Date): string {
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, "0");
-  const day = `${date.getDate()}`.padStart(2, "0");
-  return `${year}-${month}-${day}`;
 }

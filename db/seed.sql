@@ -4,8 +4,8 @@ insert into users (id, role, full_name, email, phone, kyc_status, bdi_status, in
   ('tenant_1', 'tenant', 'דייר לדוגמה', 'tenant@tenant.com', '050-5550303', 'approved', 'green', 'undecided', '2026-02-01T08:00:00.000Z'),
   ('tenant_2', 'tenant', 'נועה כהן', 'noa@example.com', '050-5550404', 'pending', 'pending', 'undecided', '2026-04-10T09:00:00.000Z'),
   ('tenant_3', 'tenant', 'אורי לוי', 'uri@example.com', '050-5550505', 'approved', 'green', 'undecided', '2026-02-20T08:00:00.000Z'),
-  ('vendor_1', 'vendor', 'אברהם אינסטלציה', 'vendor-plumbing@rentflow.local', '050-5550606', null, null, null, '2026-01-15T08:00:00.000Z'),
-  ('vendor_2', 'vendor', 'שי החשמלאי', 'vendor-electric@rentflow.local', '050-5550707', null, null, null, '2026-01-16T08:00:00.000Z');
+  ('vendor_1', 'vendor', 'אברהם אינסטלציה', 'vendor-plumbing@garim-po.local', '050-5550606', null, null, null, '2026-01-15T08:00:00.000Z'),
+  ('vendor_2', 'vendor', 'שי החשמלאי', 'vendor-electric@garim-po.local', '050-5550707', null, null, null, '2026-01-16T08:00:00.000Z');
 
 insert into auth_accounts (user_id, email, password_hash) values
   ('admin_1', 'admin@admin.com', '123123'),

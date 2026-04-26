@@ -36,6 +36,7 @@ import { he } from "date-fns/locale";
 import { cn } from "../lib/utils";
 import { PlatformTransaction, User } from "../types";
 import { useAppData } from "../lib/appData";
+import { BRAND_NAME } from "../lib/brand";
 
 const moneyFormatter = new Intl.NumberFormat("he-IL", {
   maximumFractionDigits: 0,
@@ -398,8 +399,8 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
             <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-black tracking-wide text-slate-500 uppercase">
-                  <div className="flex h-4 w-4 items-center justify-center rounded-[4px] bg-slate-900 text-[10px] italic text-white font-display">R</div>
-                  <span>RentFlow</span>
+                  <div className="flex h-4 w-4 items-center justify-center rounded-[4px] bg-slate-900 text-[10px] italic text-white font-display">ג</div>
+                  <span>{BRAND_NAME}</span>
                 </div>
                 <div className="flex items-center gap-1 rounded-md border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[10px] font-black tracking-wide text-emerald-600">
                   <TrendingUp size={12} strokeWidth={3} />

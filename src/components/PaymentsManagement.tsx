@@ -11,7 +11,7 @@ import {
   CreditCard as CardsIcon,
   Clock
 } from "lucide-react";
-import { User } from "../types";
+import { Payment, User } from "../types";
 import { cn } from "../lib/utils";
 import { useAppData } from "../lib/appData";
 

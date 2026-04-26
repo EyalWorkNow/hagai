@@ -1,4 +1,4 @@
-import { useState, useEffect, ReactNode } from "react";
+import { useState, useEffect, useMemo, ReactNode } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   Home, 
@@ -39,6 +39,7 @@ import { TenantDashboardNavTarget } from "./lib/tenantDashboard";
 import { Role, User } from "./types";
 import { cn } from "./lib/utils";
 import { useAppData } from "./lib/appData";
+import { BRAND_LOCAL_EMAIL_DOMAIN, BRAND_NAME, BRAND_SLOGAN } from "./lib/brand";
 
 // Assets
 import welcomeImage from "./image/Gemini_Generated_Image_u8ml1gu8ml1gu8ml.png";
@@ -51,10 +52,10 @@ type AppNavItem = {
 };
 
 /**
- * RentFlow Main Application
+ * גרים פה Main Application
  */
 export default function App() {
-  const { currentUser: user, siteAccessSession, isReady, logout } = useAppData();
+  const { db, currentUser: user, siteAccessSession, isReady, logout } = useAppData();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -81,6 +82,19 @@ export default function App() {
 
   const isSidebarExpanded = isSidebarOpen || isMobileSidebarOpen;
   const navItems = user ? getNavItemsForRole(user.role) : [];
+  const recentContacts = useMemo(() => {
+    if (!user || user.role !== "landlord") return [];
+
+    return [...db.messageTopics]
+      .filter((topic) => topic.participantIds.includes(user.id))
+      .sort((left, right) => Date.parse(right.lastMessageAt) - Date.parse(left.lastMessageAt))
+      .map((topic) => {
+        const counterpartyId = topic.participantIds.find((participantId) => participantId !== user.id);
+        return counterpartyId ? db.users.find((candidate) => candidate.id === counterpartyId) : null;
+      })
+      .filter((candidate): candidate is User => Boolean(candidate))
+      .slice(0, 3);
+  }, [db.messageTopics, db.users, user]);
 
   // 1. Initial Loading Screen
   if (!isReady) {
@@ -182,9 +196,23 @@ export default function App() {
                   <NavCategory label="אנשי קשר אחרונים" collapsed={!isSidebarExpanded} />
                 </div>
                 
-                <MessageUser name="אסתר הופמן" avatar="https://i.pravatar.cc/150?u=esther" collapsed={!isSidebarExpanded} online onClick={() => handleTabChange("messages")} />
-                <MessageUser name="יעקב יונתן" avatar="https://i.pravatar.cc/150?u=jacob" collapsed={!isSidebarExpanded} online={false} onClick={() => handleTabChange("messages")} />
-                <MessageUser name="קובי לוי" avatar="https://i.pravatar.cc/150?u=cody" collapsed={!isSidebarExpanded} online onClick={() => handleTabChange("messages")} />
+                {recentContacts.length > 0 ? (
+                  recentContacts.map((contact) => (
+                    <MessageUser
+                      key={contact.id}
+                      name={contact.name}
+                      collapsed={!isSidebarExpanded}
+                      online={contact.role === "tenant" && contact.onboardingComplete}
+                      onClick={() => handleTabChange("messages")}
+                    />
+                  ))
+                ) : (
+                  !isSidebarExpanded ? null : (
+                    <p className="px-4 py-3 text-[12px] font-bold text-slate-400">
+                      אין עדיין שיחות פעילות.
+                    </p>
+                  )
+                )}
               </div>
             )}
             
@@ -207,8 +235,8 @@ export default function App() {
                "flex items-center gap-3 p-3 rounded-2xl transition-all",
                isSidebarExpanded ? "bg-slate-50 border border-slate-100" : "justify-center px-0 bg-transparent"
              )}>
-                <div className="h-10 w-10 shrink-0 rounded-xl overflow-hidden border border-white shadow-sm">
-                   <img src="https://i.pravatar.cc/150?u=john" className="h-full w-full object-cover" alt="User" />
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white bg-slate-900 text-sm font-black text-white shadow-sm">
+                   {user.name.charAt(0)}
                 </div>
                 {isSidebarExpanded && (
                   <div className="flex-1 min-w-0">
@@ -421,7 +449,7 @@ function getNavItemsForRole(role: Role): AppNavItem[] {
   ];
 }
 
-function MessageUser({ name, avatar, collapsed, online, onClick }: { name: string, avatar: string, collapsed: boolean, online: boolean, onClick?: () => void }) {
+function MessageUser({ name, collapsed, online, onClick }: { name: string, collapsed: boolean, online: boolean, onClick?: () => void }) {
   return (
     <button 
       onClick={onClick}
@@ -430,7 +458,9 @@ function MessageUser({ name, avatar, collapsed, online, onClick }: { name: strin
       collapsed && "justify-center px-0"
     )}>
       <div className="relative shrink-0">
-        <img src={avatar} className="h-8 w-8 rounded-xl object-cover grayscale group-hover:grayscale-0 transition-all border border-slate-100" alt={name} />
+        <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-100 bg-slate-100 text-xs font-black text-slate-700 transition-all group-hover:bg-slate-900 group-hover:text-white">
+          {name.charAt(0)}
+        </div>
         <div className={cn(
           "absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white",
           online ? "bg-emerald-500" : "bg-rose-500"
@@ -512,7 +542,7 @@ export function WelcomeScreen() {
     const timestamp = Date.now().toString().slice(-6);
     setPendingDraft({
       name: `משתמש חדש ${timestamp}`,
-      email: `google-${timestamp}@rentflow.local`,
+      email: `google-${timestamp}@${BRAND_LOCAL_EMAIL_DOMAIN}`,
       password: "123123",
     });
     setShowRoleSelection(true);
@@ -527,6 +557,11 @@ export function WelcomeScreen() {
       return 0;
     })
     .slice(0, 6);
+  const managedPropertiesLabel = db.properties.length.toLocaleString("he-IL");
+  const paidPayments = db.payments.filter((payment) => payment.status === "paid").length;
+  const paymentSuccessRate = db.payments.length
+    ? Math.round((paidPayments / db.payments.length) * 100)
+    : 0;
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-white font-sans selection:bg-slate-900 selection:text-white overflow-x-hidden p-3 sm:p-4 lg:flex-row lg:overflow-hidden lg:p-6" dir="rtl">
@@ -545,15 +580,15 @@ export function WelcomeScreen() {
             <img src={hagaiLogo} alt="גרים פה" className="h-24 w-auto object-contain drop-shadow-2xl xl:h-28" />
             <div className="space-y-1 text-right">
               <p className="text-[11px] font-black uppercase tracking-[0.32em] text-white/60">Housing Platform</p>
-              <h1 className="text-4xl font-black tracking-tight text-white xl:text-5xl">גרים פה</h1>
+              <h1 className="text-4xl font-black tracking-tight text-white xl:text-5xl">{BRAND_NAME}</h1>
             </div>
           </div>
 
           <div className="space-y-8">
           <div className="space-y-4">
             <h2 className="text-6xl font-black text-white leading-tight tracking-tighter">
-              הדרך הנכונה והקלה <br/>
-              <span className="text-blue-400">לנהל לטפל בתשלומי שכר דירה.</span>
+              {BRAND_SLOGAN} <br/>
+              <span className="text-blue-400">לשוכר, למשכיר ולנכס.</span>
             </h2>
             <p className="text-xl text-slate-200 font-bold leading-relaxed max-w-lg">
               מחליפים את הצקים הפיזים בביטחון דיגיטלי מלא - וודאות מוחלטת למשכיר נוחות מקסימלית לשוכר
@@ -563,11 +598,11 @@ export function WelcomeScreen() {
           <div className="flex items-center gap-12 pt-8 border-t border-white/20">
              <div>
                 <p className="text-sm font-black text-white/40 uppercase tracking-widest">דירות מנוהלות</p>
-                <p className="text-3xl font-black text-white mt-1 italic tracking-tighter tabular-nums">12,450+</p>
+                <p className="text-3xl font-black text-white mt-1 italic tracking-tighter tabular-nums">{managedPropertiesLabel}</p>
              </div>
              <div>
-                <p className="text-sm font-black text-white/40 uppercase tracking-widest">שביעות רצון</p>
-                <p className="text-3xl font-black text-white mt-1 italic tracking-tighter tabular-nums">98.4%</p>
+                <p className="text-sm font-black text-white/40 uppercase tracking-widest">שיעור תשלומים תקינים</p>
+                <p className="text-3xl font-black text-white mt-1 italic tracking-tighter tabular-nums">{paymentSuccessRate}%</p>
              </div>
           </div>
           </div>
@@ -793,7 +828,7 @@ function SiteAccessScreen() {
             <img src={hagaiLogo} alt="גרים פה" className="h-20 w-auto object-contain drop-shadow-2xl xl:h-24" />
             <div className="space-y-1 text-right">
               <p className="text-[11px] font-black uppercase tracking-[0.32em] text-white/60">Access Control</p>
-              <h1 className="text-4xl font-black tracking-tight text-white xl:text-5xl">גרים פה</h1>
+              <h1 className="text-4xl font-black tracking-tight text-white xl:text-5xl">{BRAND_NAME}</h1>
             </div>
           </div>
 
@@ -801,7 +836,7 @@ function SiteAccessScreen() {
             <h2 className="text-5xl font-black leading-tight tracking-tighter">
               בקשת גישה
               <br />
-              <span className="text-blue-400">לפני הכניסה למערכת.</span>
+              <span className="text-blue-400">{BRAND_SLOGAN}.</span>
             </h2>
             <p className="max-w-lg text-lg font-bold leading-relaxed text-slate-200">
               משתמש `admin` פעיל ללא הגבלת זמן. כל קוד גישה זמני אחר מופעל ברגע הכניסה הראשונה ונשאר זמין ל־24 שעות בלבד.
@@ -916,7 +951,7 @@ function RoleSelection({ onSelect }: { onSelect: (role: Role) => void }) {
             הבית שלך ב-<span className="text-blue-600">שליטה מלאה</span>
           </h1>
           <p className="text-lg md:text-2xl text-slate-400 font-bold max-w-3xl mx-auto leading-relaxed italic">
-            ברוכים הבאים ל-RentFlow. ניהול שכירות מתקדם, שקוף ומאובטח לכל הצדדים מעולם לא היה פשוט כל כך.
+            ברוכים הבאים ל-{BRAND_NAME}. {BRAND_SLOGAN} לכל הצדדים, בלי ניירת ובלי אי ודאות.
           </p>
         </div>
 
@@ -947,7 +982,7 @@ function RoleSelection({ onSelect }: { onSelect: (role: Role) => void }) {
         <div className="flex flex-col items-center gap-6">
            <div className="h-px w-24 bg-slate-200"></div>
            <p className="text-[11px] font-black text-slate-300 tracking-[0.24em] animate-pulse italic">
-              מערכת ניהול השכירות החכמה בישראל • v1.0.4
+              {BRAND_SLOGAN} • v1.0.4
            </p>
         </div>
       </div>
@@ -997,7 +1032,7 @@ function LoadingScreen() {
 
       <div className="mt-20 space-y-8 text-center relative z-10 w-full max-w-xs">
         <div className="space-y-3">
-           <h2 className="text-3xl font-black tracking-tight font-display italic">Rent<span className="text-blue-500">Flow</span></h2>
+           <h2 className="text-3xl font-black tracking-tight font-display italic">{BRAND_NAME}</h2>
            <p className="text-[11px] text-slate-500 font-black tracking-[0.24em] animate-pulse italic">מאמת כניסה...</p>
         </div>
         

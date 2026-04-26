@@ -3,17 +3,15 @@ import {
   ChatMessage,
   Contract,
   DocumentRecord,
-  IntegrationRecord,
   Payment,
   PaymentRetryRequest,
-  PlatformTransaction,
   Property,
   RentflowDb,
   Role,
   ServiceCall,
   SessionState,
   SiteAccessSession,
-  SupportIssue,
+  UtilityPaymentMode,
   User,
 } from "../types";
 import {
@@ -22,10 +20,10 @@ import {
   SiteAccessActivationMap,
 } from "./siteAccess";
 
-const DB_STORAGE_KEY = "rentflow-json-db-v2";
-const SESSION_STORAGE_KEY = "rentflow-session";
-const SITE_ACCESS_SESSION_STORAGE_KEY = "rentflow-site-access-session";
-const SITE_ACCESS_ACTIVATIONS_STORAGE_KEY = "rentflow-site-access-activations";
+const DB_STORAGE_KEY = "garim-po-json-db-v1";
+const SESSION_STORAGE_KEY = "garim-po-session";
+const SITE_ACCESS_SESSION_STORAGE_KEY = "garim-po-site-access-session";
+const SITE_ACCESS_ACTIVATIONS_STORAGE_KEY = "garim-po-site-access-activations";
 const STORAGE_WARNING =
   "נפח הנתונים המקומי חרג ממגבלת הדפדפן. המערכת ממשיכה לעבוד, אך שינויים כבדים לא יישמרו מקומית.";
 
@@ -44,6 +42,9 @@ type CreateContractPayload = {
   startDate: string;
   endDate: string;
   rentAmount: number;
+  buildingCommitteeAmount?: number;
+  arnonaAmount?: number;
+  utilityPaymentMode?: UtilityPaymentMode;
   guaranteeType: Contract["guaranteeType"];
   isSplitPayment?: boolean;
   partners?: string[];
@@ -87,6 +88,9 @@ type SendMessagePayload = {
 type AddPropertyPayload = {
   address: string;
   rent: number;
+  buildingCommittee?: number;
+  arnona?: number;
+  utilities?: number;
   description?: string;
 };
 
@@ -105,6 +109,17 @@ type CreateUtilityChargePayload = {
   dueDate: string;
 };
 
+type SaveOnboardingAgreementPayload = {
+  tenantQrScanned: boolean;
+  landlordQrScanned: boolean;
+  contractDocumentUploaded: boolean;
+  clausesApproved: boolean;
+  rentAmount: number;
+  buildingCommitteeAmount: number;
+  arnonaAmount: number;
+  utilityPaymentMode: UtilityPaymentMode;
+};
+
 type AppDataContextValue = {
   db: RentflowDb;
   currentUser: User | null;
@@ -121,6 +136,8 @@ type AppDataContextValue = {
   approveKyc: (userId: string) => void;
   requestEligibilityCheck: (userId: string, landlordId?: string) => void;
   resolveEligibilityCheck: (userId: string, approved: boolean) => void;
+  skipEligibilityCheck: (userId: string, landlordId?: string) => void;
+  saveOnboardingAgreement: (userId: string, payload: SaveOnboardingAgreementPayload) => void;
   saveBankAuthorization: (userId: string) => void;
   signOnboardingContract: (userId: string) => void;
   completeOnboarding: (userId: string) => void;
@@ -149,158 +166,19 @@ const EMPTY_DB: RentflowDb = {
   documents: [], notifications: [], messageTopics: [], messages: [],
   onboardingInvites: [], eligibilityChecks: [], integrations: [],
   transactions: [], supportIssues: [], contractTemplates: [], legalCases: [],
-  retryRequests: [], utilityCharges: [], meta: { version: "1.0" },
+  paymentRetries: [], utilityCharges: [], invoices: [], vendors: [], meta: { version: "1.0", seededAt: "" },
 } as unknown as RentflowDb;
-
-function buildDefaultIntegrations(): IntegrationRecord[] {
-  return [
-    {
-      id: "integration_yad2",
-      provider: "yad2",
-      status: "connected",
-      syncHealth: "completed",
-      lastSyncAt: "2026-04-20T08:00:00.000Z",
-      transactionCount: 14,
-      revenue: 15200,
-    },
-    {
-      id: "integration_midrag",
-      provider: "midrag",
-      status: "connected",
-      syncHealth: "in_progress",
-      lastSyncAt: "2026-04-20T07:45:00.000Z",
-      transactionCount: 9,
-      revenue: 9800,
-    },
-    {
-      id: "integration_insurance",
-      provider: "insurance",
-      status: "warning",
-      syncHealth: "pending",
-      lastSyncAt: "2026-04-19T18:30:00.000Z",
-      transactionCount: 11,
-      revenue: 20000,
-    },
-  ];
-}
-
-function buildDefaultTransactions(db: RentflowDb): PlatformTransaction[] {
-  return [
-    {
-      id: "txn_1",
-      propertyId: db.properties[0]?.id,
-      contractId: db.contracts[0]?.id,
-      paymentId: db.payments[0]?.id,
-      provider: "insurance",
-      channel: "commercial_real_estate",
-      status: "completed",
-      amount: 6200,
-      revenue: 950,
-      createdAt: "2026-04-01T08:00:00.000Z",
-    },
-    {
-      id: "txn_2",
-      propertyId: db.properties[0]?.id,
-      contractId: db.contracts[0]?.id,
-      paymentId: db.payments[1]?.id,
-      provider: "midrag",
-      channel: "maintenance_companies",
-      status: "in_progress",
-      amount: 1800,
-      revenue: 420,
-      createdAt: "2026-04-08T10:00:00.000Z",
-    },
-    {
-      id: "txn_3",
-      propertyId: db.properties[2]?.id,
-      contractId: db.contracts[1]?.id,
-      provider: "yad2",
-      channel: "foreign_resident_agencies",
-      status: "pending",
-      amount: 7200,
-      revenue: 680,
-      createdAt: "2026-04-12T11:00:00.000Z",
-    },
-    {
-      id: "txn_4",
-      propertyId: db.properties[1]?.id,
-      contractId: db.contracts[2]?.id,
-      paymentId: db.payments[2]?.id,
-      provider: "insurance",
-      channel: "commercial_real_estate",
-      status: "completed",
-      amount: 8400,
-      revenue: 1100,
-      createdAt: "2026-04-15T09:30:00.000Z",
-    },
-    {
-      id: "txn_5",
-      propertyId: db.properties[1]?.id,
-      provider: "midrag",
-      channel: "maintenance_companies",
-      status: "completed",
-      amount: 2400,
-      revenue: 370,
-      createdAt: "2026-04-17T13:00:00.000Z",
-    },
-    {
-      id: "txn_6",
-      propertyId: db.properties[3]?.id,
-      contractId: db.contracts[3]?.id,
-      provider: "yad2",
-      channel: "foreign_resident_agencies",
-      status: "in_progress",
-      amount: 7800,
-      revenue: 760,
-      createdAt: "2026-04-18T16:30:00.000Z",
-    },
-  ];
-}
-
-function buildDefaultSupportIssues(): SupportIssue[] {
-  return [
-    {
-      id: "issue_1",
-      source: "insurance",
-      title: "עיכוב בוובהוק של ספק הביטוח",
-      severity: "high",
-      status: "open",
-      createdAt: "2026-04-19T14:00:00.000Z",
-    },
-    {
-      id: "issue_2",
-      source: "midrag",
-      title: "אי התאמה בסנכרון הציונים ממידרג",
-      severity: "medium",
-      status: "open",
-      createdAt: "2026-04-18T11:20:00.000Z",
-    },
-    {
-      id: "issue_3",
-      source: "platform",
-      title: "תיקון חירום לאגרגציית הספר הראשי",
-      severity: "low",
-      status: "resolved",
-      createdAt: "2026-04-16T09:00:00.000Z",
-    },
-  ];
-}
 
 function normalizeDb(rawDb: RentflowDb): RentflowDb {
   // Use shallow spread instead of structuredClone to avoid deep-copying the entire 11MB JSON.
   // We then spread arrays that need mutation so originals are not modified.
   const db: RentflowDb = { ...rawDb };
 
-  db.properties = db.properties.map((property, index) => ({
+  db.properties = db.properties.map((property) => ({
     ...property,
     costs:
       property.costs ??
-      [
-        { buildingCommittee: 380, arnona: 540, utilities: 460 },
-        { buildingCommittee: 520, arnona: 690, utilities: 610 },
-        { buildingCommittee: 300, arnona: 470, utilities: 380 },
-        { buildingCommittee: 410, arnona: 560, utilities: 430 },
-      ][index % 4],
+      { buildingCommittee: 0, arnona: 0, utilities: 0 },
     insuranceOffered: property.insuranceOffered ?? property.tenantId !== undefined,
   }));
 
@@ -310,17 +188,50 @@ function normalizeDb(rawDb: RentflowDb): RentflowDb {
       user.insurancePreference ?? (user.role === "tenant" ? "undecided" : undefined),
   }));
 
-  db.integrations = db.integrations ?? buildDefaultIntegrations();
-  db.transactions = db.transactions ?? buildDefaultTransactions(db);
-  db.supportIssues = db.supportIssues ?? buildDefaultSupportIssues();
+  db.integrations = db.integrations ?? [];
+  db.transactions = db.transactions ?? [];
+  db.supportIssues = db.supportIssues ?? [];
+  db.paymentRetries = db.paymentRetries ?? [];
+  db.utilityCharges = db.utilityCharges ?? [];
+  db.transfers = db.transfers ?? [];
+  db.invoices = db.invoices ?? [];
+  db.vendors = db.vendors ?? [];
+  db.documents = db.documents ?? [];
+  db.notifications = db.notifications ?? [];
+  db.eligibilityChecks = db.eligibilityChecks ?? [];
+  db.onboardingInvites = db.onboardingInvites ?? [];
 
   return db;
 }
 
 async function loadSeedDbAsync(): Promise<RentflowDb> {
-  const response = await fetch("/rentflow-db.json");
+  const response = await fetch("/garim-po-db.json");
   const seedDb = await response.json();
   return normalizeDb(seedDb as RentflowDb);
+}
+
+function mergeSeededRecords<T extends { id: string }>(
+  seededRecords: T[],
+  storedRecords: T[] | undefined,
+  mergeRecord: (seeded: T, stored: T) => T = (seeded, stored) => ({ ...seeded, ...stored }),
+) {
+  if (!storedRecords) return seededRecords;
+
+  const seededById = new Map(seededRecords.map((record) => [record.id, record]));
+  const seenIds = new Set<string>();
+  const mergedRecords = storedRecords.map((stored) => {
+    const seeded = seededById.get(stored.id);
+    seenIds.add(stored.id);
+    return seeded ? mergeRecord(seeded, stored) : stored;
+  });
+
+  for (const seeded of seededRecords) {
+    if (!seenIds.has(seeded.id)) {
+      mergedRecords.push(seeded);
+    }
+  }
+
+  return mergedRecords;
 }
 
 async function loadDbStateAsync(): Promise<RentflowDb> {
@@ -334,8 +245,28 @@ async function loadDbStateAsync(): Promise<RentflowDb> {
   return normalizeDb({
     ...seededDb,
     ...storedDb,
+    properties: mergeSeededRecords(seededDb.properties, storedDb.properties, (seeded, stored) => ({
+      ...seeded,
+      ...stored,
+      costs: stored.costs ?? seeded.costs,
+      insuranceOffered: stored.insuranceOffered ?? seeded.insuranceOffered,
+    })),
+    contracts: mergeSeededRecords(seededDb.contracts, storedDb.contracts, (seeded, stored) => ({
+      ...seeded,
+      ...stored,
+      buildingCommitteeAmount: stored.buildingCommitteeAmount ?? seeded.buildingCommitteeAmount,
+      arnonaAmount: stored.arnonaAmount ?? seeded.arnonaAmount,
+      utilityPaymentMode: stored.utilityPaymentMode ?? seeded.utilityPaymentMode,
+      monthlyPaymentAmount: stored.monthlyPaymentAmount ?? seeded.monthlyPaymentAmount,
+      contractUploadedAt: stored.contractUploadedAt ?? seeded.contractUploadedAt,
+      contractClausesApprovedAt: stored.contractClausesApprovedAt ?? seeded.contractClausesApprovedAt,
+      tenantQrScannedAt: stored.tenantQrScannedAt ?? seeded.tenantQrScannedAt,
+      landlordQrScannedAt: stored.landlordQrScannedAt ?? seeded.landlordQrScannedAt,
+    })),
     meta: storedDb.meta ?? seededDb.meta,
+    integrations: seededDb.integrations,
     transactions: seededDb.transactions,
+    supportIssues: seededDb.supportIssues,
   });
 }
 
@@ -379,6 +310,14 @@ function findProperty(db: RentflowDb, propertyId: string) {
   return db.properties.find((property) => property.id === propertyId) ?? null;
 }
 
+function findOnboardingContract(db: RentflowDb, userId: string) {
+  return (
+    db.contracts.find((contract) => contract.tenantId === userId && contract.status !== "expired") ??
+    db.contracts.find((contract) => contract.tenantId === userId) ??
+    null
+  );
+}
+
 function upsertNotification(
   db: RentflowDb,
   notification: RentflowDb["notifications"][number],
@@ -396,6 +335,18 @@ function nowIso() {
 
 function todayIso() {
   return nowIso().slice(0, 10);
+}
+
+function calculateMonthlyPayment(
+  rentAmount: number,
+  buildingCommitteeAmount: number,
+  arnonaAmount: number,
+  utilityPaymentMode: UtilityPaymentMode,
+) {
+  return (
+    rentAmount +
+    (utilityPaymentMode === "combined" ? buildingCommitteeAmount + arnonaAmount : 0)
+  );
 }
 
 function ensureTopic(
@@ -642,7 +593,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       }
 
       user.bdiStatus = "pending";
-      user.onboardingStep = Math.max(user.onboardingStep ?? 0, 1);
+      user.onboardingStep = Math.max(user.onboardingStep ?? 0, 2);
     });
   };
 
@@ -662,7 +613,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         : "המערכת סימנה את הבדיקה באדום ודורשת בירור.";
 
       user.bdiStatus = approved ? "green" : "red";
-      user.onboardingStep = approved ? 2 : 1;
+      user.onboardingStep = approved ? 3 : 2;
 
       const contract = nextDb.contracts.find(
         (item) =>
@@ -676,11 +627,102 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const skipEligibilityCheck = (userId: string, landlordId?: string) => {
+    applyDbUpdate((nextDb) => {
+      const user = findUser(nextDb, userId);
+      if (!user) return;
+
+      const contract = findOnboardingContract(nextDb, userId);
+      const existing = nextDb.eligibilityChecks.find((check) => check.tenantId === userId);
+      const checkPayload = {
+        status: "approved" as const,
+        score: 782,
+        grade: "A+",
+        recommendation: "approve" as const,
+        checkedAt: nowIso(),
+        provider: "BDI - אישור ידני",
+        notes: "בדיקת דירוג האשראי דולגה ונרשמה אינדיקציה חיובית ידנית להמשך חתימה.",
+      };
+
+      if (existing) {
+        Object.assign(existing, checkPayload);
+      } else {
+        nextDb.eligibilityChecks.push({
+          id: buildId("eligibility"),
+          tenantId: userId,
+          landlordId: landlordId ?? contract?.landlordId,
+          standalone: false,
+          ...checkPayload,
+        });
+      }
+
+      user.bdiStatus = "green";
+      user.onboardingStep = Math.max(user.onboardingStep ?? 0, 3);
+
+      if (contract && ["waiting_bdi", "waiting_kyc", "pending"].includes(contract.status)) {
+        contract.status = "waiting_bank_auth";
+      }
+    });
+  };
+
+  const saveOnboardingAgreement = (userId: string, payload: SaveOnboardingAgreementPayload) => {
+    applyDbUpdate((nextDb) => {
+      const user = findUser(nextDb, userId);
+      const contract = findOnboardingContract(nextDb, userId);
+      if (!user || !contract) return;
+
+      const property = findProperty(nextDb, contract.propertyId);
+      const rentAmount = Math.max(0, payload.rentAmount);
+      const buildingCommitteeAmount = Math.max(0, payload.buildingCommitteeAmount);
+      const arnonaAmount = Math.max(0, payload.arnonaAmount);
+      const monthlyPaymentAmount = calculateMonthlyPayment(
+        rentAmount,
+        buildingCommitteeAmount,
+        arnonaAmount,
+        payload.utilityPaymentMode,
+      );
+
+      contract.rentAmount = rentAmount;
+      contract.buildingCommitteeAmount = buildingCommitteeAmount;
+      contract.arnonaAmount = arnonaAmount;
+      contract.utilityPaymentMode = payload.utilityPaymentMode;
+      contract.monthlyPaymentAmount = monthlyPaymentAmount;
+      contract.tenantQrScannedAt = payload.tenantQrScanned ? (contract.tenantQrScannedAt ?? nowIso()) : undefined;
+      contract.landlordQrScannedAt = payload.landlordQrScanned ? (contract.landlordQrScannedAt ?? nowIso()) : undefined;
+      contract.contractUploadedAt = payload.contractDocumentUploaded ? (contract.contractUploadedAt ?? nowIso()) : undefined;
+      contract.contractClausesApprovedAt = payload.clausesApproved ? (contract.contractClausesApprovedAt ?? nowIso()) : undefined;
+
+      if (property) {
+        property.rent = rentAmount;
+        property.costs = {
+          buildingCommittee: buildingCommitteeAmount,
+          arnona: arnonaAmount,
+          utilities: property.costs?.utilities ?? 0,
+        };
+      }
+
+      const contractDocument = nextDb.documents.find(
+        (document) =>
+          document.ownerType === "contract" &&
+          document.ownerId === contract.id &&
+          document.category === "contract",
+      );
+
+      if (contractDocument && payload.contractDocumentUploaded) {
+        contractDocument.status = "ready";
+        contractDocument.uploadedAt = todayIso();
+        contractDocument.url = contractDocument.url ?? contract.documentUrl;
+      }
+
+      user.onboardingStep = Math.max(user.onboardingStep ?? 0, payload.clausesApproved ? 2 : 1);
+    });
+  };
+
   const saveBankAuthorization = (userId: string) => {
     applyDbUpdate((nextDb) => {
       const user = findUser(nextDb, userId);
       if (!user) return;
-      user.onboardingStep = Math.max(user.onboardingStep ?? 0, 3);
+      user.onboardingStep = Math.max(user.onboardingStep ?? 0, 4);
       const contract = nextDb.contracts.find(
         (item) => item.tenantId === userId && item.status === "waiting_bank_auth",
       );
@@ -705,6 +747,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     applyDbUpdate((nextDb) => {
       const user = findUser(nextDb, userId);
       if (!user) return;
+      if (user.bdiStatus !== "green") return;
       const contract = nextDb.contracts.find(
         (item) => item.tenantId === userId && item.status === "waiting_signature",
       );
@@ -713,7 +756,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       contract.signedByTenantAt = nowIso();
       contract.signedByLandlordAt = contract.signedByLandlordAt ?? nowIso();
       contract.status = "active";
-      user.onboardingStep = 4;
+      user.onboardingStep = 5;
 
       const property = findProperty(nextDb, contract.propertyId);
       if (property) {
@@ -735,6 +778,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         rent: payload.rent,
         status: "vacant",
         landlordId,
+        costs: {
+          buildingCommittee: payload.buildingCommittee ?? 0,
+          arnona: payload.arnona ?? 0,
+          utilities: payload.utilities ?? 0,
+        },
         description: payload.description,
         createdAt: nowIso(),
         catalogStatus: "draft",
@@ -791,6 +839,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       }
 
       const contractId = buildId("contract");
+      const buildingCommitteeAmount =
+        payload.buildingCommitteeAmount ?? property.costs?.buildingCommittee ?? 0;
+      const arnonaAmount = payload.arnonaAmount ?? property.costs?.arnona ?? 0;
+      const utilityPaymentMode = payload.utilityPaymentMode ?? "separate";
       nextDb.contracts.unshift({
         id: contractId,
         propertyId: payload.propertyId,
@@ -803,6 +855,15 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         startDate: payload.startDate,
         endDate: payload.endDate,
         rentAmount: payload.rentAmount,
+        buildingCommitteeAmount,
+        arnonaAmount,
+        utilityPaymentMode,
+        monthlyPaymentAmount: calculateMonthlyPayment(
+          payload.rentAmount,
+          buildingCommitteeAmount,
+          arnonaAmount,
+          utilityPaymentMode,
+        ),
         status: "waiting_kyc",
         guaranteeType: payload.guaranteeType,
         createdAt: nowIso(),
@@ -837,6 +898,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       if (!contract) return;
 
       if (signerId === contract.tenantId) {
+        const signer = findUser(nextDb, signerId);
+        if (contract.guaranteeType === "promissory" && signer?.bdiStatus !== "green") {
+          return;
+        }
         contract.signedByTenantAt = nowIso();
       }
       if (signerId === contract.landlordId) {
@@ -1133,6 +1198,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         approveKyc,
         requestEligibilityCheck,
         resolveEligibilityCheck,
+        skipEligibilityCheck,
+        saveOnboardingAgreement,
         saveBankAuthorization,
         signOnboardingContract,
         completeOnboarding,

@@ -32,7 +32,7 @@ import { useAppData } from "../lib/appData";
 
 /**
  * LandlordDashboard Component
- * Optimized for the Hebrew RentFlow spec: Alerts, Summary, Non-paying alerts, and Property lists.
+ * Optimized for the Hebrew rental-management spec: Alerts, Summary, Non-paying alerts, and Property lists.
  */
 export default function LandlordDashboard({ user }: { user: User }) {
   const { db, addProperty, inviteTenant, resetDatabase } = useAppData();
@@ -74,7 +74,7 @@ export default function LandlordDashboard({ user }: { user: User }) {
   return (
     <div className="space-y-8 animate-in fade-in duration-500 text-right" dir="rtl">
 
-      {/* 0. EMPTY STATE ACTION (FOR DEMO) */}
+      {/* 0. EMPTY STATE ACTION */}
       {properties.length === 0 && (
         <div className="p-10 rounded-[40px] bg-indigo-600 text-white shadow-2xl flex flex-col items-center text-center space-y-6">
            <div className="h-20 w-20 bg-white/10 rounded-3xl flex items-center justify-center backdrop-blur-md">
@@ -82,13 +82,13 @@ export default function LandlordDashboard({ user }: { user: User }) {
            </div>
            <div>
               <h2 className="text-3xl font-black italic">הפורטפוליו שלך ריק!</h2>
-              <p className="text-indigo-100 font-medium mt-2">האם תרצה להזין נכסים ודיירי דוגמה כדי להתנסות במערכת הניהול?</p>
+              <p className="text-indigo-100 font-medium mt-2">אפשר לטעון מחדש את נתוני המאגר המקומי כדי להחזיר נכסים ודיירים פעילים.</p>
            </div>
            <button 
              onClick={() => resetDatabase()}
              className="px-8 py-4 bg-white text-indigo-600 rounded-2xl font-black text-sm tracking-[0.12em] shadow-xl hover:scale-105 active:scale-95 transition-all"
            >
-             הזן נתוני דוגמה עכשיו
+             טען נתוני מאגר
            </button>
         </div>
       )}
@@ -641,12 +641,20 @@ function AddPropertyModal({
   onClose,
 }: {
   landlordId: string;
-  onCreate: (payload: { address: string; rent: number; description?: string }) => void;
+  onCreate: (payload: {
+    address: string;
+    rent: number;
+    buildingCommittee?: number;
+    arnona?: number;
+    description?: string;
+  }) => void;
   onClose: () => void;
 }) {
   const [formData, setFormData] = useState({
     address: "",
     rent: "0",
+    buildingCommittee: "0",
+    arnona: "0",
     description: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -658,6 +666,8 @@ function AddPropertyModal({
       onCreate({
         address: formData.address,
         rent: Number(formData.rent),
+        buildingCommittee: Number(formData.buildingCommittee),
+        arnona: Number(formData.arnona),
         description: formData.description || undefined,
       });
       onClose();
@@ -673,6 +683,10 @@ function AddPropertyModal({
         <div className="space-y-6">
           <Input label="כתובת מלאה" value={formData.address} onChange={(address: string) => setFormData({...formData, address})} placeholder="למשל: רוטשילד 42, תל אביב" />
           <Input label="דמי שכירות חודשיים (₪)" type="number" value={formData.rent} onChange={(rent: string) => setFormData({...formData, rent})} />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input label="ועד בית חודשי (₪)" type="number" value={formData.buildingCommittee} onChange={(buildingCommittee: string) => setFormData({...formData, buildingCommittee})} />
+            <Input label="ארנונה חודשית (₪)" type="number" value={formData.arnona} onChange={(arnona: string) => setFormData({...formData, arnona})} />
+          </div>
           <Input label="תיאור חופשי" value={formData.description} onChange={(description: string) => setFormData({...formData, description})} placeholder="קומה, חדרים, מרפסת..." />
         </div>
         <div className="flex gap-4 mt-10">

@@ -1,7 +1,7 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import seedDb from "./src/data/rentflow-db.json";
+import seedDb from "./src/data/garim-po-db.json";
 import {
   formatChannelLabel,
   formatProviderLabel,
@@ -16,16 +16,11 @@ import { RentflowDb } from "./src/types";
 function normalizeDb(rawDb: RentflowDb): RentflowDb {
   const db = structuredClone(rawDb);
 
-  db.properties = db.properties.map((property, index) => ({
+  db.properties = db.properties.map((property) => ({
     ...property,
     costs:
       property.costs ??
-      [
-        { buildingCommittee: 380, arnona: 540, utilities: 460 },
-        { buildingCommittee: 520, arnona: 690, utilities: 610 },
-        { buildingCommittee: 300, arnona: 470, utilities: 380 },
-        { buildingCommittee: 410, arnona: 560, utilities: 430 },
-      ][index % 4],
+      { buildingCommittee: 0, arnona: 0, utilities: 0 },
     insuranceOffered: property.insuranceOffered ?? property.tenantId !== undefined,
   }));
 
@@ -35,91 +30,9 @@ function normalizeDb(rawDb: RentflowDb): RentflowDb {
       user.insurancePreference ?? (user.role === "tenant" ? "undecided" : undefined),
   }));
 
-  db.integrations = db.integrations ?? [
-    {
-      id: "integration_yad2",
-      provider: "yad2",
-      status: "connected",
-      syncHealth: "completed",
-      lastSyncAt: "2026-04-20T08:00:00.000Z",
-      transactionCount: 14,
-      revenue: 15200,
-    },
-    {
-      id: "integration_midrag",
-      provider: "midrag",
-      status: "connected",
-      syncHealth: "in_progress",
-      lastSyncAt: "2026-04-20T07:45:00.000Z",
-      transactionCount: 9,
-      revenue: 9800,
-    },
-    {
-      id: "integration_insurance",
-      provider: "insurance",
-      status: "warning",
-      syncHealth: "pending",
-      lastSyncAt: "2026-04-19T18:30:00.000Z",
-      transactionCount: 11,
-      revenue: 20000,
-    },
-  ];
-
-  db.transactions = db.transactions ?? [
-    {
-      id: "txn_1",
-      propertyId: db.properties[0]?.id,
-      contractId: db.contracts[0]?.id,
-      paymentId: db.payments[0]?.id,
-      provider: "insurance",
-      channel: "commercial_real_estate",
-      status: "completed",
-      amount: 6200,
-      revenue: 950,
-      createdAt: "2026-04-01T08:00:00.000Z",
-    },
-    {
-      id: "txn_2",
-      propertyId: db.properties[1]?.id,
-      contractId: db.contracts[2]?.id,
-      provider: "midrag",
-      channel: "maintenance_companies",
-      status: "in_progress",
-      amount: 2400,
-      revenue: 370,
-      createdAt: "2026-04-17T13:00:00.000Z",
-    },
-    {
-      id: "txn_3",
-      propertyId: db.properties[2]?.id,
-      contractId: db.contracts[1]?.id,
-      provider: "yad2",
-      channel: "foreign_resident_agencies",
-      status: "pending",
-      amount: 7200,
-      revenue: 680,
-      createdAt: "2026-04-12T11:00:00.000Z",
-    },
-  ];
-
-  db.supportIssues = db.supportIssues ?? [
-    {
-      id: "issue_1",
-      source: "insurance",
-      title: "עיכוב בוובהוק של ספק הביטוח",
-      severity: "high",
-      status: "open",
-      createdAt: "2026-04-19T14:00:00.000Z",
-    },
-    {
-      id: "issue_2",
-      source: "platform",
-      title: "תיקון חירום לאגרגציית הספר הראשי",
-      severity: "low",
-      status: "resolved",
-      createdAt: "2026-04-16T09:00:00.000Z",
-    },
-  ];
+  db.integrations = db.integrations ?? [];
+  db.transactions = db.transactions ?? [];
+  db.supportIssues = db.supportIssues ?? [];
 
   return db;
 }
@@ -132,7 +45,7 @@ function buildApi() {
   const router = express.Router();
 
   router.get("/health", (_req, res) => {
-    res.json({ status: "ok", service: "rentflow-api" });
+    res.json({ status: "ok", service: "garim-po-api" });
   });
 
   router.get("/users", (_req, res) => res.json(cloneDb().users));

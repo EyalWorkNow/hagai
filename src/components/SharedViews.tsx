@@ -46,6 +46,7 @@ import {
   getTopicsForUser,
   useAppData,
 } from "../lib/appData";
+import { BRAND_NAME } from "../lib/brand";
 import AdminPaymentsView from "./AdminPaymentsView";
 
 const moneyFormatter = new Intl.NumberFormat("he-IL");
@@ -932,7 +933,7 @@ export function ChatUI({ user }: { user: User }) {
                       {topic.title}
                     </p>
                     <p className="mt-1 text-xs font-semibold text-slate-500 leading-relaxed">
-                      {topicCounterparty?.name || "מערכת RentFlow"}
+                      {topicCounterparty?.name || `מערכת ${BRAND_NAME}`}
                     </p>
                   </div>
 
@@ -955,11 +956,11 @@ export function ChatUI({ user }: { user: User }) {
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-4">
               <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-slate-900 text-2xl font-black text-white">
-                {(counterparty?.name || "R").slice(0, 1)}
+                {(counterparty?.name || BRAND_NAME).slice(0, 1)}
               </div>
               <div>
                 <h2 className="text-xl font-black text-slate-900">
-                  {counterparty?.name || "RentFlow"}
+                  {counterparty?.name || BRAND_NAME}
                 </h2>
                 <p className="mt-1 text-[11px] font-bold tracking-[0.12em] text-slate-400">
                   {selectedTopic ? getTopicTypeLabel(selectedTopic.type) : "שיחה"}
@@ -1044,7 +1045,7 @@ export function ChatUI({ user }: { user: User }) {
                         ? "דייר"
                         : message.senderRole === "landlord"
                           ? "משכיר"
-                          : "RentFlow"}
+                          : BRAND_NAME}
                     </p>
                   )}
                   <p>{message.text}</p>

@@ -1,6 +1,6 @@
 {
-  "name": "RentFlow",
-  "description": "Smart property management platform for landlords and tenants in Israel.",
+  "name": "גרים פה",
+  "description": "מערכת תשלומי שכר דירה חכמה לשוכרים ומשכירים בישראל.",
   "requestFramePermissions": [
     "camera",
     "microphone"
