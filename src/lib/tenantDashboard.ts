@@ -634,7 +634,7 @@ function buildQuickActions(input: TenantDashboardInput): TenantQuickAction[] {
     {
       id: "contracts",
       label: "מסמכים",
-      description: "חוזה, ערבויות ואישורים",
+      description: "חוזה ואישורים",
     },
     {
       id: "payments",

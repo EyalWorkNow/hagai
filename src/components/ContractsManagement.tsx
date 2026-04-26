@@ -153,44 +153,46 @@ export default function ContractsManagement({ user }: { user: User }) {
           </div>
 
           {/* Guarantees & Insurance Status */}
-          <div className="relative overflow-hidden rounded-[32px] border border-slate-200 bg-white p-5 sm:p-6 md:p-8 lg:p-10 shadow-sleek">
-            <div className="absolute top-0 right-0 h-40 w-40 bg-blue-50/50 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
-            <div className="relative z-10 mb-8 flex items-center justify-between">
-              <h2 className="flex items-center gap-3 sm:gap-4 text-xl sm:text-2xl font-black text-slate-900 tracking-tight italic font-display">
-                <div className="h-8 w-8 bg-slate-900 text-white rounded-lg flex items-center justify-center">
-                  <ShieldCheck size={18} />
-                </div>
-                <span>ביטוחים וערבויות</span>
-              </h2>
+          {user.role !== "tenant" && (
+            <div className="relative overflow-hidden rounded-[32px] border border-slate-200 bg-white p-5 sm:p-6 md:p-8 lg:p-10 shadow-sleek">
+              <div className="absolute top-0 right-0 h-40 w-40 bg-blue-50/50 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+              <div className="relative z-10 mb-8 flex items-center justify-between">
+                <h2 className="flex items-center gap-3 sm:gap-4 text-xl sm:text-2xl font-black text-slate-900 tracking-tight italic font-display">
+                  <div className="h-8 w-8 bg-slate-900 text-white rounded-lg flex items-center justify-center">
+                    <ShieldCheck size={18} />
+                  </div>
+                  <span>ביטוחים וערבויות</span>
+                </h2>
+              </div>
+              
+              <div className="grid gap-6 sm:grid-cols-2 relative z-10">
+                <GuaranteeCard 
+                  label="חוזים פעילים" 
+                  value={contractMetrics.active.toLocaleString("he-IL")} 
+                  status={`שכירות חודשית כוללת ${formatCurrencyCompact(contractMetrics.totalRent)}`} 
+                  icon={<Lock size={20} />} 
+                />
+                <GuaranteeCard 
+                  label="נפח עסקאות משויך לחוזים" 
+                  value={formatCurrencyCompact(contractMetrics.linkedTransactionVolume)} 
+                  status={`${contractMetrics.linkedTransactionCount.toLocaleString("he-IL")} עסקאות משויכות`} 
+                  icon={<ShieldCheck size={20} />} 
+                />
+                <GuaranteeCard 
+                  label="ערבויות ביטוח" 
+                  value={contractMetrics.activeInsuranceGuarantees.toLocaleString("he-IL")} 
+                  status={`${contractMetrics.insuranceDocumentsReady.toLocaleString("he-IL")} מסמכי ביטוח מוכנים במערכת`} 
+                  icon={<ShieldCheck size={20} />} 
+                />
+                <GuaranteeCard 
+                  label="ערבויות בנקאיות ושטרי חוב" 
+                  value={(contractMetrics.bankGuarantees + contractMetrics.promissoryGuarantees).toLocaleString("he-IL")} 
+                  status={`${contractMetrics.guaranteeDocumentsReady.toLocaleString("he-IL")} מסמכי ערבות חתומים/מוכנים`} 
+                  icon={<Lock size={20} />} 
+                />
+              </div>
             </div>
-            
-            <div className="grid gap-6 sm:grid-cols-2 relative z-10">
-              <GuaranteeCard 
-                label="חוזים פעילים" 
-                value={contractMetrics.active.toLocaleString("he-IL")} 
-                status={`שכירות חודשית כוללת ${formatCurrencyCompact(contractMetrics.totalRent)}`} 
-                icon={<Lock size={20} />} 
-              />
-              <GuaranteeCard 
-                label="נפח עסקאות משויך לחוזים" 
-                value={formatCurrencyCompact(contractMetrics.linkedTransactionVolume)} 
-                status={`${contractMetrics.linkedTransactionCount.toLocaleString("he-IL")} עסקאות משויכות`} 
-                icon={<ShieldCheck size={20} />} 
-              />
-              <GuaranteeCard 
-                label="ערבויות ביטוח" 
-                value={contractMetrics.activeInsuranceGuarantees.toLocaleString("he-IL")} 
-                status={`${contractMetrics.insuranceDocumentsReady.toLocaleString("he-IL")} מסמכי ביטוח מוכנים במערכת`} 
-                icon={<ShieldCheck size={20} />} 
-              />
-              <GuaranteeCard 
-                label="ערבויות בנקאיות ושטרי חוב" 
-                value={(contractMetrics.bankGuarantees + contractMetrics.promissoryGuarantees).toLocaleString("he-IL")} 
-                status={`${contractMetrics.guaranteeDocumentsReady.toLocaleString("he-IL")} מסמכי ערבות חתומים/מוכנים`} 
-                icon={<Lock size={20} />} 
-              />
-            </div>
-          </div>
+          )}
         </div>
 
         {/* 3. SIDEBAR Actions & Versioning */}
