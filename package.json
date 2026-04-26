@@ -10,7 +10,7 @@
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test src/lib/tenantDashboard.test.ts"
+    "test": "node --import tsx --test src/lib/*.test.ts"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

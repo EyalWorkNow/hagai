@@ -37,6 +37,11 @@ import { cn } from "../lib/utils";
 import { PlatformTransaction, User } from "../types";
 import { useAppData } from "../lib/appData";
 import { BRAND_NAME } from "../lib/brand";
+import {
+  buildPlatformTransactionRows,
+  formatPlatformChannelLabel,
+  formatPlatformProviderLabel,
+} from "../lib/platformTransactions";
 
 const moneyFormatter = new Intl.NumberFormat("he-IL", {
   maximumFractionDigits: 0,
@@ -174,33 +179,12 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
   }, [db.transactions]);
 
   const transactionRows = useMemo(() => {
-    const propertyMap = new Map(db.properties.map(p => [p.id, p]));
-    const contractMap = new Map(db.contracts.map(c => [c.id, c]));
-    
-    // Process only up to 500 latest transactions to avoid unresponsiveness if DB is massive
-    return transactions.slice(0, 500).map((transaction) => {
-      const property = propertyMap.get(transaction.propertyId);
-      const contract = contractMap.get(transaction.contractId);
-      return {
-        transaction,
-        propertyLabel: property?.address || transaction.propertyId || "נכס לא משויך",
-        tenantLabel: contract?.tenantName || "שוכר לא זוהה",
-        contractLabel: contract?.id || transaction.contractId || "ללא חוזה משויך",
-        providerLabel:
-          transaction.provider === "insurance"
-            ? "עסקאות ביטוח נכסים ורכוש פעילים החודש"
-            : transaction.provider === "midrag"
-              ? "מידרג"
-              : "יד2",
-        channelLabel:
-          transaction.channel === "maintenance_companies"
-            ? "חברות תחזוקה"
-            : transaction.channel === "foreign_resident_agencies"
-              ? "משרדי נדל\"ן לתושבי חוץ"
-              : "נדל\"ן מסחרי",
-      };
+    return buildPlatformTransactionRows(db, transactions, {
+      maxRows: 500,
+      requireIdentifiedTenant: true,
+      requireKnownProperty: true,
     });
-  }, [db.contracts, db.properties, transactions]);
+  }, [db, transactions]);
 
   const stats = useMemo(() => {
     let totalVolume = 0;
@@ -621,7 +605,7 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
           </div>
 
           <p className="text-[10px] font-black tracking-[0.12em] text-slate-400 md:text-left">
-            מציג {filteredTransactions.length.toLocaleString("he-IL")} מתוך {transactions.length.toLocaleString("he-IL")} עסקאות
+            מציג {filteredTransactions.length.toLocaleString("he-IL")} מתוך {transactionRows.length.toLocaleString("he-IL")} עסקאות רלוונטיות
           </p>
         </div>
 
@@ -778,8 +762,8 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
               <DetailRow label="שוכר" value={selectedTransaction.tenantLabel} />
               <DetailRow label="נכס" value={selectedTransaction.propertyLabel} />
               <DetailRow label="חוזה" value={selectedTransaction.contractLabel} />
-              <DetailRow label="ספק" value={selectedTransaction.transaction.provider === "insurance" ? "עסקאות ביטוח נכסים ורכוש פעילים החודש" : selectedTransaction.transaction.provider === "midrag" ? "מידרג" : "יד2"} />
-              <DetailRow label="ערוץ" value={selectedTransaction.transaction.channel === "maintenance_companies" ? "חברות תחזוקה" : selectedTransaction.transaction.channel === "foreign_resident_agencies" ? "משרדי נדל\"ן לתושבי חוץ" : "נדל\"ן מסחרי"} />
+              <DetailRow label="ספק" value={formatPlatformProviderLabel(selectedTransaction.transaction.provider)} />
+              <DetailRow label="ערוץ" value={formatPlatformChannelLabel(selectedTransaction.transaction.channel)} />
               <DetailRow label="תאריך" value={formatDate(selectedTransaction.transaction.createdAt)} />
               <DetailRow label="סטטוס" value={transactionStatusLabel(selectedTransaction.transaction.status)} />
               <DetailRow label="סכום" value={formatCurrency(selectedTransaction.transaction.amount)} emphasize />
