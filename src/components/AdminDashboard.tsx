@@ -18,7 +18,12 @@ import {
   Check,
   X,
   FileText,
-  Info
+  Info,
+  Send,
+  ShieldCheck,
+  FileSearch,
+  PenTool,
+  Trophy
 } from "lucide-react";
 import { BDICheckStandalone } from "./Onboarding";
 import { cn } from "../lib/utils";
@@ -257,7 +262,7 @@ export default function AdminDashboard({ user: _adminUser }: { user: User }) {
              פיקוח מערכתי • אישור KYC • ניטור {adminMetrics.totalTransactions.toLocaleString("he-IL")} עסקאות בזמן אמת
            </p>
            
-           <div className="mt-6 grid max-w-5xl grid-cols-1 gap-4 lg:grid-cols-3">
+           <div className="mt-6 grid w-full grid-cols-1 gap-4 lg:grid-cols-3">
              <HeroMetricCard
                title="הכנסות חודשיות"
                value={formatCurrencyCompact(heroMetrics.monthlyRevenue.current)}
@@ -327,6 +332,7 @@ export default function AdminDashboard({ user: _adminUser }: { user: User }) {
                       : "ללא שינוי",
               }}
               color="text-emerald-500" 
+              helpText="מספר החוזים שנמצאים בסטטוס פעיל בטווח החודש הנוכחי."
             />
             <MetricCard 
               icon={<Scale size={20} />} 
@@ -334,6 +340,7 @@ export default function AdminDashboard({ user: _adminUser }: { user: User }) {
               value={adminMetrics.unresolvedIssues} 
               subtitle="באגים וקריאות פתוחות מול אינטגרציות והפלטפורמה" 
               color="text-red-500" 
+              helpText="קריאות שירות ותקלות מערכתיות שטרם נפתרו ודורשות התייחסות."
             />
           </div>
 
@@ -344,7 +351,20 @@ export default function AdminDashboard({ user: _adminUser }: { user: User }) {
             </div>
             <div className="grid gap-4 md:grid-cols-3">
               {adminMetrics.providerMetrics.map((metric) => (
-                <div key={metric.provider} className="rounded-[24px] border border-slate-100 bg-slate-50/70 p-5">
+                <div key={metric.provider} className="group/card relative rounded-[24px] border border-slate-100 bg-slate-50/70 p-5 hover:z-20">
+                  <div className="group/info absolute left-4 top-4 z-10">
+                    <div className="relative">
+                      <button
+                        type="button"
+                        className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-200/50 bg-white/50 text-slate-400 shadow-sm transition-colors hover:text-slate-900"
+                      >
+                        <Info size={11} />
+                      </button>
+                      <div className="pointer-events-none absolute left-1/2 top-8 z-[100] w-64 -translate-x-1/2 rounded-2xl bg-slate-950 px-4 py-3 text-right text-xs font-bold leading-5 text-white opacity-0 shadow-2xl transition-all group-hover/info:opacity-100">
+                        {metric.provider === "insurance" ? "נתוני פוליסות ביטוח שנרכשו דרך הפלטפורמה." : `סיכום עסקאות והכנסות מול ספק ${metric.provider}.`}
+                      </div>
+                    </div>
+                  </div>
                   <p className="text-[11px] font-black tracking-[0.14em] text-slate-400 uppercase">
                     {metric.provider === "insurance" ? "עסקאות ביטוח נכסים ורכוש פעילים החודש" : formatProviderLabel(metric.provider)}
                   </p>
@@ -370,12 +390,54 @@ export default function AdminDashboard({ user: _adminUser }: { user: User }) {
               </div>
             </div>
             
-            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-5">
-              <FunnelStep label="הודעה ראשונה" count={funnel.firstNotice.toString()} color="bg-slate-900" />
-              <FunnelStep label="שלחו KYC" count={funnel.sentKYC.toString()} color="bg-slate-900" />
-              <FunnelStep label="מתנה לאישור" count={funnel.waitingLandlord.toString()} color="bg-slate-900" />
-              <FunnelStep label="חתימה" count={funnel.waitingSignature.toString()} color="bg-slate-900" />
-              <FunnelStep label="הושלם" count={funnel.completed.toString()} color="bg-blue-600" isLast={true} />
+            <div className="relative flex flex-col gap-8 md:gap-10 lg:flex-row lg:items-start lg:justify-between">
+              {/* Desktop Connecting Background Line - Moved behind with z-0 */}
+              <div className="absolute left-10 right-10 top-12 hidden h-[2px] bg-slate-100 lg:block z-0" />
+              
+              <FunnelStep 
+                label="הודעה ראשונה" 
+                count={funnel.firstNotice.toString()} 
+                color="bg-slate-900" 
+                icon={<Send size={20} />}
+                helpText="כמות המשתמשים שקיבלו הזמנה ראשונית להצטרף למערכת." 
+              />
+              <FunnelConversionRate value={Math.round((funnel.sentKYC / (funnel.firstNotice || 1)) * 100)} />
+              
+              <FunnelStep 
+                label="שלחו KYC" 
+                count={funnel.sentKYC.toString()} 
+                color="bg-slate-900" 
+                icon={<ShieldCheck size={20} />}
+                helpText="משתמשים שהעלו מסמכי זיהוי (ת.ז וסלפי) וממתינים לאישור." 
+              />
+              <FunnelConversionRate value={Math.round((funnel.waitingLandlord / (funnel.sentKYC || 1)) * 100)} />
+              
+              <FunnelStep 
+                label="מתנה לאישור" 
+                count={funnel.waitingLandlord.toString()} 
+                color="bg-slate-900" 
+                icon={<FileSearch size={20} />}
+                helpText="משתמשים שעברו KYC וממתינים לאישור המשכיר או בדיקת נתוני אשראי." 
+              />
+              <FunnelConversionRate value={Math.round((funnel.waitingSignature / (funnel.waitingLandlord || 1)) * 100)} />
+              
+              <FunnelStep 
+                label="חתימה" 
+                count={funnel.waitingSignature.toString()} 
+                color="bg-slate-900" 
+                icon={<PenTool size={20} />}
+                helpText="חוזים שממתינים לחתימה דיגיטלית של השוכר/משכיר." 
+              />
+              <FunnelConversionRate value={Math.round((funnel.completed / (funnel.waitingSignature || 1)) * 100)} />
+              
+              <FunnelStep 
+                label="הושלם" 
+                count={funnel.completed.toString()} 
+                color="bg-blue-600" 
+                isLast={true} 
+                icon={<Trophy size={20} />}
+                helpText="תהליכי אונבורדינג שהסתיימו והפכו לחוזים פעילים." 
+              />
             </div>
             
             <div className="mt-10 flex flex-col gap-4 border-t border-slate-100 pt-6 text-[10px] sm:text-[11px] font-black text-slate-400 tracking-[0.12em] md:mt-12 md:flex-row md:items-center md:justify-between md:pt-8">
@@ -605,20 +667,20 @@ function HeroMetricCard({
         : "ללא שינוי";
 
   return (
-    <div className="relative overflow-hidden rounded-[28px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 pt-6 shadow-[0_14px_30px_rgba(15,23,42,0.05)] transition-all hover:-translate-y-0.5 hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)] sm:p-6 sm:pt-7 md:p-7">
-      <div className="absolute left-4 top-4 z-10">
-        <div className="group relative">
-          <button
-            type="button"
-            className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white/90 text-slate-400 shadow-sm transition-colors hover:text-slate-900"
-            aria-label={`מידע על ${title}`}
-          >
-            <Info size={12} />
-          </button>
-          <div className="pointer-events-none absolute left-0 top-8 z-20 w-64 rounded-2xl bg-slate-950 px-4 py-3 text-right text-xs font-bold leading-5 text-white opacity-0 shadow-2xl transition-opacity group-hover:opacity-100">
-            {helpText}
+    <div className="group relative rounded-[28px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 pt-6 shadow-[0_14px_30px_rgba(15,23,42,0.05)] transition-all hover:-translate-y-0.5 hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)] hover:z-50 sm:p-6 sm:pt-7 md:p-7">
+      <div className="absolute left-4 top-4 z-20">
+          <div className="relative group/info">
+            <button
+              type="button"
+              className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white/90 text-slate-400 shadow-sm transition-colors hover:text-slate-900"
+              aria-label={`מידע על ${title}`}
+            >
+              <Info size={12} />
+            </button>
+            <div className="pointer-events-none absolute left-1/2 top-8 z-[50] w-64 -translate-x-1/2 rounded-2xl bg-slate-950 px-4 py-3 text-right text-xs font-bold leading-5 text-white opacity-0 shadow-2xl transition-all group-hover/info:opacity-100">
+              {helpText}
+            </div>
           </div>
-        </div>
       </div>
       <p className="max-w-[calc(100%-2.75rem)] pl-1 text-[11px] sm:text-[12px] font-black tracking-[0.16em] text-slate-400">{title}</p>
       <div className="mt-5 flex flex-col gap-3">
@@ -632,7 +694,7 @@ function HeroMetricCard({
   );
 }
 
-function MetricCard({ icon, title, value, status, subtitle, badge, color }: any) {
+function MetricCard({ icon, title, value, status, subtitle, badge, color, helpText }: any) {
   const badgeToneClassName =
     badge?.tone === "positive"
       ? "bg-emerald-50 text-emerald-700 border-emerald-100"
@@ -647,7 +709,23 @@ function MetricCard({ icon, title, value, status, subtitle, badge, color }: any)
         : <ArrowRight size={12} />;
 
   return (
-    <div className="dashboard-card min-w-0 border-slate-100 p-5 sm:p-6 md:p-7 hover:border-slate-300 transition-all hover:-translate-y-1 group">
+    <div className="dashboard-card relative min-w-0 border-slate-100 p-5 sm:p-6 md:p-7 hover:border-slate-300 transition-all hover:-translate-y-1 hover:z-50 group">
+      {helpText && (
+        <div className="absolute left-4 top-4 z-10">
+          <div className="relative">
+            <button
+              type="button"
+              className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 shadow-sm transition-colors hover:text-slate-900"
+              aria-label={`מידע על ${title}`}
+            >
+              <Info size={12} />
+            </button>
+            <div className="pointer-events-none absolute left-1/2 top-8 z-[50] w-64 -translate-x-1/2 rounded-2xl bg-slate-950 px-4 py-3 text-right text-xs font-bold leading-5 text-white opacity-0 shadow-2xl transition-opacity group-hover:opacity-100">
+              {helpText}
+            </div>
+          </div>
+        </div>
+      )}
       <div className="mb-6 flex min-w-0 items-center gap-4 sm:gap-5">
         <div className={cn("h-12 w-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform shrink-0", color)}>
           {icon}
@@ -675,35 +753,67 @@ function MetricCard({ icon, title, value, status, subtitle, badge, color }: any)
   );
 }
 
-function FunnelStep({ label, count, color, isLast }: { label: string, count: string, color: string, isLast?: boolean }) {
+function FunnelStep({ label, count, color, isLast, helpText, icon }: { label: string, count: string, color: string, isLast?: boolean, helpText?: string, icon: ReactNode }) {
   const isComplete = color.includes("blue");
   
   return (
-    <div className="group relative flex min-w-0 flex-col items-center">
-      {/* Connector Line */}
-      {!isLast && (
-        <div className="absolute left-1/2 top-8 hidden h-[2px] w-full -translate-x-1/2 bg-slate-100 xl:block -z-10">
-           <div className={cn("h-full transition-all duration-1000", isComplete ? "bg-blue-600 w-full" : "bg-transparent w-0 group-hover:w-1/2 bg-slate-200")} />
+    <div className="group relative flex flex-1 flex-col items-center">
+      <div className="relative mb-6">
+        {/* Decorative Ring */}
+        <div className={cn(
+          "absolute -inset-2 rounded-3xl opacity-0 blur-xl transition-all duration-500 group-hover:opacity-40",
+          isComplete ? "bg-blue-600" : "bg-slate-400"
+        )} />
+        
+        <div className={cn(
+          "relative flex h-20 w-20 items-center justify-center rounded-[24px] border-2 transition-all duration-500 z-10",
+          isComplete 
+            ? "bg-blue-600 border-blue-500 text-white shadow-[0_20px_40px_rgba(37,99,235,0.3)] scale-110" 
+            : "bg-white border-slate-100 text-slate-900 group-hover:border-slate-300 group-hover:shadow-lg"
+        )}>
+          <div className="flex flex-col items-center gap-1">
+             <div className={cn("transition-transform duration-500 group-hover:scale-110", isComplete ? "text-white" : "text-slate-300 group-hover:text-slate-900")}>
+               {icon}
+             </div>
+             <span className="text-lg font-black tabular-nums font-display leading-none">{count}</span>
+          </div>
+          
+          {helpText && (
+            <div className="absolute -right-2 -top-2 z-20">
+              <div className="relative group/info">
+                <button
+                  type="button"
+                  className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 shadow-sm transition-colors hover:text-slate-900"
+                >
+                  <Info size={10} />
+                </button>
+                <div className="pointer-events-none absolute left-1/2 top-8 z-[50] w-56 -translate-x-1/2 rounded-2xl bg-slate-950 px-4 py-3 text-right text-[10px] font-bold leading-4 text-white opacity-0 shadow-2xl transition-opacity group-hover/info:opacity-100">
+                  {helpText}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-      )}
-      
-      {/* Step Circle */}
-      <div className={cn(
-        "z-10 flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-2xl text-xl sm:text-2xl font-black tabular-nums transition-all duration-500 shadow-sm font-display",
-        isComplete 
-          ? "bg-blue-600 text-white shadow-blue-600/20 shadow-xl scale-110" 
-          : "bg-white border-2 border-slate-100 text-slate-900 group-hover:border-slate-300"
-      )}>
-        {count}
       </div>
       
-      {/* Label */}
       <p className={cn(
-        "mt-4 sm:mt-6 max-w-[120px] break-words text-center text-[10px] sm:text-[11px] font-bold tracking-[0.12em] leading-tight transition-colors",
-        isComplete ? "text-blue-600" : "text-slate-400 group-hover:text-slate-600"
+        "max-w-[100px] text-center text-[11px] font-black tracking-[0.12em] leading-tight transition-colors",
+        isComplete ? "text-blue-600" : "text-slate-400 group-hover:text-slate-900"
       )}>
         {label}
       </p>
+    </div>
+  );
+}
+
+function FunnelConversionRate({ value }: { value: number }) {
+  return (
+    <div className="relative z-10 flex items-center justify-center lg:pt-8">
+      <div className="flex h-11 w-14 shrink-0 flex-col items-center justify-center rounded-xl bg-white border border-slate-200 shadow-md transition-all hover:bg-slate-50 hover:scale-110">
+        <span className="text-[8px] font-black text-slate-400 uppercase leading-none mb-1">המרה</span>
+        <span className="text-[11px] font-black text-slate-900 tabular-nums leading-none">{value}%</span>
+        <div className="absolute -bottom-1 h-1 w-4 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
+      </div>
     </div>
   );
 }

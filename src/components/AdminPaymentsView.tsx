@@ -198,7 +198,11 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
     for (let i = 0; i < transactions.length; i++) {
       const amount = transactions[i].amount;
       totalVolume += amount;
-      totalRevenue += transactions[i].revenue;
+      
+      // Fixed platform fee: 20 NIS per transaction
+      const transactionRevenue = 20;
+      totalRevenue += transactionRevenue;
+      
       if (transactions[i].status === "completed") {
         completedCount++;
         completedVolume += amount;
@@ -251,7 +255,8 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
       if (!bucket) continue;
 
       bucket.total += transactions[i].amount;
-      bucket.revenue += transactions[i].revenue;
+      // Fixed platform fee: 20 NIS per transaction
+      bucket.revenue += 20;
       bucket.count += 1;
 
       if (transactions[i].status === "completed") {
@@ -277,7 +282,7 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
       visibleCount,
       peakValue,
       completionRate: visibleTotal > 0 ? (visibleCollected / visibleTotal) * 100 : 0,
-      averagePerBucket: visibleCount > 0 ? visibleTotal / Math.max(chartData.length, 1) : 0,
+      averagePerBucket: visibleCount > 0 ? visibleRevenue / Math.max(chartData.length, 1) : 0,
     };
   }, [chartData]);
 
@@ -434,16 +439,19 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
               label="הכנסה בטווח"
               value={formatCurrency(Math.round(chartSummary.visibleRevenue))}
               tone="blue"
+              helpText="סך העמלות המחושבות מכלל העסקאות בטווח הזמן שנבחר (לפי 20 ש״ח לעסקה)."
             />
             <InsightChip
               label="ממוצע נקודת זמן"
               value={formatCurrency(Math.round(chartSummary.averagePerBucket))}
               tone="slate"
+              helpText="ממוצע ההכנסה (עמלות) לכל נקודת זמן (יום/שבוע/חודש) בגרף בהתאם לטווח הנבחר."
             />
             <InsightChip
               label="עסקאות בטווח"
               value={chartSummary.visibleCount.toLocaleString("he-IL")}
               tone="rose"
+              helpText="כמות העסקאות הכוללת שבוצעו בטווח הזמן המוצג בגרף."
             />
           </div>
 
@@ -524,16 +532,19 @@ export default function AdminPaymentsView({ user: _user }: { user: User }) {
               label="גבייה שהושלמה"
               value={formatCurrency(Math.round(chartSummary.visibleCollected))}
               tone="slate"
+              helpText="סך הכספים (נפח עסקאות) שנגבו בהצלחה והושלמו בטווח הזמן הנבחר."
             />
             <InsightChip
               label="שיעור גבייה בטווח"
               value={`${chartSummary.completionRate.toFixed(0)}%`}
               tone="blue"
+              helpText="אחוז העסקאות שהושלמו בהצלחה מתוך סך הנפח הכולל בטווח הזמן הנבחר."
             />
             <InsightChip
               label="שיא בטווח"
               value={formatCurrency(Math.round(chartSummary.peakValue))}
               tone="rose"
+              helpText="הערך המקסימלי של נפח עסקאות שהושג בנקודת זמן אחת בתוך הטווח הנבחר."
             />
           </div>
         </div>
@@ -822,7 +833,7 @@ function KPIItem({
             >
               <Info size={13} />
             </button>
-            <div className="pointer-events-none absolute left-0 top-11 z-20 w-64 rounded-2xl bg-slate-950 px-4 py-3 text-right text-xs font-bold leading-5 text-white opacity-0 shadow-2xl transition-opacity group-hover/info:opacity-100">
+            <div className="pointer-events-none absolute right-0 top-11 z-20 w-64 rounded-2xl bg-slate-950 px-4 py-3 text-right text-xs font-bold leading-5 text-white opacity-0 shadow-2xl transition-opacity group-hover/info:opacity-100">
               {helpText}
             </div>
           </div>
@@ -907,10 +918,12 @@ function InsightChip({
   label,
   value,
   tone,
+  helpText,
 }: {
   label: string;
   value: string;
   tone: "slate" | "blue" | "rose";
+  helpText?: string;
 }) {
   const tones = {
     slate: "border-slate-200 bg-slate-50 text-slate-900",
@@ -919,7 +932,23 @@ function InsightChip({
   };
 
   return (
-    <div className={cn("rounded-[22px] border px-5 py-4 text-right", tones[tone])}>
+    <div className={cn("group relative rounded-[22px] border px-5 py-4 text-right", tones[tone])}>
+      {helpText && (
+        <div className="group/info absolute left-4 top-4 z-10">
+          <div className="relative">
+            <button
+              type="button"
+              className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-200/50 bg-white/50 text-slate-400 shadow-sm transition-colors hover:text-slate-900"
+              aria-label={`מידע על ${label}`}
+            >
+              <Info size={11} />
+            </button>
+            <div className="pointer-events-none absolute right-0 top-8 z-20 w-64 rounded-2xl bg-slate-950 px-4 py-3 text-right text-xs font-bold leading-5 text-white opacity-0 shadow-2xl transition-opacity group-hover/info:opacity-100">
+              {helpText}
+            </div>
+          </div>
+        </div>
+      )}
       <p className="mb-2 text-[11px] font-black text-slate-400">{label}</p>
       <p className="text-2xl font-black tracking-tight tabular-nums">{value}</p>
     </div>
