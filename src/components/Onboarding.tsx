@@ -2,6 +2,7 @@ import { ChangeEvent, ReactNode, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   AlertCircle,
+  ArrowLeftRight,
   Building2,
   Calculator,
   Camera,
@@ -32,7 +33,7 @@ interface OnboardingProps {
   onLogout: () => void;
 }
 
-type StepId = "identity" | "documents" | "credit" | "property" | "signature" | "finish";
+type StepId = "identity" | "property" | "bank_auth" | "signature" | "finish";
 
 type StepMeta = {
   id: StepId;
@@ -52,22 +53,12 @@ type OnboardingDraft = {
 };
 
 const STEPS: StepMeta[] = [
-  { id: "identity", title: "זיהוי ו-QR", icon: <UserCheck size={20} /> },
-  { id: "documents", title: "חוזה ומסמכים", icon: <FileText size={20} /> },
-  { id: "credit", title: "דירוג אשראי", icon: <ShieldCheck size={20} /> },
+  { id: "identity", title: "פתיחת תהליך", icon: <UserCheck size={20} /> },
   { id: "property", title: "פרטי דירה", icon: <Building2 size={20} /> },
+  { id: "bank_auth", title: "הוראת קבע", icon: <Landmark size={20} /> },
   { id: "signature", title: "חתימה", icon: <FileSignature size={20} /> },
   { id: "finish", title: "סיום", icon: <CheckCircle2 size={20} /> },
 ];
-
-const BANK_OPTIONS = [
-  { id: "hapoalim", name: "בנק הפועלים", code: "12", accent: "bg-red-500", mark: "פועלים" },
-  { id: "leumi", name: "בנק לאומי", code: "10", accent: "bg-blue-600", mark: "לאומי" },
-  { id: "discount", name: "דיסקונט", code: "11", accent: "bg-emerald-500", mark: "דיסקונט" },
-  { id: "mizrahi", name: "מזרחי טפחות", code: "20", accent: "bg-orange-500", mark: "טפחות" },
-  { id: "beinleumi", name: "הבינלאומי", code: "31", accent: "bg-violet-500", mark: "FIBI" },
-  { id: "yahav", name: "בנק יהב", code: "04", accent: "bg-sky-500", mark: "יהב" },
-] as const;
 
 const moneyFormatter = new Intl.NumberFormat("he-IL");
 
@@ -167,25 +158,23 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
     if (currentStep === 0) {
       if (user.kycStatus === "pending") return "שלח לאימות זהות";
       if (user.kycStatus === "submitted") return "אשר KYC והמשך";
-      return "המשך לניהול מסמכים";
+      return "המשך לפרטי הדירה";
     }
-    if (currentStep === 1) return "שמור מסמכים והמשך";
-    if (currentStep === 2) {
-      if (isCreditApproved) return "המשך לפרטי הדירה";
+    if (currentStep === 1) return "שמור פרטי דירה והמשך";
+    if (currentStep === 2) return "הקמת הוראת קבע";
+    if (currentStep === 3) {
+      if (isCreditApproved) return "חתימה דיגיטלית מאובטחת";
       if (eligibilityCheck?.status === "pending") return "אשר חיווי חיובי";
       return "התחל בדיקת דירוג אשראי";
     }
-    if (currentStep === 3) return "שמור פרטי תשלום והמשך לחתימה";
-    if (currentStep === 4) return "חתימה דיגיטלית מאובטחת";
     return "התחל להשתמש במערכת";
   };
 
   const isPrimaryDisabled =
     isProcessing ||
     (currentStep === 0 && user.kycStatus === "approved" && !hasRequiredQr) ||
-    (currentStep === 1 && !hasRequiredDocuments) ||
-    (currentStep === 2 && user.bdiStatus === "red") ||
-    (currentStep === 3 && draft.rentAmount <= 0) ||
+    (currentStep === 1 && (!hasRequiredDocuments || draft.rentAmount <= 0)) ||
+    (currentStep === 3 && user.bdiStatus === "red") ||
     (currentStep === 4 && !canSign);
 
   const handleNext = async () => {
@@ -219,30 +208,30 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
       }
 
       if (currentStep === 2) {
+        persistAgreement();
+        saveBankAuthorization(user.id);
+        setCurrentStep(3);
+        return;
+      }
+
+      if (currentStep === 3) {
         if (isCreditApproved) {
-          setCurrentStep(3);
+          setCurrentStep(4);
           return;
         }
         if (eligibilityCheck?.status === "pending") {
           resolveEligibilityCheck(user.id, true);
-          setCurrentStep(3);
+          setCurrentStep(4);
           return;
         }
         requestEligibilityCheck(user.id, activeContract?.landlordId);
         return;
       }
 
-      if (currentStep === 3) {
-        persistAgreement();
-        saveBankAuthorization(user.id);
-        setCurrentStep(4);
-        return;
-      }
-
       if (currentStep === 4) {
         persistAgreement();
         signOnboardingContract(user.id);
-        setCurrentStep(5);
+        setCurrentStep(STEPS.length - 1);
         return;
       }
 
@@ -257,7 +246,7 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
     if (isProcessing || isCreditApproved) return;
     persistAgreement();
     skipEligibilityCheck(user.id, activeContract?.landlordId);
-    setCurrentStep(3);
+    setCurrentStep(4);
   };
 
   const handleBack = () => {
@@ -270,7 +259,7 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
     <div className="flex min-h-screen flex-col items-center justify-center bg-slate-100 p-3 text-right sm:p-4" dir="rtl">
       <div className="mb-5 flex w-full max-w-5xl flex-col gap-4 px-1 sm:mb-7 sm:flex-row sm:items-center sm:justify-between sm:px-2">
         <div className="flex items-center gap-4">
-          <img src={hagaiLogo} alt={BRAND_NAME} className="h-12 w-auto object-contain drop-shadow-sm" />
+          <img src={hagaiLogo} alt={BRAND_NAME} className="h-16 w-auto object-contain drop-shadow-sm" />
           <div>
             <span className="text-2xl font-black text-slate-900 tracking-tighter font-display">
               {BRAND_NAME}
@@ -288,7 +277,7 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
       </div>
 
       <div className="w-full max-w-5xl overflow-visible rounded-[28px] border border-slate-200 bg-white shadow-2xl sm:rounded-[32px]">
-        <div className="grid grid-cols-2 gap-3 border-b border-slate-100 bg-slate-50/60 p-3 sm:grid-cols-3 md:grid-cols-6 md:p-5">
+        <div className="grid grid-cols-2 gap-3 border-b border-slate-100 bg-slate-50/60 p-3 sm:grid-cols-3 md:grid-cols-5 md:p-5">
           {STEPS.map((step, index) => (
             <StepIndicator
               key={step.id}
@@ -388,23 +377,14 @@ function StepContent({
       return (
         <IdentitySetupStep
           user={user}
+          contract={contract}
           draft={draft}
           onDraftChange={onDraftChange}
         />
       );
     case 1:
-      return <DocumentsStep draft={draft} onDraftChange={onDraftChange} />;
-    case 2:
       return (
-        <CreditStep
-          user={user}
-          eligibilityStatus={eligibilityStatus}
-          onSkipCredit={onSkipCredit}
-        />
-      );
-    case 3:
-      return (
-        <PropertyPaymentStep
+        <PropertyStep
           contract={contract}
           property={property}
           draft={draft}
@@ -412,7 +392,9 @@ function StepContent({
           onDraftChange={onDraftChange}
         />
       );
-    case 4:
+    case 2:
+      return <BankAuthorizationStep />;
+    case 3:
       return (
         <SignatureStep
           contract={contract}
@@ -421,9 +403,11 @@ function StepContent({
           monthlyPayment={monthlyPayment}
           canSign={canSign}
           user={user}
+          eligibilityStatus={eligibilityStatus}
+          onSkipCredit={onSkipCredit}
         />
       );
-    case 5:
+    case 4:
       return <FinishStep />;
     default:
       return null;
@@ -432,33 +416,86 @@ function StepContent({
 
 function IdentitySetupStep({
   user,
+  contract,
   draft,
   onDraftChange,
 }: {
   user: User;
+  contract: Contract | null;
   draft: OnboardingDraft;
   onDraftChange: (nextDraft: OnboardingDraft) => void;
 }) {
+  const tenantReady = draft.tenantQrScanned;
+  const landlordReady = draft.landlordQrScanned;
+  const bothReady = tenantReady && landlordReady;
+  const contractAddress = contract?.propertyAddress ?? "הנכס המשויך לתהליך";
+
   return (
     <div className="space-y-8">
       <StepHeader
-        title="הגדרת תהליך וזיהוי"
-        subtitle="סריקת QR לשוכר ולמשכיר, ואז אימות זהות בסיסי לפני המשך למסמכי החוזה."
+        title="פרטי משתמש / פתיחת תהליך"
+        subtitle="סריקה של ה-QR האישי לשוכר, מעקב אחר שני המכשירים ואימות זהות לפני המשך לפרטי הדירה."
       />
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-5 lg:grid-cols-[1.08fr_0.92fr]">
         <QrScanCard
           title="QR שוכר"
-          description="קוד ייעודי לפתיחת התהליך מצד השוכר ואימות התאמה לנכס."
-          scanned={draft.tenantQrScanned}
+          description="סרוק מהמכשיר של השוכר בלבד. לאחר הסריקה ממשיכים ישירות לאימות זהות ולהשלמת התהליך."
+          scanned={tenantReady}
           onToggle={() => onDraftChange({ ...draft, tenantQrScanned: !draft.tenantQrScanned })}
         />
-        <QrScanCard
-          title="QR משכיר"
-          description="קוד משכיר שמאשר שהנכס וההזמנה משויכים לגורם הנכון."
-          scanned={draft.landlordQrScanned}
-          onToggle={() => onDraftChange({ ...draft, landlordQrScanned: !draft.landlordQrScanned })}
-        />
+
+        <div className="rounded-[28px] border border-slate-200 bg-slate-50/70 p-6 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-white">
+              <ArrowLeftRight size={20} />
+            </div>
+            <div>
+              <p className="text-lg font-black text-slate-900">ניהול חיבור דו-מכשירי</p>
+              <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
+                ה-QR של המשכיר מוצג רק בעמוד המשכיר או במסך ניהול התהליך המשותף. כאן מוצג ה-QR של השוכר בלבד כדי למנוע בלבול.
+              </p>
+              <p className="mt-3 text-xs font-black tracking-[0.12em] text-slate-400">
+                {contractAddress}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <ProcessStatusPill
+              label="שוכר"
+              value={tenantReady ? "מחובר" : "ממתין לסריקת שוכר"}
+              tone={tenantReady ? "success" : "info"}
+            />
+            <div className="flex flex-col gap-2">
+              <ProcessStatusPill
+                label="משכיר"
+                value={landlordReady ? "מחובר" : "ממתין לסריקת משכיר"}
+                tone={landlordReady ? "success" : "warning"}
+              />
+              {!landlordReady && (
+                <button
+                  onClick={() => onDraftChange({ ...draft, landlordQrScanned: true })}
+                  className="rounded-xl bg-blue-50 py-2 text-[10px] font-black text-blue-600 border border-blue-100 hover:bg-blue-600 hover:text-white transition-all shadow-sm"
+                >
+                  שלח לאימות (דמו)
+                </button>
+              )}
+            </div>
+          </div>
+
+          <InfoPanel tone={bothReady ? "success" : "info"} className="mt-5">
+            <QrCode size={22} />
+            <div>
+              <h3>{bothReady ? "שני הצדדים מחוברים" : "המערכת ממתינה להשלמת החיבור"}</h3>
+              <p>
+                {bothReady
+                  ? "שני הצדדים מחוברים וניתן להמשיך לשלב הבא."
+                  : "התהליך תומך בשני מכשירים במקביל. כשהמשכיר יסרוק את ה-QR שלו מהעמוד הייעודי, הסטטוס יתעדכן ותתאפשר התקדמות."}
+              </p>
+            </div>
+          </InfoPanel>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -489,11 +526,17 @@ function IdentitySetupStep({
   );
 }
 
-function DocumentsStep({
+function PropertyStep({
+  contract,
+  property,
   draft,
+  monthlyPayment,
   onDraftChange,
 }: {
+  contract: Contract | null;
+  property: Property | null;
   draft: OnboardingDraft;
+  monthlyPayment: number;
   onDraftChange: (nextDraft: OnboardingDraft) => void;
 }) {
   const handleUpload = (event: ChangeEvent<HTMLInputElement>) => {
@@ -503,78 +546,242 @@ function DocumentsStep({
   return (
     <div className="space-y-8">
       <StepHeader
-        title="ניהול מסמכים ואישור סעיפים"
-        subtitle="העלאת חוזה השכירות ואישור הסעיפים על ידי הצדדים לפני בדיקות האשראי והחתימה."
+        title="פרטי דירה"
+        subtitle="עדכון נתוני הדירה, העלאת חוזה ואישור הסעיפים לפני מעבר להקמת הוראת הקבע."
       />
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        <label
-          htmlFor="lease-contract-upload"
-          className={cn(
-            "group flex min-h-[220px] cursor-pointer flex-col items-center justify-center rounded-[28px] border-2 border-dashed p-6 text-center transition-all",
-            draft.contractDocumentUploaded
-              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-              : "border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-900 hover:bg-white",
-          )}
-        >
-          <input
-            id="lease-contract-upload"
-            type="file"
-            className="sr-only"
-            accept=".pdf,.doc,.docx,image/*"
-            onChange={handleUpload}
-          />
-          <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-slate-900 shadow-sm">
-            {draft.contractDocumentUploaded ? <CheckCircle2 size={30} /> : <UploadCloud size={30} />}
-          </div>
-          <p className="text-lg font-black text-slate-900">העלאת חוזה שכירות</p>
-          <p className="mt-2 max-w-xs text-sm font-bold leading-6 text-slate-500">
-            קובץ PDF, Word או צילום חתום. לאחר העלאה המסמך נשמר כטיוטת חוזה פעילה.
-          </p>
-        </label>
-
-        <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="mb-6 flex items-center gap-3">
+      <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
+        <div className="space-y-5 rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white">
-              <FileText size={22} />
+              <Building2 size={22} />
             </div>
             <div>
-              <p className="text-lg font-black text-slate-900">אישור סעיפי חוזה</p>
-              <p className="text-xs font-bold text-slate-400">שוכר ומשכיר מאשרים הסכמה מלאה.</p>
+              <p className="text-lg font-black text-slate-900">נתוני הדירה</p>
+              <p className="text-xs font-bold text-slate-400">
+                {property?.address ?? contract?.propertyAddress ?? "נכס משויך לתהליך"}
+              </p>
             </div>
           </div>
 
-          <label className="flex cursor-pointer items-start gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-5 transition hover:bg-white">
-            <input
-              type="checkbox"
-              checked={draft.clausesApproved}
-              disabled={!draft.contractDocumentUploaded}
-              onChange={(event) =>
-                onDraftChange({ ...draft, clausesApproved: event.target.checked })
-              }
-              className="mt-1 h-5 w-5 rounded-lg border-2 border-slate-300 text-slate-900 focus:ring-slate-900 disabled:opacity-40"
+          <div className="grid gap-4 sm:grid-cols-3">
+            <NumericField
+              label="גובה שכר הדירה"
+              value={draft.rentAmount}
+              icon={<CreditCard size={18} />}
+              onChange={(rentAmount) => onDraftChange({ ...draft, rentAmount })}
             />
-            <span className="text-sm font-bold leading-7 text-slate-600">
-              הצדדים קראו את סעיפי חוזה השכירות, אין מחלוקות פתוחות, וניתן להתקדם לבדיקה מקדימה ולחתימה.
-            </span>
+            <NumericField
+              label="עלויות ועד בית"
+              value={draft.buildingCommitteeAmount}
+              icon={<Landmark size={18} />}
+              onChange={(buildingCommitteeAmount) =>
+                onDraftChange({ ...draft, buildingCommitteeAmount })
+              }
+            />
+            <NumericField
+              label="עלויות ארנונה"
+              value={draft.arnonaAmount}
+              icon={<FileText size={18} />}
+              onChange={(arnonaAmount) => onDraftChange({ ...draft, arnonaAmount })}
+            />
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <PaymentModeCheck
+              title="תשלום משולב"
+              description="ועד הבית והארנונה מתווספים לתשלום החודשי הכולל."
+              checked={draft.utilityPaymentMode === "combined"}
+              onChange={() => onDraftChange({ ...draft, utilityPaymentMode: "combined" })}
+            />
+            <PaymentModeCheck
+              title="תשלום נפרד"
+              description="השוכר מתחייב לשלם ישירות לרשויות או לוועד."
+              checked={draft.utilityPaymentMode === "separate"}
+              onChange={() => onDraftChange({ ...draft, utilityPaymentMode: "separate" })}
+            />
+          </div>
+        </div>
+
+        <div className="space-y-5">
+          <label
+            htmlFor="lease-contract-upload"
+            className={cn(
+              "group flex min-h-[220px] cursor-pointer flex-col items-center justify-center rounded-[28px] border-2 border-dashed p-6 text-center transition-all",
+              draft.contractDocumentUploaded
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-900 hover:bg-white",
+            )}
+          >
+            <input
+              id="lease-contract-upload"
+              type="file"
+              className="sr-only"
+              accept=".pdf,.doc,.docx,image/*"
+              onChange={handleUpload}
+            />
+            <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-slate-900 shadow-sm">
+              {draft.contractDocumentUploaded ? <CheckCircle2 size={30} /> : <UploadCloud size={30} />}
+            </div>
+            <p className="text-lg font-black text-slate-900">העלאת חוזה שכירות</p>
+            <p className="mt-2 max-w-xs text-sm font-bold leading-6 text-slate-500">
+              קובץ PDF, Word או צילום חתום. לאחר העלאה המסמך נשמר כטיוטת חוזה פעילה.
+            </p>
           </label>
 
-          {!draft.contractDocumentUploaded && (
-            <p className="mt-4 text-xs font-black text-amber-600">
-              יש להעלות חוזה לפני אישור הסעיפים.
+          <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-6 flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white">
+                <FileText size={22} />
+              </div>
+              <div>
+                <p className="text-lg font-black text-slate-900">אישור סעיפי חוזה</p>
+                <p className="text-xs font-bold text-slate-400">שוכר ומשכיר מאשרים הסכמה מלאה.</p>
+              </div>
+            </div>
+
+            <label className="flex cursor-pointer items-start gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-5 transition hover:bg-white">
+              <input
+                type="checkbox"
+                checked={draft.clausesApproved}
+                disabled={!draft.contractDocumentUploaded}
+                onChange={(event) =>
+                  onDraftChange({ ...draft, clausesApproved: event.target.checked })
+                }
+                className="mt-1 h-5 w-5 rounded-lg border-2 border-slate-300 text-slate-900 focus:ring-slate-900 disabled:opacity-40"
+              />
+              <span className="text-sm font-bold leading-7 text-slate-600">
+                הצדדים קראו את סעיפי חוזה השכירות, אין מחלוקות פתוחות, וניתן להתקדם להקמת הרשאה ולחתימה.
+              </span>
+            </label>
+
+            {!draft.contractDocumentUploaded && (
+              <p className="mt-4 text-xs font-black text-amber-600">
+                יש להעלות חוזה לפני אישור הסעיפים.
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-[32px] bg-slate-950 p-6 text-white shadow-2xl">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-blue-300">
+            <Calculator size={22} />
+          </div>
+          <div>
+            <p className="text-sm font-black text-slate-400">תשלום חודשי סופי</p>
+            <p className="text-4xl font-black tracking-tight tabular-nums">
+              {formatCurrency(monthlyPayment)}
             </p>
-          )}
+          </div>
+        </div>
+
+        <div className="mt-8 space-y-3 text-sm font-bold text-slate-300">
+          <SummaryLine label="שכר דירה" value={formatCurrency(draft.rentAmount)} />
+          <SummaryLine
+            label="ועד בית"
+            value={
+              draft.utilityPaymentMode === "combined"
+                ? formatCurrency(draft.buildingCommitteeAmount)
+                : "תשלום נפרד"
+            }
+          />
+          <SummaryLine
+            label="ארנונה"
+            value={
+              draft.utilityPaymentMode === "combined"
+                ? formatCurrency(draft.arnonaAmount)
+                : "תשלום נפרד"
+            }
+          />
         </div>
       </div>
     </div>
   );
 }
 
-function CreditStep({
+function BankAuthorizationStep() {
+  return (
+    <div className="space-y-8">
+      <StepHeader
+        title="הקמת הרשאה לחיוב חשבון / הוראת קבע"
+        subtitle="בשלב זה מגדירים ומאשרים את ההרשאה לחיוב שוטף, לפני מעבר לחתימה הדיגיטלית."
+      />
+
+      <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="mb-6 flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white">
+              <Landmark size={22} />
+            </div>
+            <div>
+              <p className="text-lg font-black text-slate-900">מסך הוראת קבע</p>
+              <p className="text-xs font-bold text-slate-400">הרשאה מאובטחת לחיוב שוטף ומבוקר.</p>
+            </div>
+          </div>
+
+          <p className="text-base font-bold leading-8 text-slate-600">
+            בשלב זה תוקם הרשאה לחיוב חשבון לצורך ביצוע תשלומים שוטפים בצורה מאובטחת ומבוקרת.
+          </p>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            <StatusPill title="אימות חשבון" value="מוכן" tone="success" />
+            <StatusPill title="מסלול חיוב" value="הוראת קבע" tone="info" />
+            <StatusPill title="שלב הבא" value="חתימה" tone="warning" />
+          </div>
+
+          <div className="mt-6 rounded-[24px] border border-slate-200 bg-slate-50 p-5">
+            <p className="text-sm font-black text-slate-900">איך ממשיכים?</p>
+            <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
+              לחיצה על כפתור ההמשך שבתחתית המסך תשלים את הקמת ההרשאה, תשמור את המסמך הנלווה, ותעביר את המשתמש ישירות לשלב החתימה.
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-[32px] bg-slate-950 p-6 text-white shadow-2xl">
+          <div className="flex h-full flex-col justify-between">
+            <div>
+              <p className="text-[11px] font-black tracking-[0.14em] text-slate-500">
+                פעולה מרכזית
+              </p>
+              <h3 className="mt-3 text-3xl font-black tracking-tight">
+                הקמת הוראת קבע
+              </h3>
+              <p className="mt-4 text-sm font-bold leading-7 text-slate-300">
+                לאחר אישור ההרשאה המערכת תעדכן את התהליך לשני הצדדים ותאפשר מעבר מיידי לחתימה.
+              </p>
+            </div>
+
+            <div className="mt-8 rounded-[28px] border border-white/10 bg-white/5 p-5">
+              <p className="text-xs font-black tracking-[0.12em] text-slate-400">חיווי מערכת</p>
+              <p className="mt-2 text-2xl font-black">המשך להקמת הרשאה</p>
+              <p className="mt-3 text-sm font-bold leading-6 text-slate-300">
+                הרשאת החיוב תשמר כחלק מהמסמכים הפעילים של ההסכם, בלי לעבור למסך נוסף.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SignatureStep({
+  contract,
+  property,
+  draft,
+  monthlyPayment,
+  canSign,
   user,
   eligibilityStatus,
   onSkipCredit,
 }: {
+  contract: Contract | null;
+  property: Property | null;
+  draft: OnboardingDraft;
+  monthlyPayment: number;
+  canSign: boolean;
   user: User;
   eligibilityStatus?: "pending" | "approved" | "rejected";
   onSkipCredit: () => void;
@@ -585,8 +792,8 @@ function CreditStep({
   return (
     <div className="space-y-8">
       <StepHeader
-        title="בדיקת דירוג אשראי"
-        subtitle="בדיקת האשראי היא תנאי מקדים לשטר החוב. דילוג יוצר אישור ידני חיובי ומתועד."
+        title="חתימה דיגיטלית מאובטחת"
+        subtitle="החתימה נפתחת לאחר חיווי חיובי, ומאפשרת לסיים את החוזה ואת שטר החוב באותו שלב."
       />
 
       <div
@@ -632,142 +839,6 @@ function CreditStep({
           </button>
         )}
       </div>
-    </div>
-  );
-}
-
-function PropertyPaymentStep({
-  contract,
-  property,
-  draft,
-  monthlyPayment,
-  onDraftChange,
-}: {
-  contract: Contract | null;
-  property: Property | null;
-  draft: OnboardingDraft;
-  monthlyPayment: number;
-  onDraftChange: (nextDraft: OnboardingDraft) => void;
-}) {
-  return (
-    <div className="space-y-8">
-      <StepHeader
-        title="פרטי הדירה ושטר החוב"
-        subtitle="הנתונים שמופיעים בשטר החוב ובחישוב התשלום החודשי לפני חתימה."
-      />
-
-      <div className="grid gap-5 lg:grid-cols-[1.25fr_0.75fr]">
-        <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="mb-6 flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white">
-              <Building2 size={22} />
-            </div>
-            <div>
-              <p className="text-lg font-black text-slate-900">פרטי הדירה</p>
-              <p className="text-xs font-bold text-slate-400">
-                {property?.address ?? contract?.propertyAddress ?? "נכס משויך לתהליך"}
-              </p>
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-3">
-            <NumericField
-              label="גובה שכר הדירה"
-              value={draft.rentAmount}
-              icon={<CreditCard size={18} />}
-              onChange={(rentAmount) => onDraftChange({ ...draft, rentAmount })}
-            />
-            <NumericField
-              label="עלויות ועד בית"
-              value={draft.buildingCommitteeAmount}
-              icon={<Landmark size={18} />}
-              onChange={(buildingCommitteeAmount) =>
-                onDraftChange({ ...draft, buildingCommitteeAmount })
-              }
-            />
-            <NumericField
-              label="עלויות ארנונה"
-              value={draft.arnonaAmount}
-              icon={<FileText size={18} />}
-              onChange={(arnonaAmount) => onDraftChange({ ...draft, arnonaAmount })}
-            />
-          </div>
-
-          <div className="mt-7 grid gap-4 md:grid-cols-2">
-            <PaymentModeCheck
-              title="תשלום משולב"
-              description="ועד הבית והארנונה מתווספים לתשלום החודשי הכולל."
-              checked={draft.utilityPaymentMode === "combined"}
-              onChange={() => onDraftChange({ ...draft, utilityPaymentMode: "combined" })}
-            />
-            <PaymentModeCheck
-              title="תשלום נפרד"
-              description="השוכר מתחייב לשלם ישירות לרשויות או לוועד."
-              checked={draft.utilityPaymentMode === "separate"}
-              onChange={() => onDraftChange({ ...draft, utilityPaymentMode: "separate" })}
-            />
-          </div>
-        </div>
-
-        <div className="rounded-[32px] bg-slate-950 p-6 text-white shadow-2xl">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-blue-300">
-              <Calculator size={22} />
-            </div>
-            <div>
-              <p className="text-sm font-black text-slate-400">תשלום חודשי סופי</p>
-              <p className="text-4xl font-black tracking-tight tabular-nums">
-                {formatCurrency(monthlyPayment)}
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-8 space-y-3 text-sm font-bold text-slate-300">
-            <SummaryLine label="שכר דירה" value={formatCurrency(draft.rentAmount)} />
-            <SummaryLine
-              label="ועד בית"
-              value={
-                draft.utilityPaymentMode === "combined"
-                  ? formatCurrency(draft.buildingCommitteeAmount)
-                  : "תשלום נפרד"
-              }
-            />
-            <SummaryLine
-              label="ארנונה"
-              value={
-                draft.utilityPaymentMode === "combined"
-                  ? formatCurrency(draft.arnonaAmount)
-                  : "תשלום נפרד"
-              }
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function SignatureStep({
-  contract,
-  property,
-  draft,
-  monthlyPayment,
-  canSign,
-  user,
-}: {
-  contract: Contract | null;
-  property: Property | null;
-  draft: OnboardingDraft;
-  monthlyPayment: number;
-  canSign: boolean;
-  user: User;
-}) {
-  return (
-    <div className="space-y-8">
-      <StepHeader
-        title="חתימה דיגיטלית מאובטחת"
-        subtitle="חתימה על חוזה השכירות ושטר החוב מתאפשרת רק אחרי אינדיקציה חיובית מדירוג האשראי."
-      />
 
       {!canSign && (
         <InfoPanel tone="danger">
@@ -1035,6 +1106,30 @@ function QrScanCard({
   );
 }
 
+function ProcessStatusPill({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "success" | "info" | "warning";
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-2xl border px-4 py-3",
+        tone === "success" && "border-emerald-200 bg-emerald-50 text-emerald-700",
+        tone === "info" && "border-blue-100 bg-blue-50 text-blue-700",
+        tone === "warning" && "border-amber-200 bg-amber-50 text-amber-700",
+      )}
+    >
+      <p className="text-[10px] font-black text-current/60">{label}</p>
+      <p className="mt-1 text-sm font-black">{value}</p>
+    </div>
+  );
+}
+
 function UploadCard({
   label,
   icon,
@@ -1164,7 +1259,7 @@ function StatusPill({
 }: {
   title: string;
   value: string;
-  tone: "success" | "info" | "danger";
+  tone: "success" | "info" | "danger" | "warning";
 }) {
   return (
     <div
@@ -1173,6 +1268,7 @@ function StatusPill({
         tone === "success" && "border-emerald-200 bg-emerald-50 text-emerald-700",
         tone === "info" && "border-blue-100 bg-blue-50 text-blue-700",
         tone === "danger" && "border-rose-200 bg-rose-50 text-rose-700",
+        tone === "warning" && "border-amber-200 bg-amber-50 text-amber-700",
       )}
     >
       <p className="text-[10px] font-black text-current/60">{title}</p>
@@ -1184,9 +1280,11 @@ function StatusPill({
 function InfoPanel({
   tone,
   children,
+  className,
 }: {
   tone: "info" | "success" | "danger";
   children: ReactNode;
+  className?: string;
 }) {
   return (
     <div
@@ -1195,6 +1293,7 @@ function InfoPanel({
         tone === "info" && "border-blue-100 bg-blue-50 text-blue-800",
         tone === "success" && "border-emerald-100 bg-emerald-50 text-emerald-800",
         tone === "danger" && "border-rose-100 bg-rose-50 text-rose-800",
+        className,
       )}
     >
       {children}

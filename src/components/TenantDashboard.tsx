@@ -57,7 +57,7 @@ export default function TenantDashboard({
   onNavigate,
   onResumeOnboarding,
 }: TenantDashboardProps) {
-  const { db, submitRetryRequest, updateUser } = useAppData();
+  const { db, submitRetryRequest, updateUser, restartOnboarding } = useAppData();
 
   const [isRetryDialogOpen, setIsRetryDialogOpen] = useState(false);
   const payments = useMemo(
@@ -221,6 +221,13 @@ export default function TenantDashboard({
             </div>
 
             <div className="xl:col-span-4 space-y-8">
+              <TenantJoinProcessCard
+                user={user}
+                contract={contracts[0] ?? null}
+                onboardingComplete={Boolean(user.onboardingComplete)}
+                onResumeOnboarding={() => handleAction("openOnboarding")}
+              />
+
               <SummaryCard
                 address={viewModel.summaryCard.address}
                 statusLabel={viewModel.summaryCard.statusLabel}
@@ -487,6 +494,97 @@ function QuickActionsGrid({
           </div>
         </button>
       ))}
+    </div>
+  );
+}
+
+function TenantJoinProcessCard({
+  user,
+  contract,
+  onboardingComplete,
+  onResumeOnboarding,
+}: {
+  user: User;
+  contract: Contract | null;
+  onboardingComplete: boolean;
+  onResumeOnboarding: () => void;
+}) {
+  const { restartOnboarding } = useAppData();
+  const tenantConnected = Boolean(contract?.tenantQrScannedAt);
+  const landlordConnected = Boolean(contract?.landlordQrScannedAt);
+  const bothConnected = tenantConnected && landlordConnected;
+
+  return (
+    <section className="dashboard-card overflow-hidden p-6 md:p-7">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h3 className="text-xl font-black text-slate-900">חיבור לתהליך</h3>
+          <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
+            ה-QR המוצג כאן מיועד לשוכר בלבד. ה-QR של המשכיר מופיע רק בעמוד המשכיר או במסך התהליך המשותף.
+          </p>
+        </div>
+        <div className="grid h-16 w-16 grid-cols-3 gap-1 rounded-[20px] bg-slate-950 p-3">
+          {Array.from({ length: 9 }).map((_, index) => (
+            <span key={index} className={cn("rounded-sm", [0, 2, 4, 6, 8].includes(index) ? "bg-white" : "bg-white/25")} />
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-3 sm:grid-cols-2">
+        <ProcessStatusBox label="שוכר" value={tenantConnected ? "מחובר" : "ממתין לסריקת שוכר"} tone={tenantConnected ? "success" : "info"} />
+        <ProcessStatusBox label="משכיר" value={landlordConnected ? "מחובר" : "ממתין לסריקת משכיר"} tone={landlordConnected ? "success" : "warning"} />
+      </div>
+
+      <div className="mt-4 rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+        <p className="text-sm font-black text-slate-900">
+          {bothConnected ? "שני הצדדים מחוברים" : "המערכת מחכה להשלמת החיבור"}
+        </p>
+        <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
+          {bothConnected
+            ? onboardingComplete
+              ? "ניתן להמשיך לשלב הבא או לצפות בסטטוס ההסכם החתום."
+              : "שני הצדדים מחוברים, וניתן להמשיך לשלב הבא באונבורדינג."
+            : "ברגע שגם המשכיר יסרוק את ה-QR שלו מהעמוד הייעודי, התהליך ייפתח להתקדמות משני המכשירים במקביל."}
+        </p>
+      </div>
+
+      {(!onboardingComplete || user.email === "noa@example.com") && (
+        <button
+          onClick={() => {
+            if (onboardingComplete) {
+              restartOnboarding(user.id);
+            }
+            onResumeOnboarding();
+          }}
+          className="mt-5 w-full rounded-[20px] bg-slate-900 px-5 py-4 text-sm font-black text-white shadow-xl shadow-slate-900/15 transition-all hover:bg-black"
+        >
+          {onboardingComplete ? "הפעלת תהליך מחדש (דמו)" : "המשך לתהליך ההצטרפות"}
+        </button>
+      )}
+    </section>
+  );
+}
+
+function ProcessStatusBox({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "success" | "info" | "warning";
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-[20px] border px-4 py-4",
+        tone === "success" && "border-emerald-200 bg-emerald-50 text-emerald-700",
+        tone === "info" && "border-blue-100 bg-blue-50 text-blue-700",
+        tone === "warning" && "border-amber-200 bg-amber-50 text-amber-700",
+      )}
+    >
+      <p className="text-[10px] font-black tracking-[0.12em] text-current/70">{label}</p>
+      <p className="mt-2 text-sm font-black">{value}</p>
     </div>
   );
 }

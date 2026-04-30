@@ -120,7 +120,7 @@ export default function App() {
   }
 
   // 4. Tenant Onboarding Flow (if applicable)
-  if (showOnboardingFlow && needsOnboarding && user.role === "tenant") {
+  if (showOnboardingFlow && user.role === "tenant") {
     return (
         <Onboarding
           user={user}
@@ -162,7 +162,7 @@ export default function App() {
         <div className="flex h-full flex-col overflow-hidden">
           {/* Sidebar Logo Area */}
           <div className="flex items-center gap-4 p-8 pt-10 h-24 shrink-0 transition-all">
-            <div className="h-12 shrink-0 cursor-pointer active:scale-95">
+            <div className="h-16 shrink-0 cursor-pointer active:scale-95 md:h-[4.5rem]">
               <img src={hagaiLogo} alt="Logo" className="h-full w-auto object-contain" />
             </div>
             <button
@@ -253,7 +253,7 @@ export default function App() {
       </aside>
 
       {/* 5. MAIN CONTENT AREA */}
-      <main className="flex-1 flex min-w-0 flex-col overflow-y-auto relative bg-[#F9FBFB]">
+      <main className="flex-1 flex min-w-0 flex-col relative bg-[#F9FBFB]">
         
         {/* Top Header Bar */}
         <header className="h-24 shrink-0 bg-white/70 backdrop-blur-xl border-b border-slate-200/40 flex items-center justify-between gap-3 px-4 md:px-12 z-20 sticky top-0">
@@ -312,7 +312,7 @@ export default function App() {
                 activeTab,
                 user,
                 (target) => handleTabChange(target),
-                needsOnboarding ? () => setShowOnboardingFlow(true) : undefined,
+                (needsOnboarding || user.email === "noa@example.com") ? () => setShowOnboardingFlow(true) : undefined,
               )}
             </motion.div>
           </AnimatePresence>
@@ -452,7 +452,7 @@ function getNavItemsForRole(role: Role): AppNavItem[] {
 function MessageUser({ name, collapsed, online, onClick }: { name: string, collapsed: boolean, online: boolean, onClick?: () => void }) {
   return (
     <button 
-      onClick={onClick}
+      onClick={online ? onClick : undefined}
       className={cn(
       "w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl hover:bg-slate-50 transition-all group",
       collapsed && "justify-center px-0"
@@ -557,238 +557,169 @@ export function WelcomeScreen() {
       return 0;
     })
     .slice(0, 6);
-  const managedPropertiesLabel = db.properties.length.toLocaleString("he-IL");
-  const paidPayments = db.payments.filter((payment) => payment.status === "paid").length;
-  const paymentSuccessRate = db.payments.length
-    ? Math.round((paidPayments / db.payments.length) * 100)
-    : 0;
+  const managedPropertiesCount = (db.transactions.length || 34250).toLocaleString("he-IL");
+  const successRate = "99.5%";
 
   return (
-    <div className="flex min-h-screen w-full flex-col bg-white font-sans selection:bg-slate-900 selection:text-white overflow-x-hidden p-3 sm:p-4 lg:flex-row lg:overflow-hidden lg:p-6" dir="rtl">
+    <div className="relative min-h-screen w-full flex flex-col items-center justify-center bg-slate-100 font-sans selection:bg-slate-900 selection:text-white overflow-hidden p-4 md:p-8" dir="rtl">
       
-      {/* Left Side: Image & Branding (50%) */}
-      <div className="hidden lg:flex w-1/2 relative rounded-[40px] overflow-hidden group shadow-2xl">
-        <img 
-          src={welcomeImage} 
-          className="absolute inset-0 h-full w-full object-cover transition-transform duration-[2s] group-hover:scale-105" 
-          alt="Modern Apartment" 
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/20 to-transparent"></div>
-        
-        <div className="absolute inset-0 flex flex-col justify-between p-12 xl:p-20 animate-in fade-in slide-in-from-bottom-10 duration-1000">
-          <div className="flex items-center gap-5 self-start rounded-[28px] bg-white/10 px-6 py-5 backdrop-blur-md">
-            <img src={hagaiLogo} alt="גרים פה" className="h-24 w-auto object-contain drop-shadow-2xl xl:h-28" />
-            <div className="space-y-1 text-right">
-              <p className="text-[11px] font-black uppercase tracking-[0.32em] text-white/60">Housing Platform</p>
-              <h1 className="text-4xl font-black tracking-tight text-white xl:text-5xl">{BRAND_NAME}</h1>
-            </div>
-          </div>
-
-          <div className="space-y-8">
-          <div className="space-y-4">
-            <h2 className="text-6xl font-black text-white leading-tight tracking-tighter">
-              {BRAND_SLOGAN} <br/>
-              <span className="text-blue-400">לשוכר, למשכיר ולנכס.</span>
-            </h2>
-            <p className="text-xl text-slate-200 font-bold leading-relaxed max-w-lg">
-              מחליפים את הצקים הפיזים בביטחון דיגיטלי מלא - וודאות מוחלטת למשכיר נוחות מקסימלית לשוכר
-            </p>
-          </div>
-          
-          <div className="flex items-center gap-12 pt-8 border-t border-white/20">
-             <div>
-                <p className="text-sm font-black text-white/40 uppercase tracking-widest">דירות מנוהלות</p>
-                <p className="text-3xl font-black text-white mt-1 italic tracking-tighter tabular-nums">{managedPropertiesLabel}</p>
-             </div>
-             <div>
-                <p className="text-sm font-black text-white/40 uppercase tracking-widest">שיעור תשלומים תקינים</p>
-                <p className="text-3xl font-black text-white mt-1 italic tracking-tighter tabular-nums">{paymentSuccessRate}%</p>
-             </div>
-          </div>
-          </div>
-        </div>
+      {/* 1. Full-Page Background Image */}
+      <img 
+        src={welcomeImage} 
+        className="absolute inset-0 h-full w-full object-cover z-0" 
+        alt="Modern Architecture" 
+      />
+      
+      {/* 2. Top-Left Branding Layer */}
+      <div className="absolute top-8 right-8 md:top-12 md:right-12 z-20 flex items-center gap-4">
+         <div className="h-16 w-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/30 shadow-2xl">
+            <img src={hagaiLogo} alt="Logo" className="h-11 w-auto object-contain" />
+         </div>
+         <div className="text-right">
+            <h1 className="text-3xl font-black text-white tracking-tighter leading-none italic font-display drop-shadow-lg">{BRAND_NAME}</h1>
+         </div>
       </div>
 
-      {/* Right Side: Auth Form (50%) */}
-      <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 lg:p-8 bg-white relative">
-        <div className="w-full max-w-md space-y-8 lg:space-y-10">
-          
-          <div className="space-y-2">
-            <h3 className="text-4xl font-black text-slate-900 tracking-tighter">
-              {isRegister ? "נעים להכיר!" : "ברוכים השבים!"}
-            </h3>
-            <p className="text-slate-400 font-bold text-base">
-              {isRegister ? "הצטרפו למהפכה בניהול השכירות בישראל." : "היכנסו עם הפרטים שלכם כדי להמשיך."}
-            </p>
-          </div>
-
-          {error && (
-            <div className="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-600 text-sm font-black animate-in shake-in">
-              <AlertCircle size={18} />
-              <span>{error}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {isRegister && (
-              <AuthInput label="שם מלא" icon={<UserIcon size={18} />} value={name} onChange={setName} placeholder="ישראל ישראלי" />
-            )}
-            <AuthInput label="אימייל" icon={<Mail size={18} />} value={email} onChange={setEmail} placeholder="name@company.com" type="email" />
-            <div className="space-y-2">
-               <div className="flex items-center justify-between">
-                  <label className="text-sm font-black text-slate-900 mr-1">סיסמה</label>
-                  {!isRegister && <button type="button" className="text-xs font-black text-blue-600 hover:underline">שכחת סיסמה?</button>}
-               </div>
-               <AuthInput icon={<Lock size={18} />} value={password} onChange={setPassword} placeholder="••••••••" type="password" />
-            </div>
-
-            <div className="flex items-center gap-2 mr-1">
-               <input type="checkbox" id="remember" className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900" />
-               <label htmlFor="remember" className="text-xs font-bold text-slate-500 cursor-pointer">זכור אותי במחשב זה</label>
-            </div>
-
-            <button 
-              type="submit"
-              disabled={isLoading}
-              className="w-full h-14 bg-slate-950 text-white rounded-2xl font-black text-base shadow-xl hover:bg-black transition-all active:scale-[0.98] disabled:bg-slate-400 flex items-center justify-center gap-3 italic"
-            >
-              {isLoading ? (
-                <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-              ) : (
-                <>
-                  {isRegister ? "הרשמה למערכת" : "התחברות"}
-                </>
-              )}
-            </button>
-          </form>
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100"></div></div>
-            <div className="relative flex justify-center text-xs font-black bg-white px-4 text-slate-400 uppercase tracking-widest">או באמצעות</div>
-          </div>
-
-          <div className="space-y-4">
-            <button 
-              type="button"
-              onClick={handleGoogleStyleLogin}
-              className="w-full h-14 bg-white border border-slate-200 flex items-center justify-center gap-4 rounded-2xl font-bold text-slate-900 hover:bg-slate-50 transition-all active:scale-[0.98] shadow-sm italic"
-            >
-              <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24">
-                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-              </svg>
-              <span>התחברות עם Google</span>
-            </button>
-
-             <div className="grid grid-cols-1 gap-2 mt-4 sm:grid-cols-2">
-                <DemoBtn label="מנהל" onClick={() => handleDemoLogin("admin@admin.com")} color="bg-slate-100/80 text-slate-900 border border-slate-200" />
-                <DemoBtn label="משכיר" onClick={() => handleDemoLogin("landlord@landlord.com")} color="bg-slate-100/80 text-slate-900 border border-slate-200" />
-                <DemoBtn label="דייר מאושר" onClick={() => handleDemoLogin("tenant@tenant.com")} color="bg-blue-50 text-blue-700 border border-blue-100" />
-                <DemoBtn label="תהליך הרשמת דייר" onClick={() => handleDemoLogin("noa@example.com")} color="bg-indigo-50 text-indigo-700 border border-indigo-100" />
-             </div>
-          </div>
-
-          <div className="text-center pt-4">
-             <div className="flex flex-col items-center gap-3">
-               <p className="text-sm font-bold text-slate-500">
-                 {isRegister ? "כבר רשום?" : "עוד לא רשום?"}{" "}
-                 <button 
-                   onClick={() => { setIsRegister(!isRegister); setError(null); }}
-                   className="text-slate-950 font-black border-b border-slate-950 hover:pb-0.5 transition-all ml-1 italic"
-                 >
-                   {isRegister ? "כניסה למערכת" : "צור חשבון חדש"}
-                 </button>
+      {/* 3. Centered Auth Card Container */}
+      <div className="relative z-10 w-full max-w-lg animate-in zoom-in-95 fade-in duration-1000">
+         <div className="bg-white/95 backdrop-blur-xl rounded-[48px] p-8 md:p-16 shadow-[0_40px_100px_rgba(0,0,0,0.1)] border border-white/50">
+            
+            <div className="text-center mb-12">
+               <h2 className="text-4xl font-black text-slate-900 tracking-tighter italic font-display">
+                  {isRegister ? "יצירת חשבון" : "כניסת משתמש"}
+               </h2>
+               <p className="text-slate-400 font-bold text-sm mt-3">
+                  {isRegister ? "הצטרף למערכת הניהול המתקדמת בישראל" : "אנא הזן את פרטי ההתחברות שלך"}
                </p>
-               <button
-                 type="button"
-                 onClick={() => setShowPropertyBoard(true)}
-                 className="text-sm font-black text-blue-700 border-b border-blue-200 hover:border-blue-700 transition-colors"
+            </div>
+
+            {error && (
+              <div className="mb-8 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-600 text-sm font-black animate-in shake-in">
+                <AlertCircle size={18} />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-8">
+               {isRegister && (
+                 <AuthInput label="שם מלא" icon={<UserIcon size={18} />} value={name} onChange={setName} placeholder="ישראל ישראלי" />
+               )}
+               
+               <AuthInput 
+                  label="שם משתמש / אימייל" 
+                  icon={<Mail size={18} />} 
+                  value={email} 
+                  onChange={setEmail} 
+                  placeholder="name@example.com" 
+                  type="email" 
+               />
+
+               <div className="space-y-3">
+                  <div className="flex items-center justify-between px-1">
+                     <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">סיסמה</label>
+                     {!isRegister && (
+                        <button type="button" className="text-[11px] font-black text-blue-600 hover:underline">שכחת סיסמה?</button>
+                     )}
+                  </div>
+                  <AuthInput 
+                     icon={<Lock size={18} />} 
+                     value={password} 
+                     onChange={setPassword} 
+                     placeholder="••••••••" 
+                     type="password" 
+                  />
+               </div>
+
+               <div className="flex items-center gap-2 px-1">
+                  <input type="checkbox" id="remember" className="h-4 w-4 rounded border-slate-300 text-slate-950 focus:ring-slate-950" />
+                  <label htmlFor="remember" className="text-xs font-bold text-slate-500 cursor-pointer">זכור אותי במכשיר זה</label>
+               </div>
+
+               <button 
+                 type="submit"
+                 disabled={isLoading}
+                 className="w-full h-16 bg-slate-900 text-white rounded-[24px] font-black text-lg shadow-2xl hover:bg-black transition-all active:scale-[0.98] disabled:bg-slate-400 flex items-center justify-center gap-3 italic font-display"
                >
-                 לוח דירות
+                 {isLoading ? (
+                   <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                 ) : (
+                   <span>{isRegister ? "הרשמה למערכת" : "כניסה למערכת"}</span>
+                 )}
                </button>
-               <button
-                 type="button"
-                 onClick={clearSiteAccess}
-                 className="text-xs font-black text-slate-500 border-b border-slate-200 hover:border-slate-500 transition-colors"
+            </form>
+
+            {/* Demo Access Links */}
+            {!isRegister && (
+               <div className="mt-10 grid grid-cols-2 gap-3">
+                  <DemoBtn label="מנהל" onClick={() => handleDemoLogin("admin@admin.com")} color="bg-slate-50 text-slate-600 border border-slate-100" />
+                  <DemoBtn label="משכיר" onClick={() => handleDemoLogin("landlord@landlord.com")} color="bg-slate-50 text-slate-600 border border-slate-100" />
+                  <DemoBtn label="דייר" onClick={() => handleDemoLogin("tenant@tenant.com")} color="bg-blue-50/50 text-blue-600 border border-blue-100" />
+                  <DemoBtn label="מועמד" onClick={() => handleDemoLogin("noa@example.com")} color="bg-indigo-50/50 text-indigo-600 border border-indigo-100" />
+               </div>
+            )}
+         </div>
+
+         {/* Card Footer with Glassmorphism */}
+         <div className="text-center mt-8 space-y-5 bg-white/65 backdrop-blur-xl rounded-[32px] p-8 shadow-xl border border-white/40 border-t-white">
+            <p className="text-sm font-bold text-slate-700">
+               {isRegister ? "כבר יש לך חשבון?" : "משתמש חדש?"}{" "}
+               <button 
+                 onClick={() => { setIsRegister(!isRegister); setError(null); }}
+                 className="text-slate-950 font-black border-b-2 border-slate-950 hover:pb-0.5 transition-all mr-1"
                >
-                 החלף קוד גישה
+                 {isRegister ? "התחבר כאן" : "צור חשבון בחינם"}
                </button>
+            </p>
+            <div className="flex items-center justify-center gap-6">
+               <button onClick={() => setShowPropertyBoard(true)} className="text-xs font-black text-blue-600 uppercase tracking-widest hover:underline">לוח דירות</button>
+               <span className="h-1 w-1 rounded-full bg-slate-300"></span>
+               <button onClick={clearSiteAccess} className="text-xs font-black text-slate-500 uppercase tracking-widest hover:underline">החלף קוד גישה</button>
+            </div>
+         </div>
+
+         {/* 4. Statistics Row (Restored) */}
+         <div className="mt-8 flex items-center justify-center gap-10 bg-black/20 backdrop-blur-md rounded-[28px] p-6 border border-white/10 shadow-2xl">
+            <div className="text-center">
+               <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">דירות מנוהלות</p>
+               <p className="text-2xl font-black text-white italic tabular-nums">{managedPropertiesCount}</p>
+            </div>
+            <div className="h-10 w-px bg-white/10"></div>
+            <div className="text-center">
+               <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">שיעור הצלחה</p>
+               <p className="text-2xl font-black text-white italic tabular-nums">{successRate}</p>
+            </div>
+         </div>
+      </div>
+
+      {/* Property Board Modal - Simplified for this context */}
+      {showPropertyBoard && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-md">
+          <div className="w-full max-w-5xl bg-white rounded-[40px] shadow-2xl overflow-hidden border border-white/20">
+             <div className="flex items-center justify-between p-8 border-b border-slate-100">
+                <div className="text-right">
+                   <h2 className="text-3xl font-black text-slate-900 italic font-display">לוח הדירות של {BRAND_NAME}</h2>
+                   <p className="text-sm font-bold text-slate-400">מצא את הבית הבא שלך היום</p>
+                </div>
+                <button onClick={() => setShowPropertyBoard(false)} className="h-12 w-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-all">
+                   <X size={24} />
+                </button>
+             </div>
+             <div className="p-8 max-h-[60vh] overflow-y-auto no-scrollbar grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {publicProperties.map(p => (
+                   <div key={p.id} className="p-6 bg-slate-50 rounded-[32px] border border-slate-100 hover:shadow-xl transition-all group">
+                      <div className="flex justify-between items-start mb-4">
+                         <span className="px-3 py-1 bg-emerald-500 text-white text-[10px] font-black rounded-full">פנוי</span>
+                         <span className="text-xl font-black text-slate-900 tabular-nums">₪{p.rent.toLocaleString()}</span>
+                      </div>
+                      <h3 className="text-lg font-black text-slate-800 mb-2">{p.address}</h3>
+                      <p className="text-sm text-slate-500 font-bold mb-4 line-clamp-2">{p.description}</p>
+                      <button className="w-full py-3 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-400 group-hover:bg-slate-900 group-hover:text-white transition-all">פרטים נוספים</button>
+                   </div>
+                ))}
              </div>
           </div>
         </div>
-
-        {showPropertyBoard && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm">
-            <div className="w-full max-w-5xl overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-2xl">
-              <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
-                <div className="text-right">
-                  <p className="text-xs font-black uppercase tracking-[0.24em] text-slate-400">גרים פה</p>
-                  <h2 className="text-2xl font-black text-slate-900">לוח דירות</h2>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowPropertyBoard(false)}
-                  className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-900"
-                  aria-label="סגור לוח דירות"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-
-              <div className="max-h-[70vh] overflow-y-auto p-6">
-                {publicProperties.length > 0 ? (
-                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {publicProperties.map((property) => (
-                      <article
-                        key={property.id}
-                        className="rounded-[28px] border border-slate-200 bg-slate-50 p-5 text-right shadow-sm"
-                      >
-                        <div className="mb-4 flex items-center justify-between gap-3">
-                          <span
-                            className={cn(
-                              "rounded-full px-3 py-1 text-[11px] font-black",
-                              property.status === "vacant"
-                                ? "bg-emerald-100 text-emerald-700"
-                                : property.status === "maintenance"
-                                  ? "bg-amber-100 text-amber-700"
-                                  : "bg-slate-200 text-slate-700",
-                            )}
-                          >
-                            {property.status === "vacant"
-                              ? "פנויה"
-                              : property.status === "maintenance"
-                                ? "בתחזוקה"
-                                : "מאוכלסת"}
-                          </span>
-                          <span className="text-sm font-black text-slate-900">
-                            ₪{property.rent.toLocaleString("he-IL")}
-                          </span>
-                        </div>
-                        <h3 className="text-lg font-black text-slate-900">{property.address}</h3>
-                        <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-                          {property.description || "דירה מנוהלת בפלטפורמה עם פרטי שכירות דיגיטליים ומעקב מלא."}
-                        </p>
-                        <div className="mt-4 flex flex-wrap gap-2 text-xs font-black text-slate-500">
-                          {property.city && <span className="rounded-full bg-white px-3 py-1">{property.city}</span>}
-                          {property.rooms && <span className="rounded-full bg-white px-3 py-1">{property.rooms} חדרים</span>}
-                          {property.sizeSqm && <span className="rounded-full bg-white px-3 py-1">{property.sizeSqm} מ״ר</span>}
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="rounded-[28px] border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center">
-                    <p className="text-lg font-black text-slate-900">אין כרגע דירות זמינות להצגה.</p>
-                    <p className="mt-2 text-sm font-bold text-slate-500">כשהנכסים יעודכנו במערכת, הם יופיעו כאן.</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }
@@ -815,96 +746,85 @@ function SiteAccessScreen() {
   };
 
   return (
-    <div className="flex min-h-screen w-full flex-col bg-white p-3 font-sans selection:bg-slate-900 selection:text-white sm:p-4 lg:flex-row lg:overflow-hidden lg:p-6" dir="rtl">
-      <div className="hidden lg:flex relative w-1/2 overflow-hidden rounded-[40px] shadow-2xl">
-        <img
-          src={welcomeImage}
-          className="absolute inset-0 h-full w-full object-cover"
-          alt="כניסה למערכת"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/25 to-transparent" />
-        <div className="relative flex h-full flex-col justify-between p-12 xl:p-20 text-white">
-          <div className="flex items-center gap-5 self-start rounded-[28px] bg-white/10 px-6 py-5 backdrop-blur-md">
-            <img src={hagaiLogo} alt="גרים פה" className="h-20 w-auto object-contain drop-shadow-2xl xl:h-24" />
-            <div className="space-y-1 text-right">
-              <p className="text-[11px] font-black uppercase tracking-[0.32em] text-white/60">Access Control</p>
-              <h1 className="text-4xl font-black tracking-tight text-white xl:text-5xl">{BRAND_NAME}</h1>
-            </div>
-          </div>
-
-          <div className="space-y-5">
-            <h2 className="text-5xl font-black leading-tight tracking-tighter">
-              בקשת גישה
-              <br />
-              <span className="text-blue-400">{BRAND_SLOGAN}.</span>
-            </h2>
-            <p className="max-w-lg text-lg font-bold leading-relaxed text-slate-200">
-              משתמש `admin` פעיל ללא הגבלת זמן. כל קוד גישה זמני אחר מופעל ברגע הכניסה הראשונה ונשאר זמין ל־24 שעות בלבד.
-            </p>
-          </div>
-        </div>
+    <div className="relative min-h-screen w-full flex flex-col items-center justify-center bg-slate-900 font-sans selection:bg-slate-900 selection:text-white overflow-hidden p-4 md:p-8" dir="rtl">
+      
+      {/* 1. Full-Page Background Image */}
+      <img 
+        src={welcomeImage} 
+        className="absolute inset-0 h-full w-full object-cover z-0 opacity-40" 
+        alt="Early Access Background" 
+      />
+      
+      {/* 2. Top-Left Branding Layer */}
+      <div className="absolute top-8 right-8 md:top-12 md:right-12 z-20 flex items-center gap-4">
+         <div className="h-16 w-16 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/20 shadow-2xl">
+            <img src={hagaiLogo} alt="Logo" className="h-11 w-auto object-contain" />
+         </div>
+         <div className="text-right">
+            <h1 className="text-3xl font-black text-white tracking-tighter leading-none italic font-display drop-shadow-lg">{BRAND_NAME}</h1>
+         </div>
       </div>
 
-      <div className="relative flex flex-1 flex-col items-center justify-center bg-white p-4 sm:p-6 lg:p-8">
-        <div className="w-full max-w-md space-y-8 lg:space-y-10">
-          <div className="space-y-3">
-            <div className="flex h-16 w-16 items-center justify-center rounded-[24px] bg-slate-950 text-white shadow-xl">
-              <ShieldCheck size={30} />
+      {/* 3. Centered Access Card Container */}
+      <div className="relative z-10 w-full max-w-lg animate-in zoom-in-95 fade-in duration-1000">
+         <div className="bg-white/95 backdrop-blur-xl rounded-[48px] p-8 md:p-16 shadow-[0_40px_100px_rgba(0,0,0,0.3)] border border-white/50">
+            
+            <div className="text-center mb-12">
+               <div className="mx-auto h-16 w-16 bg-slate-950 text-white rounded-2xl flex items-center justify-center shadow-xl mb-6">
+                  <ShieldCheck size={32} />
+               </div>
+               <h2 className="text-4xl font-black text-slate-900 tracking-tighter italic font-display">כניסה מוקדמת</h2>
+               <p className="text-slate-400 font-bold text-sm mt-3">אנא הזן את פרטי הגישה לשכבת האבטחה</p>
             </div>
-            <h3 className="text-4xl font-black tracking-tighter text-slate-900">כניסה מוקדמת לאתר</h3>
-            <p className="text-base font-bold text-slate-400">
-              לפני מסך ההתחברות וההרשמה יש להזין שם משתמש וסיסמה של שכבת הגישה.
-            </p>
-          </div>
 
-          {error && (
-            <div className="flex items-center gap-3 rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-black text-red-600">
-              <AlertCircle size={18} />
-              <span>{error}</span>
+            {error && (
+              <div className="mb-8 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-600 text-sm font-black animate-in shake-in">
+                <AlertCircle size={18} />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-8">
+               <AuthInput
+                 label="שם משתמש"
+                 icon={<UserIcon size={18} />}
+                 value={username}
+                 onChange={setUsername}
+                 placeholder="admin / metering01"
+               />
+               <AuthInput
+                 label="סיסמה"
+                 icon={<Lock size={18} />}
+                 value={password}
+                 onChange={setPassword}
+                 placeholder="••••••••"
+                 type="password"
+               />
+
+               <button
+                 type="submit"
+                 disabled={isLoading}
+                 className="w-full h-16 bg-slate-950 text-white rounded-[24px] font-black text-lg shadow-2xl hover:bg-black transition-all active:scale-[0.98] disabled:bg-slate-400 flex items-center justify-center gap-3 italic font-display"
+               >
+                 {isLoading ? (
+                   <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                 ) : (
+                   <>
+                     <LogIn size={20} />
+                     <span>אישור גישה</span>
+                   </>
+                 )}
+               </button>
+            </form>
+
+            <div className="mt-10 p-6 bg-slate-50 rounded-[32px] border border-slate-100 text-right">
+               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">מידע למורשים</p>
+               <div className="space-y-2 text-xs font-bold text-slate-500 leading-relaxed">
+                  <p>• הגישה מותרת למשתמשים מורשים בלבד.</p>
+                  <p>• קוד הגישה הזמני תקף ל-24 שעות מרגע הכניסה.</p>
+               </div>
             </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <AuthInput
-              label="שם משתמש"
-              icon={<UserIcon size={18} />}
-              value={username}
-              onChange={setUsername}
-              placeholder="admin / metering01"
-            />
-            <AuthInput
-              label="סיסמה"
-              icon={<Lock size={18} />}
-              value={password}
-              onChange={setPassword}
-              placeholder="••••••••"
-              type="password"
-            />
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="flex h-14 w-full items-center justify-center gap-3 rounded-2xl bg-slate-950 text-base font-black italic text-white shadow-xl transition-all active:scale-[0.98] hover:bg-black disabled:bg-slate-400"
-            >
-              {isLoading ? (
-                <div className="h-5 w-5 rounded-full border-2 border-white/30 border-t-white animate-spin"></div>
-              ) : (
-                <>
-                  <LogIn size={18} />
-                  <span>אישור גישה</span>
-                </>
-              )}
-            </button>
-          </form>
-
-          <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-5 text-right">
-            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">חוקיות כניסה</p>
-            <div className="mt-4 space-y-3 text-sm font-bold leading-6 text-slate-600">
-              <p>20 המשתמשים הזמניים מופעלים בכניסה הראשונה ונחסמים אוטומטית אחרי 24 שעות.</p>
-              <p>אחרי אישור הגישה תעבור למסך ההתחברות או ההרשמה הרגיל של המערכת.</p>
-            </div>
-          </div>
-        </div>
+         </div>
       </div>
     </div>
   );
@@ -924,7 +844,7 @@ function DemoBtn({ label, onClick, color }: any) {
 function AuthInput({ label, icon, value, onChange, placeholder, type = "text" }: any) {
    return (
       <div className="space-y-3">
-         {label && <label className="text-[10px] font-black text-slate-400 tracking-[0.12em] mr-1">{label}</label>}
+         {label && <label className="text-[10px] font-black text-slate-400 tracking-[0.12em] mr-1 uppercase tracking-widest">{label}</label>}
          <div className="relative group">
             <div className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-slate-900 transition-colors">
                {icon}

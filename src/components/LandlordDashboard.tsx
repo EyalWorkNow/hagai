@@ -4,6 +4,7 @@ import {
   Users, 
   TrendingUp, 
   AlertTriangle,
+  QrCode,
   ArrowUpRight,
   ArrowDownRight,
   Download,
@@ -113,6 +114,22 @@ export default function LandlordDashboard({ user }: { user: User }) {
                   <p className="mt-2 text-sm font-semibold text-slate-500">
                     שכר דירה ועלויות נלוות לנכס המוביל בפורטפוליו
                   </p>
+                  <div className="mt-5 flex flex-wrap gap-3">
+                    <button
+                      onClick={() => {
+                        setSelectedProperty(featuredProperty);
+                        setShowInviteTenant(true);
+                      }}
+                      className="inline-flex items-center justify-center gap-3 rounded-2xl bg-blue-600 px-6 py-4 text-sm font-black text-white shadow-sleek-blue transition-all hover:bg-blue-700 active:scale-95"
+                    >
+                      <Plus size={18} />
+                      <span>הוספת דייר</span>
+                    </button>
+                    <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-black text-slate-500">
+                      <QrCode size={16} />
+                      <span>ה-CTA הראשי מוביל למודול QR ייעודי לדייר ולמשכיר</span>
+                    </div>
+                  </div>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <HeroCostPill label="שכר דירה" value={featuredProperty.rent} />
@@ -124,12 +141,12 @@ export default function LandlordDashboard({ user }: { user: User }) {
             </div>
           )}
 
-          <div className="grid gap-8 lg:grid-cols-12 mt-4 items-start">
+          <div className="flex flex-col gap-8 mt-4">
              
-             {/* LEFT SIDE: 2x2 Grid of Status Cards */}
-             <div className="lg:col-span-5 grid grid-cols-1 sm:grid-cols-2 gap-6">
+             {/* TOP ROW: Row of 4 Status Cards Spread Edge-to-Edge */}
+             <div className="flex flex-col sm:grid sm:grid-cols-2 lg:flex lg:flex-row lg:justify-between gap-6 w-full">
                 <StatusSmallCard 
-                  title="תקלות פתוחות" 
+                  title="קריאות שירות" 
                   value={openServiceCalls.toString()} 
                   status="נדרש טיפול" 
                   color="text-orange-500" 
@@ -158,126 +175,151 @@ export default function LandlordDashboard({ user }: { user: User }) {
                 />
              </div>
 
-             {/* RIGHT SIDE: Large Financial Summary Card */}
-             <div className="lg:col-span-7 bg-white rounded-[40px] p-6 sm:p-8 md:p-14 border border-slate-200/50 shadow-[0_20px_50px_rgba(0,0,0,0.03)] relative overflow-hidden h-full min-w-0">
-                <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between mb-12">
-                   <div className="h-16 w-16 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-300">
-                      <Clock size={32} />
+             {/* ROBUST: Unified Monthly Financial Summary */}
+             <div className="xl:col-span-12 dashboard-card p-6 md:p-10 lg:p-12 bg-white relative overflow-hidden border-slate-200/60 shadow-sleek">
+                {/* Header Section */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-12">
+                   <div className="flex items-center gap-6">
+                      <div className="h-16 w-16 bg-slate-950 rounded-[28px] flex items-center justify-center text-white shadow-2xl shadow-slate-900/20">
+                         <TrendingUp size={28} />
+                      </div>
+                      <div className="text-right">
+                         <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tighter italic font-display leading-none uppercase">סיכום פיננסי חודשי</h2>
+                         <p className="text-[11px] text-slate-400 font-black mt-2 uppercase tracking-[0.2em]">Real-time Performance Metrics</p>
+                      </div>
                    </div>
-                   <div className="text-right">
-                      <h2 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tighter italic font-display leading-none">סיכום פיננסי חודשי</h2>
-                      <p className="text-[11px] text-slate-500 font-bold mt-3">סטטוס תקבולים לחודש הנוכחי</p>
+                   <div className="flex items-center gap-3 py-2 px-5 bg-slate-50 rounded-2xl border border-slate-100">
+                      <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.4)]"></span>
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Live Sync</span>
                    </div>
                 </div>
 
-                <div className="flex flex-col md:flex-row items-center justify-between gap-12 mt-4">
-                   <div className="space-y-8 flex-1 w-full order-2 md:order-1">
-                      <div className="flex items-center justify-between border-b border-slate-50 pb-6">
-                         <div className="flex items-center gap-4">
-                            <div className="h-3 w-3 rounded-full bg-slate-900 shadow-[0_0_15px_rgba(15,23,42,0.2)]"></div>
-                            <span className="text-[17px] font-bold text-slate-500">התקבל (בחשבון)</span>
-                         </div>
-                         <span className="text-2xl font-black text-slate-900 tabular-nums font-display leading-none">₪{(totalMonthlyIncome - pendingPaymentsNum * 5000).toLocaleString()}</span>
+                {/* Top Metrics Pillar Row */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
+                   <div className="p-7 rounded-[32px] bg-slate-50 border border-slate-100/50 hover:bg-white hover:shadow-xl transition-all group">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">התקבל (בחשבון)</p>
+                      <div className="flex items-baseline gap-2">
+                         <span className="text-3xl font-black text-slate-900 tabular-nums italic font-display">₪{(totalMonthlyIncome - pendingPaymentsNum * 5000).toLocaleString()}</span>
+                         <CheckCircle2 size={18} className="text-emerald-500" />
                       </div>
-                      <div className="flex items-center justify-between">
-                         <div className="flex items-center gap-4">
-                            <div className="h-3 w-3 rounded-full bg-slate-100"></div>
-                            <span className="text-[17px] font-bold text-slate-500">ממתין / בפיגור</span>
-                         </div>
-                         <span className="text-2xl font-black text-slate-900 tabular-nums font-display leading-none">₪{(pendingPaymentsNum * 5000).toLocaleString()}</span>
+                   </div>
+                   <div className="p-7 rounded-[32px] bg-slate-50 border border-slate-100/50 hover:bg-white hover:shadow-xl transition-all group">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">ממתין / בפיגור</p>
+                      <div className="flex items-baseline gap-2">
+                         <span className="text-3xl font-black text-slate-900 tabular-nums italic font-display">₪{(pendingPaymentsNum * 5000).toLocaleString()}</span>
+                         <Clock size={18} className="text-amber-500" />
                       </div>
-                      <div className="rounded-[28px] bg-slate-50 border border-slate-100 p-5">
-                         <div className="flex items-center justify-between mb-4">
-                            <span className="text-sm font-black text-slate-900">התפלגות החודש</span>
-                            <span className="text-xs font-black text-slate-400">ברזולוציית פעולה</span>
+                   </div>
+                   <div className="p-7 rounded-[32px] bg-slate-50 border border-slate-100/50 hover:bg-white hover:shadow-xl transition-all group">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">יחידות מאוכלסות</p>
+                      <div className="flex items-baseline gap-2">
+                         <span className="text-3xl font-black text-slate-900 tabular-nums italic font-display">{occupiedCount}</span>
+                         <span className="text-xs font-bold text-slate-400">יח׳</span>
+                      </div>
+                   </div>
+                   <div className="p-7 rounded-[32px] bg-slate-50 border border-slate-100/50 hover:bg-white hover:shadow-xl transition-all group">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">יחידות פנויות</p>
+                      <div className="flex items-baseline gap-2">
+                         <span className="text-3xl font-black text-slate-400 tabular-nums italic font-display">{vacantCount}</span>
+                         <span className="text-xs font-bold text-slate-300">יח׳</span>
+                      </div>
+                   </div>
+                </div>
+
+                {/* Bottom Split Analysis Section */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 pt-12 border-t border-slate-100 items-stretch">
+                   {/* Redesigned Distribution Analysis */}
+                   <div className="lg:col-span-7 flex flex-col">
+                      <div className="mb-10">
+                         <div className="flex items-center gap-3 mb-2">
+                            <div className="h-2 w-8 bg-blue-600 rounded-full"></div>
+                            <h4 className="text-2xl font-black text-slate-900 tracking-tight italic font-display uppercase">פילוח תקבולים תקופתי</h4>
                          </div>
-                         <div className="space-y-4">
-                            <ProgressTrack label="נגבה בהצלחה" value={Math.max(0, occupiedCount - pendingPaymentsNum)} total={Math.max(occupiedCount, 1)} color="bg-slate-900" />
-                            <ProgressTrack label="ממתין לחיוב" value={Math.max(0, pendingPaymentsNum)} total={Math.max(occupiedCount, 1)} color="bg-blue-500" />
-                            <ProgressTrack label="נדרש טיפול" value={Math.max(0, failedPaymentsNum)} total={Math.max(occupiedCount, 1)} color="bg-rose-500" />
-                         </div>
+                         <p className="text-sm font-bold text-slate-400 mr-11">ניתוח ביצועי גבייה וסטטוס תזרים מזומנים</p>
+                      </div>
+                      
+                      <div className="grid gap-4">
+                         <DistributionItem 
+                            label="גבייה תקינה" 
+                            subLabel="תשלומים שנקלטו ועברו לחשבון"
+                            value={Math.max(0, occupiedCount - pendingPaymentsNum)} 
+                            total={Math.max(occupiedCount, 1)} 
+                            color="bg-slate-900"
+                            icon={<CheckCircle2 size={16} className="text-emerald-500" />}
+                         />
+                         <DistributionItem 
+                            label="ממתין לסליקה" 
+                            subLabel="עסקאות בתהליך אישור מול חברת האשראי"
+                            value={Math.max(0, pendingPaymentsNum)} 
+                            total={Math.max(occupiedCount, 1)} 
+                            color="bg-blue-600"
+                            icon={<Clock size={16} className="text-blue-500" />}
+                         />
+                         <DistributionItem 
+                            label="חריגות ופיגורים" 
+                            subLabel="תשלומים שנדחו או דורשים טיפול ידני"
+                            value={Math.max(0, failedPaymentsNum)} 
+                            total={Math.max(occupiedCount, 1)} 
+                            color="bg-rose-600"
+                            icon={<AlertTriangle size={16} className="text-rose-500" />}
+                         />
                       </div>
                    </div>
 
-                   <div className="relative shrink-0 order-1 md:order-2 w-full max-w-[340px]">
-                      <div className="rounded-[40px] bg-slate-950 text-white p-8 shadow-2xl overflow-hidden relative border border-white/5 group">
-                         {/* Ambient Glows */}
-                         <div className="absolute -top-24 -left-24 h-48 w-48 bg-blue-600/20 blur-[100px] rounded-full group-hover:bg-blue-600/30 transition-all duration-1000"></div>
-                         <div className="absolute -bottom-24 -right-24 h-48 w-48 bg-indigo-600/20 blur-[100px] rounded-full group-hover:bg-indigo-600/30 transition-all duration-1000"></div>
+                   {/* Visual Collection Grade Card */}
+                   <div className="lg:col-span-5">
+                      <div className="rounded-[48px] bg-slate-950 text-white p-10 md:p-12 shadow-2xl relative overflow-hidden border border-white/5 h-full group">
+                         {/* Dynamic Background Effects */}
+                         <div className="absolute -top-32 -left-32 h-64 w-64 bg-blue-600/20 blur-[120px] rounded-full group-hover:bg-blue-600/30 transition-all duration-1000"></div>
+                         <div className="absolute -bottom-32 -right-32 h-64 w-64 bg-indigo-600/20 blur-[120px] rounded-full group-hover:bg-indigo-600/30 transition-all duration-1000"></div>
                          
-                         <div className="relative z-10">
-                            <div className="flex items-center justify-between mb-8">
-                               <div>
-                                  <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em] mb-1">מדד גבייה חודשי</p>
-                                  <h4 className="text-xl font-black italic font-display">סטטוס תקבולים</h4>
-                               </div>
-                               <button className="h-10 w-10 rounded-xl bg-white/5 flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-all">
-                                  <TrendingUp size={18} />
-                               </button>
+                         <div className="relative z-10 flex flex-col items-center text-center h-full">
+                            <div className="mb-10">
+                               <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.4em] mb-3 leading-none">Monthly Grade</p>
+                               <h4 className="text-2xl font-black italic tracking-tighter leading-none">מדד גבייה</h4>
                             </div>
 
-                            <div className="flex items-center gap-10">
-                               {/* Enhanced Radial Chart */}
-                               <div className="relative flex items-center justify-center shrink-0">
-                                  <svg className="h-32 w-32 -rotate-90 transform">
-                                    <circle
-                                      cx="64"
-                                      cy="64"
-                                      r="48"
-                                      stroke="currentColor"
-                                      strokeWidth="10"
-                                      fill="transparent"
-                                      className="text-white/5"
-                                    />
-                                    <circle
-                                      cx="64"
-                                      cy="64"
-                                      r="48"
-                                      stroke="url(#blueGradient)"
-                                      strokeWidth="10"
-                                      strokeDasharray={301.6}
-                                      strokeDashoffset={301.6 - (Math.max(5, Math.round(((occupiedCount - pendingPaymentsNum) / Math.max(occupiedCount, 1)) * 100)) / 100) * 301.6}
-                                      strokeLinecap="round"
-                                      fill="transparent"
-                                      className="transition-all duration-[1.5s] ease-[cubic-bezier(0.34,1.56,0.64,1)]"
-                                    />
-                                    <defs>
-                                       <linearGradient id="blueGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                          <stop offset="0%" stopColor="#60A5FA" />
-                                          <stop offset="100%" stopColor="#3B82F6" />
-                                       </linearGradient>
-                                    </defs>
-                                  </svg>
-                                  <div className="absolute flex flex-col items-center">
-                                    <span className="text-3xl font-black tabular-nums tracking-tighter leading-none">{Math.round(((occupiedCount - pendingPaymentsNum) / Math.max(occupiedCount, 1)) * 100)}%</span>
-                                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-1.5 leading-none">בוצע</span>
-                                  </div>
-                               </div>
-
-                               <div className="space-y-4 flex-1">
-                                  <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.05] hover:border-white/[0.1] transition-all">
-                                     <p className="text-[10px] font-black text-slate-500 mb-1 leading-none uppercase">מאוכלסים</p>
-                                     <p className="text-2xl font-black tabular-nums leading-none italic">{occupiedCount}</p>
-                                  </div>
-                                  <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.05] hover:border-white/[0.1] transition-all">
-                                     <p className="text-[10px] font-black text-slate-500 mb-1 leading-none uppercase">פנויים</p>
-                                     <p className="text-2xl font-black tabular-nums leading-none italic text-slate-500">{vacantCount}</p>
-                                  </div>
+                            <div className="relative flex items-center justify-center mb-12">
+                               <div className="absolute inset-0 bg-blue-500/20 blur-[60px] rounded-full opacity-50"></div>
+                               <svg className="h-44 w-44 -rotate-90 transform relative z-10">
+                                 <circle cx="88" cy="88" r="70" stroke="currentColor" strokeWidth="14" fill="transparent" className="text-white/5" />
+                                 <circle
+                                   cx="88" cy="88" r="70"
+                                   stroke="url(#masterBlueGradient)"
+                                   strokeWidth="14"
+                                   strokeDasharray={439.8}
+                                   strokeDashoffset={439.8 - (Math.max(0.05, (occupiedCount - pendingPaymentsNum) / Math.max(occupiedCount, 1)) * 439.8)}
+                                   strokeLinecap="round"
+                                   fill="transparent"
+                                   className="transition-all duration-[2s] ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                                 />
+                                 <defs>
+                                    <linearGradient id="masterBlueGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                       <stop offset="0%" stopColor="#60A5FA" />
+                                       <stop offset="100%" stopColor="#2563EB" />
+                                    </linearGradient>
+                                 </defs>
+                               </svg>
+                               <div className="absolute flex flex-col items-center justify-center z-20">
+                                  <span className="text-5xl font-black italic tracking-tighter tabular-nums leading-none">
+                                     {Math.round(((occupiedCount - pendingPaymentsNum) / Math.max(occupiedCount, 1)) * 100)}%
+                                  </span>
+                                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mt-3">בוצע בהצלחה</span>
                                </div>
                             </div>
 
-                            <div className="mt-10 grid grid-cols-3 gap-3">
-                               <div className="flex flex-col items-center p-3 rounded-2xl bg-emerald-500/5 border border-emerald-500/10 hover:bg-emerald-500/10 transition-all group/pill">
-                                  <span className="text-[9px] font-black text-emerald-500/60 transition-colors group-hover/pill:text-emerald-400 mb-1">שולם</span>
-                                  <span className="text-lg font-black tabular-nums">{Math.max(occupiedCount - pendingPaymentsNum - failedPaymentsNum, 0)}</span>
+                            <div className="grid grid-cols-3 gap-3 w-full mt-auto">
+                               <div className="py-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
+                                  <p className="text-[9px] font-black text-emerald-500 mb-1 leading-none uppercase">שולם</p>
+                                  <p className="text-xl font-black tabular-nums leading-none text-emerald-400">{occupiedCount - pendingPaymentsNum}</p>
                                </div>
-                               <div className="flex flex-col items-center p-3 rounded-2xl bg-blue-500/5 border border-blue-500/10 hover:bg-blue-500/10 transition-all group/pill">
-                                  <span className="text-[9px] font-black text-blue-500/60 transition-colors group-hover/pill:text-blue-400 mb-1">ממתין</span>
-                                  <span className="text-lg font-black tabular-nums">{pendingPaymentsNum}</span>
+                               <div className="py-4 rounded-2xl bg-blue-500/10 border border-blue-500/20">
+                                  <p className="text-[9px] font-black text-blue-500 mb-1 leading-none uppercase">ממתין</p>
+                                  <p className="text-xl font-black tabular-nums leading-none text-blue-400">{pendingPaymentsNum}</p>
                                </div>
-                               <div className="flex flex-col items-center p-3 rounded-2xl bg-rose-500/5 border border-rose-500/10 hover:bg-rose-500/10 transition-all group/pill">
-                                  <span className="text-[9px] font-black text-rose-500/60 transition-colors group-hover/pill:text-rose-400 mb-1">נכשל</span>
-                                  <span className="text-lg font-black tabular-nums">{failedPaymentsNum}</span>
+                               <div className="py-4 rounded-2xl bg-rose-500/10 border border-rose-500/20">
+                                  <p className="text-[9px] font-black text-rose-500 mb-1 leading-none uppercase">נכשל</p>
+                                  <p className="text-xl font-black tabular-nums leading-none text-rose-400">{failedPaymentsNum}</p>
                                </div>
                             </div>
                          </div>
@@ -498,7 +540,7 @@ function HeroCostPill({ label, value }: { label: string; value: number }) {
 
 function StatusSmallCard({ title, value, total, status, color, icon }: any) {
   return (
-    <div className="bg-white rounded-[32px] p-8 border border-slate-200/50 shadow-[0_10px_30px_rgba(0,0,0,0.02)] hover:shadow-[0_20px_50px_rgba(0,0,0,0.05)] transition-all group min-w-0">
+    <div className="bg-white rounded-[32px] p-8 border border-slate-200/50 shadow-[0_10px_30px_rgba(0,0,0,0.02)] hover:shadow-[0_20px_50px_rgba(0,0,0,0.05)] transition-all group flex-1 min-w-0">
        <div className="flex items-center justify-between mb-8 min-w-0 gap-4">
           <div className="text-right min-w-0">
              <p className="text-[11px] font-bold tracking-[0.12em] text-slate-400 mb-1">{title}</p>
@@ -540,6 +582,36 @@ function MetricInline({ label, value }: { label: string, value: string }) {
     <div className="flex items-center justify-between border-b border-white/5 pb-4 last:border-0 last:pb-0">
        <span className="text-xs font-bold text-slate-400 tracking-tight">{label}</span>
        <span className="text-lg font-black italic tabular-nums">{value}</span>
+    </div>
+  );
+}
+
+function DistributionItem({ label, subLabel, value, total, color, icon }: { label: string, subLabel: string, value: number, total: number, color: string, icon: ReactNode }) {
+  const percent = Math.max(0, Math.min(100, (value / Math.max(total, 1)) * 100));
+
+  return (
+    <div className="group p-5 rounded-[28px] bg-white border border-slate-100 hover:border-blue-200 hover:shadow-xl transition-all duration-500">
+      <div className="flex items-start justify-between mb-5">
+        <div className="flex items-center gap-4">
+          <div className="h-10 w-10 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
+            {icon}
+          </div>
+          <div>
+            <p className="text-base font-black text-slate-900 leading-none">{label}</p>
+            <p className="text-[10px] font-bold text-slate-400 mt-1.5">{subLabel}</p>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="text-xl font-black text-slate-900 tabular-nums italic font-display">{value}</p>
+          <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mt-1">{percent.toFixed(1)}%</p>
+        </div>
+      </div>
+      <div className="h-2 w-full rounded-full bg-slate-50 overflow-hidden">
+        <div 
+          className={cn("h-full rounded-full transition-all duration-1000 ease-out", color)} 
+          style={{ width: `${percent}%` }} 
+        />
+      </div>
     </div>
   );
 }
@@ -724,23 +796,75 @@ function InviteTenantModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 text-right" dir="rtl">
-      <div className="w-full max-w-sm rounded-3xl bg-white p-10 shadow-2xl animate-in zoom-in-95 duration-200 text-center">
-        <div className="h-16 w-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
-           <Users size={32} />
-        </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 text-right" dir="rtl">
+      <div className="w-full max-w-2xl rounded-[40px] bg-white p-8 md:p-12 shadow-[0_30px_100px_rgba(0,0,0,0.2)] animate-in zoom-in-95 duration-300 overflow-hidden relative">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 blur-[100px] rounded-full -translate-y-1/2 translate-x-1/2"></div>
+        <div className="relative z-10 flex flex-col items-center text-center">
+          <div className="h-20 w-20 bg-slate-50 text-slate-900 rounded-[28px] flex items-center justify-center mb-8 shadow-inner">
+             <QrCode size={40} />
+          </div>
         {!isSent ? (
           <>
-            <h2 className="text-2xl font-black text-slate-900 mb-2">הזמנת שוכר לנכס</h2>
-            <p className="text-sm text-slate-500 mb-8 italic">{property.address}</p>
-            <div className="space-y-6">
-               <Input label="אימייל השוכר" value={email} onChange={setEmail} placeholder="tenant@example.com" type="email" />
-               <Input label="מספר טלפון (וואטסאפ)" value={phone} onChange={setPhone} placeholder="05x-xxxxxxx" />
-               <button onClick={handleSend} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black shadow-lg hover:bg-blue-600 transition-all">
-                  שלח הזמנה אוטומטית
-               </button>
+            <h2 className="text-3xl md:text-4xl font-black text-slate-900 mb-4 tracking-tighter italic font-display">הוספת דייר לנכס</h2>
+            <p className="text-slate-500 text-base font-bold italic mb-10">{property.address}</p>
+
+            <div className="grid gap-8 md:grid-cols-2 w-full mb-10">
+              <div className="rounded-[32px] border-2 border-slate-100 bg-slate-50/50 p-8 flex flex-col items-center text-center group hover:border-blue-500/20 hover:bg-white transition-all shadow-sm">
+                <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6">QR לשוכר (סריקה מהירה)</p>
+                <div className="relative p-6 bg-white rounded-[32px] shadow-xl border border-slate-100 group-hover:scale-105 transition-transform duration-500">
+                  <div className="grid h-40 w-40 grid-cols-4 gap-1.5 rounded-2xl bg-slate-950 p-3">
+                    {Array.from({ length: 16 }).map((_, index) => (
+                      <span key={`tenant-qr-${index}`} className={cn("rounded-sm transition-all", [0, 3, 5, 6, 9, 10, 12, 15].includes(index) ? "bg-white" : "bg-white/10")} />
+                    ))}
+                  </div>
+                </div>
+                <p className="mt-8 text-sm font-bold leading-relaxed text-slate-500">
+                  הצג את הקוד לשוכר לסריקה. לאחר הסריקה הוא יועבר ישירות לתהליך ההרשמה במכשיר שלו.
+                </p>
+                <button 
+                  onClick={handleSend}
+                  className="mt-6 w-full py-4 bg-blue-600 text-white rounded-2xl font-black text-xs shadow-sleek-blue hover:bg-blue-700 active:scale-95 transition-all"
+                >
+                  השלם חיבור דייר (דמו)
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-6 text-right">
+                <div className="rounded-[28px] bg-slate-50 p-6 border border-slate-100">
+                   <h3 className="text-sm font-black text-slate-900 mb-4 flex items-center gap-2">
+                     <Users size={16} />
+                     הזמנה ידנית
+                   </h3>
+                   <div className="space-y-4">
+                     <Input label="אימייל השוכר" value={email} onChange={setEmail} placeholder="tenant@example.com" type="email" />
+                     <Input label="מספר טלפון" value={phone} onChange={setPhone} placeholder="05x-xxxxxxx" />
+                   </div>
+                   <button 
+                     onClick={handleSend}
+                     className="mt-6 w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-xs shadow-lg hover:bg-black transition-all"
+                   >
+                     שלח הזמנה בוואטסאפ / מייל
+                   </button>
+                </div>
+
+                <div className="rounded-[28px] bg-indigo-50/50 p-6 border border-indigo-100/50">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="h-10 w-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shrink-0">
+                      <ShieldCheck size={20} />
+                    </div>
+                    <p className="text-sm font-black text-indigo-950">סטטוס חיבור</p>
+                  </div>
+                  <p className="text-xs font-bold text-indigo-700/80 leading-relaxed mb-4">
+                    המערכת תסנכרן את נתוני המשכיר והשוכר באופן אוטומטי לאחר סיום הסריקה ואימות ה-KYC של השוכר.
+                  </p>
+                  <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-full self-start inline-flex border border-indigo-100">
+                     <div className="h-2 w-2 rounded-full bg-amber-500 animate-pulse"></div>
+                     <span className="text-[10px] font-black text-indigo-900">ממתין לסריקת דייר...</span>
+                  </div>
+                </div>
+              </div>
             </div>
-            <button onClick={onClose} className="mt-4 text-xs font-bold text-slate-400">סגור חלון</button>
+            <button onClick={onClose} className="text-sm font-black text-slate-400 hover:text-slate-900 transition-colors">סגור חלון וחזור לדאשבורד</button>
           </>
         ) : (
           <div className="py-10 space-y-4 animate-in fade-in duration-500">
@@ -753,6 +877,7 @@ function InviteTenantModal({
         )}
       </div>
     </div>
+  </div>
   );
 }
 

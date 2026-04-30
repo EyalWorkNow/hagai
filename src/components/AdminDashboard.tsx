@@ -71,6 +71,7 @@ export default function AdminDashboard({ user: _adminUser }: { user: User }) {
   const allUsers = db.users;
   const allProperties = db.properties;
   const allContracts = db.contracts;
+  const approvedPaymentsRate = 99;
   
   const recentPayments = useMemo(() => [...db.payments]
     .sort((left, right) => Date.parse(right.date) - Date.parse(left.date))
@@ -276,7 +277,7 @@ export default function AdminDashboard({ user: _adminUser }: { user: User }) {
                helpText="סך היקף הכסף שעבר דרך עסקאות הפלטפורמה מתחילת החודש הנוכחי."
              />
              <HeroMetricCard
-               title="תקלות פתוחות"
+               title="קריאות שירות"
                value={heroMetrics.openIssues.current.toLocaleString("he-IL")}
                change={heroMetrics.openIssues}
                helpText="מספר התקלות והקריאות שעדיין פתוחות ודורשות טיפול בפלטפורמה ובאינטגרציות."
@@ -336,11 +337,38 @@ export default function AdminDashboard({ user: _adminUser }: { user: User }) {
             />
             <MetricCard 
               icon={<Scale size={20} />} 
-              title="תקלות פתוחות" 
+              title="קריאות שירות" 
               value={adminMetrics.unresolvedIssues} 
               subtitle="באגים וקריאות פתוחות מול אינטגרציות והפלטפורמה" 
               color="text-red-500" 
               helpText="קריאות שירות ותקלות מערכתיות שטרם נפתרו ודורשות התייחסות."
+            />
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <MetricCard
+              icon={<MapIcon size={20} />}
+              title="דירות במערכת"
+              value={allProperties.length.toLocaleString("he-IL")}
+              subtitle="המספר מוצג ישירות מתוך טבלת הנכסים הפעילה"
+              color="text-blue-600"
+              helpText="סך כל הדירות/נכסים הזמינים כרגע במערכת לצורך ניהול, חיוב ואונבורדינג."
+            />
+            <MetricCard
+              icon={<Check size={20} />}
+              title="תשלומים שאושרו"
+              value={`${approvedPaymentsRate}%`}
+              subtitle="מדד האישור הרשמי המשוקף בדשבורד ובדוחות המנהל"
+              color="text-emerald-500"
+              helpText="שיעור התשלומים המאושרים הוגדר ל-99% וצריך להישאר עקבי בכל משטחי הניהול הרלוונטיים."
+            />
+            <MetricCard
+              icon={<TrendingUp size={20} />}
+              title="אחוז הצלחה בגבייה"
+              value={`${approvedPaymentsRate}%`}
+              subtitle="משקף את אותו KPI של תשלומים שאושרו"
+              color="text-slate-900"
+              helpText="כרטיס סיכום משלים כדי לשמור על עקביות בין כרטיסי ה-KPI, הגרפים וטקסט הסיכום."
             />
           </div>
 
@@ -442,10 +470,10 @@ export default function AdminDashboard({ user: _adminUser }: { user: User }) {
             
             <div className="mt-10 flex flex-col gap-4 border-t border-slate-100 pt-6 text-[10px] sm:text-[11px] font-black text-slate-400 tracking-[0.12em] md:mt-12 md:flex-row md:items-center md:justify-between md:pt-8">
               <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-6">
-                 <span>סה"כ נכסים: {Math.max(allProperties.length, Math.round(activeContractsMetrics.currentMonthActive * 1.05)).toLocaleString("he-IL")}</span>
+                 <span>סה"כ דירות: {allProperties.length.toLocaleString("he-IL")}</span>
                  <span className="text-slate-900">משתמשים בתהליך: {allUsers.filter(u => u.onboardingStep !== undefined && u.onboardingStep < 5).length}</span>
               </div>
-              <span className="w-fit rounded-full border border-slate-100 bg-slate-50 px-4 py-2">אחוז המרה: {((funnel.completed / (funnel.firstNotice || 1)) * 100).toFixed(0)}%</span>
+              <span className="w-fit rounded-full border border-slate-100 bg-slate-50 px-4 py-2">תשלומים שאושרו: {approvedPaymentsRate}%</span>
             </div>
           </div>
 

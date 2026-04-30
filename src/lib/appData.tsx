@@ -154,6 +154,7 @@ type AppDataContextValue = {
   sendMessage: (payload: SendMessagePayload) => void;
   createUtilityCharge: (landlordId: string, payload: CreateUtilityChargePayload) => void;
   createDebtLetter: (paymentId: string) => void;
+  restartOnboarding: (userId: string) => void;
 };
 
 const AppDataContext = createContext<AppDataContextValue | null>(null);
@@ -474,6 +475,12 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       throw new Error("פרטי התחברות שגויים");
     }
 
+    // Special case for demo user: Reset onboarding state on every login
+    // This allows the user to re-experience the onboarding flow as requested.
+    if (normalizedEmail === "noa@example.com") {
+      restartOnboarding(account.userId);
+    }
+
     setSession({ userId: account.userId });
   };
 
@@ -768,6 +775,40 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const completeOnboarding = (userId: string) => {
     updateUser(userId, { onboardingComplete: true, onboardingStep: 5 });
+  };
+
+  const restartOnboarding = (userId: string) => {
+    applyDbUpdate((nextDb) => {
+      const user = findUser(nextDb, userId);
+      if (!user) return;
+
+      user.onboardingComplete = false;
+      user.onboardingStep = 0;
+      user.kycStatus = "pending";
+      user.bdiStatus = "pending";
+
+      const contract = findOnboardingContract(nextDb, userId);
+      if (contract) {
+        contract.status = "waiting_kyc";
+        contract.tenantQrScannedAt = undefined;
+        contract.landlordQrScannedAt = undefined;
+        contract.contractUploadedAt = undefined;
+        contract.contractClausesApprovedAt = undefined;
+        contract.signedByTenantAt = undefined;
+        contract.monthlyPaymentAmount = calculateMonthlyPayment(
+          contract.rentAmount ?? 0,
+          contract.buildingCommitteeAmount ?? 0,
+          contract.arnonaAmount ?? 0,
+          contract.utilityPaymentMode ?? "separate",
+        );
+      }
+
+      const property = contract ? findProperty(nextDb, contract.propertyId) : null;
+      if (property) {
+        property.status = "vacant";
+        property.tenantId = undefined;
+      }
+    });
   };
 
   const addProperty = (landlordId: string, payload: AddPropertyPayload) => {
@@ -1216,6 +1257,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         sendMessage,
         createUtilityCharge,
         createDebtLetter,
+        restartOnboarding,
       }}
     >
       {children}
