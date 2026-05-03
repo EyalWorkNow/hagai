@@ -11,12 +11,13 @@ export interface SiteAccessCredential {
 export const TEMPORARY_ACCESS_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export const ADMIN_SITE_ACCESS_CREDENTIAL: SiteAccessCredential = {
-  username: "admin",
+  username: "admin@admin.com",
   password: "123123",
   label: "Admin unlimited access",
 };
 
 export const TEMPORARY_SITE_ACCESS_CREDENTIALS: SiteAccessCredential[] = [
+  { username: "user@user.com", password: "123123", label: "Standard user access" },
   { username: "metering01", password: "Mtr-4821", label: "Metering access 01" },
   { username: "metering02", password: "Mtr-5934", label: "Metering access 02" },
   { username: "metering03", password: "Mtr-6187", label: "Metering access 03" },

@@ -535,6 +535,16 @@ export function WelcomeScreen() {
     setIsRegister(false);
     setEmail(demoEmail);
     setPassword("123123");
+    
+    // Map email to a readable username for demo purposes
+    const usernameMap: Record<string, string> = {
+      "admin@admin.com": "מנהל מערכת",
+      "landlord@landlord.com": "משכיר הדגמה",
+      "tenant@tenant.com": "דייר הדגמה",
+      "noa@example.com": "מועמדת הדגמה"
+    };
+    
+    setName(usernameMap[demoEmail] || demoEmail.split('@')[0]);
     setError(null);
   };
 
@@ -580,17 +590,33 @@ export function WelcomeScreen() {
          </div>
       </div>
 
-      {/* 3. Centered Auth Card Container */}
-      <div className="relative z-10 w-full max-w-lg animate-in zoom-in-95 fade-in duration-1000">
-         <div className="bg-white/95 backdrop-blur-xl rounded-[48px] p-8 md:p-16 shadow-[0_40px_100px_rgba(0,0,0,0.1)] border border-white/50">
+      {/* 3. Immersive Centered Auth Card */}
+      <div className="relative z-10 w-full max-w-2xl px-4 animate-in zoom-in-95 fade-in duration-1000">
+         <div className="bg-white/80 backdrop-blur-3xl rounded-[32px] p-10 md:p-16 shadow-[0_40px_100px_rgba(0,0,0,0.1)] border border-white/40 text-center">
             
-            <div className="text-center mb-12">
-               <h2 className="text-4xl font-black text-slate-900 tracking-tighter italic font-display">
-                  {isRegister ? "יצירת חשבון" : "כניסת משתמש"}
+            {/* Logo in Card */}
+            <div className="flex justify-center mb-8">
+               <div className="h-24 w-24 bg-white/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/50 shadow-inner">
+                  <img src={hagaiLogo} alt="Logo" className="h-16 w-auto object-contain" />
+               </div>
+            </div>
+
+            {/* Headline Section */}
+            <div className="mb-10 space-y-4">
+               <h2 className="text-3xl md:text-4xl font-black text-slate-900 leading-tight tracking-tighter">
+                  מערכת תשלומי שכר דירה חכמה<br />
+                  לשוכר, למשכיר ולנכס.
                </h2>
-               <p className="text-slate-400 font-bold text-sm mt-3">
-                  {isRegister ? "הצטרף למערכת הניהול המתקדמת בישראל" : "אנא הזן את פרטי ההתחברות שלך"}
+               <p className="text-slate-500 font-bold text-sm md:text-base leading-relaxed px-4">
+                  מחליפים את הצ'קים הפיזיים בביטחון דיגיטלי מלא -<br className="hidden md:block" />
+                  ודאות מוחלטת למשכיר, נוחות מקסימלית לשוכר
                </p>
+               <button 
+                  onClick={() => setShowPropertyBoard(true)}
+                  className="text-blue-600 font-black text-sm border-b-2 border-blue-600 pb-0.5 hover:text-blue-700 hover:border-blue-700 transition-all"
+               >
+                  שוק דירות
+               </button>
             </div>
 
             {error && (
@@ -600,93 +626,71 @@ export function WelcomeScreen() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-8">
-               {isRegister && (
-                 <AuthInput label="שם מלא" icon={<UserIcon size={18} />} value={name} onChange={setName} placeholder="ישראל ישראלי" />
-               )}
-               
-               <AuthInput 
-                  label="שם משתמש / אימייל" 
-                  icon={<Mail size={18} />} 
-                  value={email} 
-                  onChange={setEmail} 
-                  placeholder="name@example.com" 
-                  type="email" 
-               />
-
-               <div className="space-y-3">
-                  <div className="flex items-center justify-between px-1">
-                     <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">סיסמה</label>
-                     {!isRegister && (
-                        <button type="button" className="text-[11px] font-black text-blue-600 hover:underline">שכחת סיסמה?</button>
-                     )}
-                  </div>
+            <form onSubmit={handleSubmit} className="space-y-6">
+               {/* Multi-Input Row for Username & Password */}
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <AuthInput 
+                     label="סיסמה" 
                      icon={<Lock size={18} />} 
                      value={password} 
                      onChange={setPassword} 
                      placeholder="••••••••" 
                      type="password" 
+                     name="password"
+                     autoComplete="current-password"
+                  />
+                  <AuthInput 
+                     label="שם משתמש" 
+                     icon={<UserIcon size={18} />} 
+                     value={name} 
+                     onChange={setName} 
+                     placeholder="הזן שם משתמש" 
+                     name="username"
+                     autoComplete="username"
                   />
                </div>
 
-               <div className="flex items-center gap-2 px-1">
-                  <input type="checkbox" id="remember" className="h-4 w-4 rounded border-slate-300 text-slate-950 focus:ring-slate-950" />
-                  <label htmlFor="remember" className="text-xs font-bold text-slate-500 cursor-pointer">זכור אותי במכשיר זה</label>
-               </div>
+               {/* Full Width Email */}
+               <AuthInput 
+                  label="דוא״ל" 
+                  icon={<Mail size={18} />} 
+                  value={email} 
+                  onChange={setEmail} 
+                  placeholder="name@example.com" 
+                  type="email" 
+                  name="email"
+                  autoComplete="email"
+               />
 
                <button 
                  type="submit"
                  disabled={isLoading}
-                 className="w-full h-16 bg-slate-900 text-white rounded-[24px] font-black text-lg shadow-2xl hover:bg-black transition-all active:scale-[0.98] disabled:bg-slate-400 flex items-center justify-center gap-3 italic font-display"
+                 className="w-full h-16 bg-[#020617] text-white rounded-[16px] font-black text-lg shadow-2xl hover:bg-black transition-all active:scale-[0.98] disabled:bg-slate-400 flex items-center justify-center gap-3"
                >
                  {isLoading ? (
                    <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                  ) : (
-                   <span>{isRegister ? "הרשמה למערכת" : "כניסה למערכת"}</span>
+                   <span>כניסה</span>
                  )}
                </button>
             </form>
-
-            {/* Demo Access Links */}
-            {!isRegister && (
-               <div className="mt-10 grid grid-cols-2 gap-3">
-                  <DemoBtn label="מנהל" onClick={() => handleDemoLogin("admin@admin.com")} color="bg-slate-50 text-slate-600 border border-slate-100" />
-                  <DemoBtn label="משכיר" onClick={() => handleDemoLogin("landlord@landlord.com")} color="bg-slate-50 text-slate-600 border border-slate-100" />
-                  <DemoBtn label="דייר" onClick={() => handleDemoLogin("tenant@tenant.com")} color="bg-blue-50/50 text-blue-600 border border-blue-100" />
-                  <DemoBtn label="מועמד" onClick={() => handleDemoLogin("noa@example.com")} color="bg-indigo-50/50 text-indigo-600 border border-indigo-100" />
-               </div>
-            )}
          </div>
+      </div>
 
-         {/* Card Footer with Glassmorphism */}
-         <div className="text-center mt-8 space-y-5 bg-white/65 backdrop-blur-xl rounded-[32px] p-8 shadow-xl border border-white/40 border-t-white">
-            <p className="text-sm font-bold text-slate-700">
-               {isRegister ? "כבר יש לך חשבון?" : "משתמש חדש?"}{" "}
-               <button 
-                 onClick={() => { setIsRegister(!isRegister); setError(null); }}
-                 className="text-slate-950 font-black border-b-2 border-slate-950 hover:pb-0.5 transition-all mr-1"
-               >
-                 {isRegister ? "התחבר כאן" : "צור חשבון בחינם"}
-               </button>
-            </p>
-            <div className="flex items-center justify-center gap-6">
-               <button onClick={() => setShowPropertyBoard(true)} className="text-xs font-black text-blue-600 uppercase tracking-widest hover:underline">לוח דירות</button>
-               <span className="h-1 w-1 rounded-full bg-slate-300"></span>
-               <button onClick={clearSiteAccess} className="text-xs font-black text-slate-500 uppercase tracking-widest hover:underline">החלף קוד גישה</button>
-            </div>
-         </div>
-
-         {/* 4. Statistics Row (Restored) */}
-         <div className="mt-8 flex items-center justify-center gap-10 bg-black/20 backdrop-blur-md rounded-[28px] p-6 border border-white/10 shadow-2xl">
-            <div className="text-center">
-               <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">דירות מנוהלות</p>
-               <p className="text-2xl font-black text-white italic tabular-nums">{managedPropertiesCount}</p>
-            </div>
-            <div className="h-10 w-px bg-white/10"></div>
-            <div className="text-center">
-               <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">שיעור הצלחה</p>
-               <p className="text-2xl font-black text-white italic tabular-nums">{successRate}</p>
+      {/* 5. Quick-Access Demo Navbar (Floating at Bottom) */}
+      <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-30">
+         <div className="bg-white/90 backdrop-blur-2xl px-8 py-4 rounded-full shadow-2xl border border-white/50 flex items-center gap-2 md:gap-4 overflow-x-auto no-scrollbar whitespace-nowrap">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 hidden md:block">גישה מהירה:</p>
+            <QuickAccessBtn icon={<ShieldCheck size={18} />} label="מנהל" onClick={() => handleDemoLogin("admin@admin.com")} />
+            <div className="h-4 w-px bg-slate-200"></div>
+            <QuickAccessBtn icon={<Home size={18} />} label="משכיר" onClick={() => handleDemoLogin("landlord@landlord.com")} />
+            <div className="h-4 w-px bg-slate-200"></div>
+            <QuickAccessBtn icon={<UserIcon size={18} />} label="דייר" onClick={() => handleDemoLogin("tenant@tenant.com")} />
+            <div className="h-4 w-px bg-slate-200"></div>
+            <QuickAccessBtn icon={<UserPlus size={18} />} label="מועמד" onClick={() => handleDemoLogin("noa@example.com")} />
+            
+            <div className="mr-6 pl-4 border-r border-slate-200">
+               <button onClick={clearSiteAccess} className="text-[11px] font-black text-slate-400 hover:text-slate-900 transition-colors uppercase tracking-widest">החלף קוד</button>
             </div>
          </div>
       </div>
@@ -751,30 +755,25 @@ function SiteAccessScreen() {
       {/* 1. Full-Page Background Image */}
       <img 
         src={welcomeImage} 
-        className="absolute inset-0 h-full w-full object-cover z-0 opacity-40" 
+        className="absolute inset-0 h-full w-full object-cover z-0" 
         alt="Early Access Background" 
       />
+      <div className="absolute inset-0 bg-slate-900/40 z-0" />
       
       {/* 2. Top-Left Branding Layer */}
-      <div className="absolute top-8 right-8 md:top-12 md:right-12 z-20 flex items-center gap-4">
-         <div className="h-16 w-16 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/20 shadow-2xl">
-            <img src={hagaiLogo} alt="Logo" className="h-11 w-auto object-contain" />
-         </div>
-         <div className="text-right">
-            <h1 className="text-3xl font-black text-white tracking-tighter leading-none italic font-display drop-shadow-lg">{BRAND_NAME}</h1>
-         </div>
-      </div>
-
-      {/* 3. Centered Access Card Container */}
-      <div className="relative z-10 w-full max-w-lg animate-in zoom-in-95 fade-in duration-1000">
-         <div className="bg-white/95 backdrop-blur-xl rounded-[48px] p-8 md:p-16 shadow-[0_40px_100px_rgba(0,0,0,0.3)] border border-white/50">
+          {/* 3. Immersive Centered Access Card */}
+      <div className="relative z-10 w-full max-w-xl px-4 animate-in zoom-in-95 fade-in duration-1000">
+         <div className="bg-white/85 backdrop-blur-3xl rounded-[32px] p-10 md:p-16 shadow-[0_40px_100px_rgba(0,0,0,0.3)] border border-white/40 text-center">
             
-            <div className="text-center mb-12">
-               <div className="mx-auto h-16 w-16 bg-slate-950 text-white rounded-2xl flex items-center justify-center shadow-xl mb-6">
-                  <ShieldCheck size={32} />
+            <div className="flex justify-center mb-8">
+               <div className="h-20 w-20 bg-slate-950 text-white rounded-2xl flex items-center justify-center shadow-2xl">
+                  <ShieldCheck size={40} />
                </div>
-               <h2 className="text-4xl font-black text-slate-900 tracking-tighter italic font-display">כניסה מוקדמת</h2>
-               <p className="text-slate-400 font-bold text-sm mt-3">אנא הזן את פרטי הגישה לשכבת האבטחה</p>
+            </div>
+
+            <div className="mb-10">
+               <h2 className="text-4xl font-black text-slate-900 tracking-tighter leading-tight italic font-display">כניסה מוקדמת</h2>
+               <p className="text-slate-400 font-bold text-sm mt-3 px-8">אנא הזן את פרטי הגישה לשכבת האבטחה של המערכת</p>
             </div>
 
             {error && (
@@ -784,13 +783,15 @@ function SiteAccessScreen() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-8">
+            <form onSubmit={handleSubmit} className="space-y-6">
                <AuthInput
                  label="שם משתמש"
                  icon={<UserIcon size={18} />}
                  value={username}
                  onChange={setUsername}
                  placeholder="admin / metering01"
+                 name="username"
+                 autoComplete="username"
                />
                <AuthInput
                  label="סיסמה"
@@ -799,12 +800,14 @@ function SiteAccessScreen() {
                  onChange={setPassword}
                  placeholder="••••••••"
                  type="password"
+                 name="password"
+                 autoComplete="current-password"
                />
 
                <button
                  type="submit"
                  disabled={isLoading}
-                 className="w-full h-16 bg-slate-950 text-white rounded-[24px] font-black text-lg shadow-2xl hover:bg-black transition-all active:scale-[0.98] disabled:bg-slate-400 flex items-center justify-center gap-3 italic font-display"
+                 className="w-full h-16 bg-[#020617] text-white rounded-[16px] font-black text-lg shadow-2xl hover:bg-black transition-all active:scale-[0.98] disabled:bg-slate-400 flex items-center justify-center gap-3"
                >
                  {isLoading ? (
                    <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
@@ -816,10 +819,9 @@ function SiteAccessScreen() {
                  )}
                </button>
             </form>
-
-            <div className="mt-10 p-6 bg-slate-50 rounded-[32px] border border-slate-100 text-right">
+            <div className="mt-10 p-6 bg-slate-50/50 rounded-[24px] border border-slate-200 text-right">
                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">מידע למורשים</p>
-               <div className="space-y-2 text-xs font-bold text-slate-500 leading-relaxed">
+               <div className="space-y-2 text-[11px] font-bold text-slate-500 leading-relaxed">
                   <p>• הגישה מותרת למשתמשים מורשים בלבד.</p>
                   <p>• קוד הגישה הזמני תקף ל-24 שעות מרגע הכניסה.</p>
                </div>
@@ -828,6 +830,18 @@ function SiteAccessScreen() {
       </div>
     </div>
   );
+}
+
+function QuickAccessBtn({ icon, label, onClick }: { icon: ReactNode, label: string, onClick: () => void }) {
+   return (
+      <button 
+         onClick={onClick}
+         className="flex items-center gap-2 px-4 py-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-all group"
+      >
+         <span className="text-slate-400 group-hover:text-blue-600 transition-colors">{icon}</span>
+         <span className="text-xs font-bold">{label}</span>
+      </button>
+   );
 }
 
 function DemoBtn({ label, onClick, color }: any) {
@@ -841,7 +855,7 @@ function DemoBtn({ label, onClick, color }: any) {
    );
 }
 
-function AuthInput({ label, icon, value, onChange, placeholder, type = "text" }: any) {
+function AuthInput({ label, icon, value, onChange, placeholder, type = "text", name, autoComplete }: any) {
    return (
       <div className="space-y-3">
          {label && <label className="text-[10px] font-black text-slate-400 tracking-[0.12em] mr-1 uppercase tracking-widest">{label}</label>}
@@ -852,6 +866,8 @@ function AuthInput({ label, icon, value, onChange, placeholder, type = "text" }:
             <input 
                type={type} 
                required
+               name={name}
+               autoComplete={autoComplete}
                value={value}
                onChange={(e) => onChange(e.target.value)}
                placeholder={placeholder} 

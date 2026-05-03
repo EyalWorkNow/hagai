@@ -9,6 +9,7 @@ import {
   Clock3,
   CreditCard,
   FileText,
+  Info,
   LoaderCircle,
   MessageSquare,
   RefreshCw,
@@ -30,6 +31,7 @@ import {
 } from "../lib/tenantDashboard";
 import { useAppData } from "../lib/appData";
 import { getTenantHeroFinancials } from "../lib/analytics";
+import { InfoTooltip } from "./SharedViews";
 
 type RemoteStatus = "loading" | "ready" | "error";
 
@@ -372,7 +374,10 @@ function HeroCard({
                   palette.metaCard,
                 )}
               >
-                <p className="text-xs font-black text-slate-400">{item.label}</p>
+                <p className="text-xs font-black text-slate-400">
+                  {item.label}
+                  <InfoTooltip text={`מידע נוסף לגבי ${item.label}`} />
+                </p>
                 <p className={cn("mt-2 text-sm font-extrabold", palette.metaValue)}>{item.value}</p>
               </div>
             ))}
@@ -677,7 +682,10 @@ function SummaryCard({
         <div className="mt-8 space-y-5">
           {metrics.map((metric) => (
             <div key={metric.label} className="flex items-center justify-between gap-4">
-              <span className="text-sm text-slate-300 font-semibold">{metric.label}</span>
+              <span className="text-sm text-slate-300 font-semibold">
+                {metric.label}
+                <InfoTooltip text={`נתון זה משקף את ${metric.label} כפי שמוגדר בחוזה ובמערכת.`} />
+              </span>
               <span className="text-base font-black text-white tabular-nums">{metric.value}</span>
             </div>
           ))}

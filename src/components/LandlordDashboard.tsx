@@ -25,11 +25,13 @@ import {
   LogOut,
   X,
   ChevronRight,
-  Database
+  Database,
+  Info
 } from "lucide-react";
 import { Property, Payment, User, Contract } from "../types";
 import { cn } from "../lib/utils";
 import { useAppData } from "../lib/appData";
+import { InfoTooltip } from "./SharedViews";
 
 /**
  * LandlordDashboard Component
@@ -197,28 +199,40 @@ export default function LandlordDashboard({ user }: { user: User }) {
                 {/* Top Metrics Pillar Row */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
                    <div className="p-7 rounded-[32px] bg-slate-50 border border-slate-100/50 hover:bg-white hover:shadow-xl transition-all group">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">התקבל (בחשבון)</p>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
+                        התקבל (בחשבון)
+                        <InfoTooltip text="סך כל התשלומים שנקלטו ואושרו בחשבון הבנק שלך החודש." />
+                      </p>
                       <div className="flex items-baseline gap-2">
                          <span className="text-3xl font-black text-slate-900 tabular-nums italic font-display">₪{(totalMonthlyIncome - pendingPaymentsNum * 5000).toLocaleString()}</span>
                          <CheckCircle2 size={18} className="text-emerald-500" />
                       </div>
                    </div>
                    <div className="p-7 rounded-[32px] bg-slate-50 border border-slate-100/50 hover:bg-white hover:shadow-xl transition-all group">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">ממתין / בפיגור</p>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
+                        ממתין / בפיגור
+                        <InfoTooltip text="תשלומים שמועד פירעונם עבר או שהם בתהליך סליקה וטרם הושלמו." />
+                      </p>
                       <div className="flex items-baseline gap-2">
                          <span className="text-3xl font-black text-slate-900 tabular-nums italic font-display">₪{(pendingPaymentsNum * 5000).toLocaleString()}</span>
                          <Clock size={18} className="text-amber-500" />
                       </div>
                    </div>
                    <div className="p-7 rounded-[32px] bg-slate-50 border border-slate-100/50 hover:bg-white hover:shadow-xl transition-all group">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">יחידות מאוכלסות</p>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
+                        יחידות מאוכלסות
+                        <InfoTooltip text="מספר הנכסים המושכרים כרגע עם חוזה פעיל במערכת." />
+                      </p>
                       <div className="flex items-baseline gap-2">
                          <span className="text-3xl font-black text-slate-900 tabular-nums italic font-display">{occupiedCount}</span>
                          <span className="text-xs font-bold text-slate-400">יח׳</span>
                       </div>
                    </div>
                    <div className="p-7 rounded-[32px] bg-slate-50 border border-slate-100/50 hover:bg-white hover:shadow-xl transition-all group">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">יחידות פנויות</p>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
+                        יחידות פנויות
+                        <InfoTooltip text="נכסים ללא חוזה פעיל המחכים לשוכר חדש." />
+                      </p>
                       <div className="flex items-baseline gap-2">
                          <span className="text-3xl font-black text-slate-400 tabular-nums italic font-display">{vacantCount}</span>
                          <span className="text-xs font-bold text-slate-300">יח׳</span>
@@ -597,7 +611,10 @@ function DistributionItem({ label, subLabel, value, total, color, icon }: { labe
             {icon}
           </div>
           <div>
-            <p className="text-base font-black text-slate-900 leading-none">{label}</p>
+            <p className="text-base font-black text-slate-900 leading-none">
+              {label}
+              <InfoTooltip text={subLabel} />
+            </p>
             <p className="text-[10px] font-bold text-slate-400 mt-1.5">{subLabel}</p>
           </div>
         </div>
@@ -622,7 +639,10 @@ function ProgressTrack({ label, value, total, color }: { label: string, value: n
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold text-slate-600">{label}</span>
+        <span className="text-sm font-semibold text-slate-600">
+          {label}
+          <InfoTooltip text={`מעקב התקדמות עבור ${label}`} />
+        </span>
         <span className="text-sm font-black text-slate-900 tabular-nums">{value}</span>
       </div>
       <div className="h-2.5 w-full rounded-full bg-white shadow-inner overflow-hidden">
