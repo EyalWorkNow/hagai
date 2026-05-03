@@ -55,6 +55,14 @@ export interface Property {
   catalogStatus?: "published" | "draft" | "archived";
   costs?: PropertyCosts;
   insuranceOffered?: boolean;
+  transactionType?: "sale" | "rent";
+  condition?: "new" | "renovated" | "good" | "needs_renovation";
+  builtSqm?: number;
+  floorsInBuilding?: number;
+  parkingCount?: number;
+  pricePerSqm?: number;
+  entryDate?: string;
+  hasMamad?: boolean;
 }
 
 export interface Payment {

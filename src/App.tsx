@@ -22,7 +22,8 @@ import {
   UserPlus,
   AlertCircle,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  MapPin
 } from "lucide-react";
 
 // Local Component Imports
@@ -36,7 +37,7 @@ import MaintenanceManagement from "./components/MaintenanceManagement";
 import { TenantDashboardNavTarget } from "./lib/tenantDashboard";
 
 // Utilities & Types
-import { Role, User } from "./types";
+import { Role, User, Property } from "./types";
 import { cn } from "./lib/utils";
 import { useAppData } from "./lib/appData";
 import { BRAND_LOCAL_EMAIL_DOMAIN, BRAND_NAME, BRAND_SLOGAN } from "./lib/brand";
@@ -44,6 +45,16 @@ import { BRAND_LOCAL_EMAIL_DOMAIN, BRAND_NAME, BRAND_SLOGAN } from "./lib/brand"
 // Assets
 import welcomeImage from "./image/Gemini_Generated_Image_u8ml1gu8ml1gu8ml.png";
 import hagaiLogo from "./image/HAGAI_LOGO.png";
+
+// House Images
+import house1 from "./image/houseimg/house_1.jpg";
+import house2 from "./image/houseimg/house_2.jpg";
+import house3 from "./image/houseimg/house_3.jpg";
+import house4 from "./image/houseimg/house_4.jpg";
+import house5 from "./image/houseimg/house_5.jpeg";
+import house6 from "./image/houseimg/house_6.jpeg";
+
+const propertyPlaceholder = "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&q=80&w=2070";
 
 type AppNavItem = {
   id: string;
@@ -480,6 +491,7 @@ export function WelcomeScreen() {
   const [isRegister, setIsRegister] = useState(false);
   const [showRoleSelection, setShowRoleSelection] = useState(false);
   const [showPropertyBoard, setShowPropertyBoard] = useState(false);
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -566,8 +578,15 @@ export function WelcomeScreen() {
       if (right.status === "vacant") return 1;
       return 0;
     })
-    .slice(0, 6);
-  const managedPropertiesCount = (db.transactions.length || 34250).toLocaleString("he-IL");
+    .slice(0, 6)
+    .map((p, idx) => {
+       const houseImages = [house1, house2, house3, house4, house5, house6];
+       return {
+          ...p,
+          imageUrl: houseImages[idx % houseImages.length]
+       };
+    });
+  const managedPropertiesCount = "34,987";
   const successRate = "99.5%";
 
   return (
@@ -611,12 +630,27 @@ export function WelcomeScreen() {
                   מחליפים את הצ'קים הפיזיים בביטחון דיגיטלי מלא -<br className="hidden md:block" />
                   ודאות מוחלטת למשכיר, נוחות מקסימלית לשוכר
                </p>
-               <button 
-                  onClick={() => setShowPropertyBoard(true)}
-                  className="text-blue-600 font-black text-sm border-b-2 border-blue-600 pb-0.5 hover:text-blue-700 hover:border-blue-700 transition-all"
-               >
-                  שוק דירות
-               </button>
+               <div className="flex justify-center gap-4">
+                  <button 
+                     onClick={() => setShowPropertyBoard(true)}
+                     className="text-blue-600 font-black text-sm border-b-2 border-blue-600 pb-0.5 hover:text-blue-700 hover:border-blue-700 transition-all"
+                  >
+                     שוק דירות
+                  </button>
+               </div>
+
+               {/* New Stats Bar */}
+               <div className="flex items-center justify-center gap-8 pt-8 border-t border-slate-100/50">
+                  <div className="text-right">
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">דירות מנוהלות</p>
+                     <p className="text-xl font-black text-slate-900 tabular-nums italic font-display">{managedPropertiesCount}</p>
+                  </div>
+                  <div className="h-8 w-px bg-slate-200" />
+                  <div className="text-right">
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">שיעור הצלחה</p>
+                     <p className="text-xl font-black text-blue-600 tabular-nums italic font-display">{successRate}</p>
+                  </div>
+               </div>
             </div>
 
             {error && (
@@ -695,35 +729,83 @@ export function WelcomeScreen() {
          </div>
       </div>
 
-      {/* Property Board Modal - Simplified for this context */}
+      {/* Property Board Modal */}
       {showPropertyBoard && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-md">
-          <div className="w-full max-w-5xl bg-white rounded-[40px] shadow-2xl overflow-hidden border border-white/20">
-             <div className="flex items-center justify-between p-8 border-b border-slate-100">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 md:p-8 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="w-full max-w-6xl bg-white rounded-[48px] shadow-2xl overflow-hidden border border-white/20 flex flex-col h-full max-h-[90vh]">
+             <div className="flex items-center justify-between p-8 md:px-12 border-b border-slate-100 shrink-0">
                 <div className="text-right">
-                   <h2 className="text-3xl font-black text-slate-900 italic font-display">לוח הדירות של {BRAND_NAME}</h2>
-                   <p className="text-sm font-bold text-slate-400">מצא את הבית הבא שלך היום</p>
+                   <h2 className="text-3xl md:text-4xl font-black text-slate-900 italic font-display tracking-tight">לוח הדירות של <span className="text-blue-600">{BRAND_NAME}</span></h2>
+                   <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1">Discover your next luxury residence</p>
                 </div>
-                <button onClick={() => setShowPropertyBoard(false)} className="h-12 w-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-all">
-                   <X size={24} />
+                <button onClick={() => setShowPropertyBoard(false)} className="h-14 w-14 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 hover:bg-slate-900 hover:text-white transition-all shadow-sm">
+                   <X size={28} />
                 </button>
              </div>
-             <div className="p-8 max-h-[60vh] overflow-y-auto no-scrollbar grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {publicProperties.map(p => (
-                   <div key={p.id} className="p-6 bg-slate-50 rounded-[32px] border border-slate-100 hover:shadow-xl transition-all group">
-                      <div className="flex justify-between items-start mb-4">
-                         <span className="px-3 py-1 bg-emerald-500 text-white text-[10px] font-black rounded-full">פנוי</span>
-                         <span className="text-xl font-black text-slate-900 tabular-nums">₪{p.rent.toLocaleString()}</span>
+             
+             <div className="p-8 md:p-12 overflow-y-auto no-scrollbar">
+                <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+                   {publicProperties.map(p => (
+                      <div 
+                        key={p.id} 
+                        onClick={() => setSelectedProperty(p)}
+                        className="group relative bg-white rounded-[40px] border border-slate-100 hover:border-blue-200 shadow-sm hover:shadow-2xl transition-all cursor-pointer overflow-hidden flex flex-col h-full"
+                      >
+                         {/* Property Image Container */}
+                         <div className="relative h-64 overflow-hidden">
+                            <img 
+                              src={p.imageUrl || propertyPlaceholder} 
+                              alt={p.address} 
+                              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <div className="absolute top-5 right-5">
+                               <span className="px-4 py-2 bg-emerald-500 text-white text-[10px] font-black rounded-full shadow-lg">פנוי</span>
+                            </div>
+                         </div>
+
+                         <div className="p-8 flex flex-col flex-1">
+                            <div className="flex justify-between items-center mb-4">
+                               <h3 className="text-xl font-black text-slate-900 truncate pl-2">{p.address}</h3>
+                               <span className="text-2xl font-black text-blue-600 tabular-nums italic font-display shrink-0">₪{p.rent.toLocaleString()}</span>
+                            </div>
+                            
+                            <div className="flex items-center gap-4 mb-6">
+                               <div className="flex items-center gap-1.5 text-slate-400">
+                                  <div className="h-2 w-2 rounded-full bg-blue-500" />
+                                  <span className="text-xs font-bold">{p.rooms || 3} חדרים</span>
+                               </div>
+                               <div className="flex items-center gap-1.5 text-slate-400">
+                                  <div className="h-2 w-2 rounded-full bg-slate-300" />
+                                  <span className="text-xs font-bold">{p.sizeSqm || 85} מ״ר</span>
+                               </div>
+                            </div>
+
+                            <p className="text-sm text-slate-500 font-medium mb-8 line-clamp-2 leading-relaxed">{p.description || "דירה משופצת במיקום מעולה, מוארת ומרווחת..."}</p>
+                            
+                            <div className="mt-auto">
+                               <button className="w-full py-4 bg-slate-50 border border-slate-100 rounded-2xl text-[11px] font-black text-slate-400 group-hover:bg-slate-900 group-hover:text-white group-hover:border-slate-900 transition-all uppercase tracking-widest shadow-sm">
+                                  צפה בפרטים מלאים
+                               </button>
+                            </div>
+                         </div>
                       </div>
-                      <h3 className="text-lg font-black text-slate-800 mb-2">{p.address}</h3>
-                      <p className="text-sm text-slate-500 font-bold mb-4 line-clamp-2">{p.description}</p>
-                      <button className="w-full py-3 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-400 group-hover:bg-slate-900 group-hover:text-white transition-all">פרטים נוספים</button>
-                   </div>
-                ))}
+                   ))}
+                </div>
              </div>
           </div>
         </div>
       )}
+
+      {/* Pinterest Style Property Details Popup */}
+      <AnimatePresence>
+         {selectedProperty && (
+            <PropertyDetailsPopup 
+               property={selectedProperty} 
+               onClose={() => setSelectedProperty(null)} 
+            />
+         )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -874,6 +956,189 @@ function AuthInput({ label, icon, value, onChange, placeholder, type = "text", n
                className="w-full h-16 bg-white border border-slate-200 rounded-[24px] pr-14 pl-6 text-[15px] font-bold focus:ring-4 focus:ring-slate-900/5 focus:border-slate-900 transition-all outline-none shadow-sm placeholder:text-slate-300"
             />
          </div>
+      </div>
+   );
+}
+
+function PropertyDetailsPopup({ property: p, onClose }: { property: Property, onClose: () => void }) {
+   const [activeImageIndex, setActiveImageIndex] = useState(0);
+   
+   // Map the images from the houseimg directory
+   const houseImages = [house1, house2, house3, house4, house5, house6];
+   
+   const images = [
+      p.imageUrl || propertyPlaceholder,
+      ...houseImages.filter(img => img !== p.imageUrl).slice(0, 3)
+   ];
+
+   const nextImage = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setActiveImageIndex((prev) => (prev + 1) % images.length);
+   };
+
+   const prevImage = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setActiveImageIndex((prev) => (prev - 1 + images.length) % images.length);
+   };
+
+   return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8">
+         <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="absolute inset-0 bg-slate-950/90 backdrop-blur-2xl"
+         />
+         <motion.div 
+            initial={{ scale: 0.9, opacity: 0, y: 40 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.9, opacity: 0, y: 40 }}
+            className="relative w-full max-w-7xl bg-white rounded-[56px] shadow-[0_50px_100px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col lg:flex-row h-full max-h-[90vh] lg:max-h-[850px]"
+            dir="rtl"
+         >
+            {/* Pinterest Style Layout: Left Side (Interactive Gallery) */}
+            <div className="w-full lg:w-3/5 relative bg-slate-100 overflow-hidden group select-none">
+               <AnimatePresence mode="wait">
+                  <motion.img 
+                     key={activeImageIndex}
+                     initial={{ opacity: 0, x: 20 }}
+                     animate={{ opacity: 1, x: 0 }}
+                     exit={{ opacity: 0, x: -20 }}
+                     transition={{ duration: 0.4, ease: "easeOut" }}
+                     src={images[activeImageIndex]} 
+                     alt={p.address} 
+                     className="w-full h-full object-cover shadow-inner"
+                  />
+               </AnimatePresence>
+               
+               {/* Gallery Controls */}
+               <div className="absolute inset-x-0 bottom-10 flex justify-center gap-3 z-20">
+                  {images.map((_, idx) => (
+                     <button 
+                        key={idx}
+                        onClick={(e) => { e.stopPropagation(); setActiveImageIndex(idx); }}
+                        className={cn(
+                           "h-1.5 transition-all duration-500 rounded-full",
+                           idx === activeImageIndex ? "w-10 bg-white" : "w-2 bg-white/40 hover:bg-white/60"
+                        )}
+                     />
+                  ))}
+               </div>
+
+               <div className="absolute inset-y-0 left-0 right-0 flex items-center justify-between px-8 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                  <button 
+                     onClick={prevImage}
+                     className="h-16 w-16 bg-white/20 backdrop-blur-xl rounded-full flex items-center justify-center text-white hover:bg-white hover:text-slate-900 transition-all border border-white/30 pointer-events-auto shadow-2xl"
+                  >
+                     <ChevronRight size={32} />
+                  </button>
+                  <button 
+                     onClick={nextImage}
+                     className="h-16 w-16 bg-white/20 backdrop-blur-xl rounded-full flex items-center justify-center text-white hover:bg-white hover:text-slate-900 transition-all border border-white/30 pointer-events-auto shadow-2xl"
+                  >
+                     <ChevronLeft size={32} />
+                  </button>
+               </div>
+
+               <button 
+                  onClick={onClose}
+                  className="absolute top-8 right-8 h-12 w-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center text-white hover:bg-white hover:text-slate-900 transition-all border border-white/30 z-20 lg:hidden"
+               >
+                  <X size={24} />
+               </button>
+            </div>
+
+            {/* Right Side (Detailed Content) */}
+            <div className="w-full lg:w-2/5 p-10 md:p-14 overflow-y-auto no-scrollbar flex flex-col bg-white border-r border-slate-50">
+               <div className="flex justify-between items-center mb-10 shrink-0">
+                  <button onClick={onClose} className="h-14 w-14 bg-slate-50 rounded-2xl hidden lg:flex items-center justify-center text-slate-400 hover:bg-slate-900 hover:text-white transition-all shadow-sm border border-slate-100">
+                     <X size={24} />
+                  </button>
+                  <div className="flex gap-3">
+                     <div className="px-4 py-2 bg-blue-600 text-white text-[10px] font-black rounded-full shadow-lg shadow-blue-600/20 uppercase tracking-widest">למכירה</div>
+                     <div className="px-4 py-2 bg-emerald-500 text-white text-[10px] font-black rounded-full shadow-lg shadow-emerald-500/20 uppercase tracking-widest">פנוי</div>
+                  </div>
+               </div>
+
+               <div className="mb-10">
+                  <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-3 leading-tight font-display italic italic-black">{p.address}</h1>
+                  <div className="flex items-center gap-2">
+                     <div className="h-5 w-5 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center">
+                        <MapPin size={12} />
+                     </div>
+                     <p className="text-sm font-black text-slate-400 uppercase tracking-wider">{p.city || "לב יבנה, יבנה"} • נכס עם ממ״ד</p>
+                  </div>
+               </div>
+
+               <div className="grid grid-cols-3 gap-5 mb-12">
+                  <PropertyMetric label="חדרים" value={p.rooms || 3} />
+                  <PropertyMetric label="קומה" value={p.floor || "2/3"} />
+                  <PropertyMetric label="מ״ר" value={p.sizeSqm || 87} />
+               </div>
+
+               <div className="mb-12">
+                  <div className="flex items-center gap-3 mb-6">
+                     <div className="h-1 w-10 bg-blue-600 rounded-full" />
+                     <h4 className="text-base font-black text-slate-900 uppercase tracking-widest">תיאור הנכס</h4>
+                  </div>
+                  <p className="text-base text-slate-500 leading-relaxed font-medium">
+                     {p.description || `למכירה דירת ${p.rooms || 3} חדרים בשכונת לב יבנה. דירה משופצת, כ-80 מ"ר. מטבח גדול ומשודרג, מקלחת גדולה ומשופצת, ריצוף ואינסטלציה חדשה. חדר כביסה גדול. מרפסת 7 מ"ר יוצאת מיחידת הורים. מקום ייעודי לפינת אוכל. בניין בוטיק, 3 קומות- רק 9 דיירים בכל הבניין. ממ"ד, מעלית וחניה בטאבו. רשתות, מיזוג בכל הבית, דירה מוארת!! סביבת מגורים שהיא איכות חיים! סמוך לפארקים, תחבורה ציבורית ומוסדות חינוך. שווה להתרשם!!`}
+                  </p>
+               </div>
+
+               <div className="mb-12 space-y-5">
+                  <div className="flex items-center gap-3 mb-6">
+                     <div className="h-1 w-10 bg-slate-200 rounded-full" />
+                     <h4 className="text-base font-black text-slate-900 uppercase tracking-widest">מפרט טכני</h4>
+                  </div>
+                  <div className="grid grid-cols-2 gap-y-5 gap-x-10">
+                     <DetailRow label="סוג העסקה" value="מכירה" />
+                     <DetailRow label="מצב הנכס" value={p.condition === "renovated" ? "משופץ" : "חדש"} />
+                     <DetailRow label="מ״ר בנוי" value={`${p.builtSqm || 87} מ״ר`} />
+                     <DetailRow label="קומות בבניין" value={(p.floorsInBuilding || 3).toString()} />
+                     <DetailRow label="חניות" value={(p.parkingCount || 1).toString()} />
+                     <DetailRow label="מחיר למ״ר" value={`₪${(p.pricePerSqm || 22873).toLocaleString()}`} />
+                     <DetailRow label="תאריך כניסה" value={p.entryDate || "כניסה גמישה"} />
+                  </div>
+               </div>
+
+               <div className="mt-auto pt-10 border-t border-slate-100 flex flex-col gap-8 shrink-0">
+                  <div className="flex justify-between items-center">
+                     <div className="text-right">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-1">מחיר סופי מבוקש</p>
+                        <p className="text-5xl font-black text-slate-900 italic font-display tracking-tight leading-none">₪{(p.rent * 300 || 1990000).toLocaleString()}</p>
+                     </div>
+                  </div>
+                  
+                  <div className="flex flex-col gap-3">
+                     <button className="w-full py-5 bg-slate-950 text-white rounded-3xl font-black text-sm tracking-[0.2em] hover:bg-black transition-all shadow-2xl shadow-slate-950/20 active:scale-[0.98] uppercase">הצגת מספר טלפון</button>
+                     <div className="grid grid-cols-2 gap-4">
+                        <button className="py-5 bg-emerald-500 text-white rounded-3xl font-black text-[11px] tracking-[0.1em] hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/20 active:scale-[0.98] uppercase">WhatsApp</button>
+                        <button className="py-5 bg-white border-2 border-slate-100 text-slate-900 rounded-3xl font-black text-[11px] tracking-[0.1em] hover:bg-slate-50 transition-all active:scale-[0.98] uppercase">השאר פרטים</button>
+                     </div>
+                  </div>
+               </div>
+            </div>
+         </motion.div>
+      </div>
+   );
+}
+
+function PropertyMetric({ label, value }: { label: string, value: string | number }) {
+   return (
+      <div className="p-6 rounded-[32px] bg-slate-50 border border-slate-100/50 text-center group hover:bg-white hover:shadow-xl transition-all duration-500">
+         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 group-hover:text-blue-500 transition-colors">{label}</p>
+         <p className="text-2xl font-black text-slate-900 font-display italic">{value}</p>
+      </div>
+   );
+}
+
+function DetailRow({ label, value }: { label: string, value: string }) {
+   return (
+      <div className="flex justify-between items-center py-1 border-b border-slate-50">
+         <span className="text-xs font-bold text-slate-400">{label}</span>
+         <span className="text-xs font-black text-slate-700">{value}</span>
       </div>
    );
 }
