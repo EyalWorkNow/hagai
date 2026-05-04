@@ -130,20 +130,20 @@ function getDocumentStatusClasses(status: DocumentRecord["status"]) {
 
 export function InfoTooltip({ text }: { text: string }) {
   return (
-    <div className="group/info relative inline-block mx-2 align-middle">
-      <div className="relative">
+    <span className="group/info relative inline-block mx-2 align-middle">
+      <span className="relative">
         <button
           type="button"
           className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white/80 text-slate-400 shadow-sm transition-colors hover:text-slate-900"
         >
           <Info size={11} />
         </button>
-        <div className="pointer-events-none absolute left-1/2 bottom-full mb-3 z-[100] w-64 -translate-x-1/2 rounded-2xl bg-slate-950 px-4 py-3 text-right text-[11px] font-bold leading-5 text-white opacity-0 shadow-2xl transition-all group-hover/info:opacity-100">
+        <span className="pointer-events-none absolute left-1/2 bottom-full mb-3 z-[100] w-64 -translate-x-1/2 rounded-2xl bg-slate-950 px-4 py-3 text-right text-[11px] font-bold leading-5 text-white opacity-0 shadow-2xl transition-all group-hover/info:opacity-100">
           {text}
-          <div className="absolute left-1/2 top-full h-2 w-2 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-slate-950"></div>
-        </div>
-      </div>
-    </div>
+          <span className="absolute left-1/2 top-full h-2 w-2 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-slate-950"></span>
+        </span>
+      </span>
+    </span>
   );
 }
 

@@ -71,7 +71,12 @@ export default function AdminDashboard({ user: _adminUser }: { user: User }) {
   const allUsers = db.users;
   const allProperties = db.properties;
   const allContracts = db.contracts;
-  const approvedPaymentsRate = 99;
+  const approvedPaymentsRate = useMemo(() => {
+    const total = db.payments.length;
+    if (total === 0) return 100;
+    const approved = db.payments.filter(p => p.status === "paid").length;
+    return Math.round((approved / total) * 100);
+  }, [db.payments]);
   
   const recentPayments = useMemo(() => [...db.payments]
     .sort((left, right) => Date.parse(right.date) - Date.parse(left.date))
@@ -84,19 +89,40 @@ export default function AdminDashboard({ user: _adminUser }: { user: User }) {
     const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const previousMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
 
-    const sumTransactionsInRange = (start: Date, end: Date) =>
-      db.transactions
+    const sumTransactionsInRange = (start: Date, end: Date) => {
+      const txAmount = db.transactions
         .filter((transaction) => {
           const createdAt = new Date(transaction.createdAt);
           return !Number.isNaN(createdAt.getTime()) && createdAt >= start && createdAt <= end;
         })
         .reduce((sum, transaction) => sum + transaction.amount, 0);
+      
+      // If no transactions, fallback to payments to show "live" data
+      if (txAmount === 0) {
+        return db.payments
+          .filter(p => {
+            const d = new Date(p.date);
+            return d >= start && d <= end && p.status === "paid";
+          })
+          .reduce((sum, p) => sum + p.amount, 0);
+      }
+      return txAmount;
+    };
 
-    const countTransactionsInRange = (start: Date, end: Date) =>
-      db.transactions.filter((transaction) => {
+    const countTransactionsInRange = (start: Date, end: Date) => {
+      const txCount = db.transactions.filter((transaction) => {
         const createdAt = new Date(transaction.createdAt);
         return !Number.isNaN(createdAt.getTime()) && createdAt >= start && createdAt <= end;
       }).length;
+
+      if (txCount === 0) {
+        return db.payments.filter(p => {
+          const d = new Date(p.date);
+          return d >= start && d <= end && p.status === "paid";
+        }).length;
+      }
+      return txCount;
+    };
 
     const calculateChange = (current: number, previous: number) => {
       const delta = current - previous;
@@ -130,7 +156,7 @@ export default function AdminDashboard({ user: _adminUser }: { user: User }) {
       monthlyRevenue: calculateChange(currentMonthlyRevenue, previousMonthlyRevenue),
       openIssues: calculateChange(currentOpenIssues, previousOpenIssues),
     };
-  }, [db.supportIssues, db.transactions]);
+  }, [db.supportIssues, db.transactions, db.payments]);
   const activeContractsMetrics = useMemo(() => {
     const now = new Date();
     const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -641,7 +667,7 @@ export default function AdminDashboard({ user: _adminUser }: { user: User }) {
 
       {activeTab === "bdi" && (
         <div className="rounded-3xl border border-slate-100 bg-[radial-gradient(circle_at_center,_white_0%,_#f8fafc_100%)] py-10 sm:py-14 md:py-20 animate-in fade-in duration-700">
-          <BDICheckStandalone />
+          <BDICheckStandalone users={allUsers} onUpdateUser={updateUserStatus} />
         </div>
       )}
     </div>

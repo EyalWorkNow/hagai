@@ -831,22 +831,35 @@ function InviteTenantModal({
             <div className="grid gap-8 md:grid-cols-2 w-full mb-10">
               <div className="rounded-[32px] border-2 border-slate-100 bg-slate-50/50 p-8 flex flex-col items-center text-center group hover:border-blue-500/20 hover:bg-white transition-all shadow-sm">
                 <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6">QR לשוכר (סריקה מהירה)</p>
-                <div className="relative p-6 bg-white rounded-[32px] shadow-xl border border-slate-100 group-hover:scale-105 transition-transform duration-500">
-                  <div className="grid h-40 w-40 grid-cols-4 gap-1.5 rounded-2xl bg-slate-950 p-3">
-                    {Array.from({ length: 16 }).map((_, index) => (
-                      <span key={`tenant-qr-${index}`} className={cn("rounded-sm transition-all", [0, 3, 5, 6, 9, 10, 12, 15].includes(index) ? "bg-white" : "bg-white/10")} />
-                    ))}
-                  </div>
+                <div className="relative p-6 bg-white rounded-[32px] shadow-xl border border-slate-100 group-hover:scale-105 transition-transform duration-500 overflow-hidden">
+                  <div className="absolute inset-0 bg-[linear-gradient(to_bottom,transparent_49%,#3b82f6_50%,#3b82f6_51%,transparent_52%)] bg-[length:100%_200%] animate-[scan_3s_linear_infinite] opacity-10 pointer-events-none"></div>
+                  <img 
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&ecc=M&margin=10&data=${encodeURIComponent(window.location.origin + "/?propertyId=" + property.id)}`}
+                    alt="Scan for onboarding"
+                    className="h-40 w-40 rounded-xl relative z-10"
+                  />
                 </div>
                 <p className="mt-8 text-sm font-bold leading-relaxed text-slate-500">
                   הצג את הקוד לשוכר לסריקה. לאחר הסריקה הוא יועבר ישירות לתהליך ההרשמה במכשיר שלו.
                 </p>
-                <button 
-                  onClick={handleSend}
-                  className="mt-6 w-full py-4 bg-blue-600 text-white rounded-2xl font-black text-xs shadow-sleek-blue hover:bg-blue-700 active:scale-95 transition-all"
-                >
-                  השלם חיבור דייר (דמו)
-                </button>
+                <div className="mt-6 flex flex-col w-full gap-3">
+                  <button 
+                    onClick={() => {
+                      const link = window.location.origin + "/?propertyId=" + property.id;
+                      const message = encodeURIComponent(`היי! מוזמן להתחיל את תהליך ההצטרפות לדירה ב-${property.address} דרך RentFlow בקישור הבא: ${link}`);
+                      window.open(`https://wa.me/${phone.replace(/\D/g, '')}?text=${message}`, '_blank');
+                    }}
+                    className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-black text-xs shadow-lg hover:bg-emerald-600 active:scale-95 transition-all flex items-center justify-center gap-2"
+                  >
+                    <span>שלח הזמנה בוואטסאפ</span>
+                  </button>
+                  <button 
+                    onClick={handleSend}
+                    className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-[11px] hover:bg-slate-200 transition-all"
+                  >
+                    סמן כנשלח (דמו)
+                  </button>
+                </div>
               </div>
 
               <div className="flex flex-col gap-6 text-right">

@@ -32,6 +32,7 @@ type RegisterPayload = {
   email: string;
   password: string;
   role: Role;
+  propertyId?: string;
 };
 
 type CreateContractPayload = {
@@ -500,7 +501,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     setSiteAccessSession(result.session);
   };
 
-  const register = ({ name, email, password, role }: RegisterPayload) => {
+  const register = ({ name, email, password, role, propertyId }: RegisterPayload) => {
     const normalizedEmail = email.trim().toLowerCase();
     if (db.authAccounts.some((account) => account.email.toLowerCase() === normalizedEmail)) {
       throw new Error("האימייל כבר בשימוש");
@@ -525,6 +526,15 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         onboardingComplete: role !== "tenant",
         createdAt: nowIso(),
       });
+
+      // Link property if provided for new tenant
+      if (role === "tenant" && propertyId) {
+        const property = nextDb.properties.find(p => p.id === propertyId);
+        if (property) {
+          property.tenantId = userId;
+          property.status = "occupied";
+        }
+      }
     });
     setSession({ userId });
   };

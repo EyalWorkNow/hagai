@@ -50,12 +50,14 @@ type OnboardingDraft = {
   buildingCommitteeAmount: number;
   arnonaAmount: number;
   utilityPaymentMode: UtilityPaymentMode;
+  creditConsent: boolean;
 };
 
 const STEPS: StepMeta[] = [
   { id: "identity", title: "פתיחת תהליך", icon: <UserCheck size={20} /> },
   { id: "property", title: "פרטי דירה", icon: <Building2 size={20} /> },
-  { id: "bank_auth", title: "הוראת קבע", icon: <Landmark size={20} /> },
+  { id: "credit", title: "בדיקת זכאות", icon: <ShieldCheck size={20} /> },
+  { id: "bank_auth", title: "הרשאה לחיוב", icon: <Landmark size={20} /> },
   { id: "signature", title: "חתימה", icon: <FileSignature size={20} /> },
   { id: "finish", title: "סיום", icon: <CheckCircle2 size={20} /> },
 ];
@@ -108,6 +110,7 @@ function buildInitialDraft(contract: Contract | null, property: Property | null)
       contract?.buildingCommitteeAmount ?? property?.costs?.buildingCommittee ?? 0,
     arnonaAmount: contract?.arnonaAmount ?? property?.costs?.arnona ?? 0,
     utilityPaymentMode: contract?.utilityPaymentMode ?? "separate",
+    creditConsent: false,
   };
 }
 
@@ -161,12 +164,13 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
       return "המשך לפרטי הדירה";
     }
     if (currentStep === 1) return "שמור פרטי דירה והמשך";
-    if (currentStep === 2) return "הקמת הוראת קבע";
-    if (currentStep === 3) {
-      if (isCreditApproved) return "חתימה דיגיטלית מאובטחת";
-      if (eligibilityCheck?.status === "pending") return "אשר חיווי חיובי";
-      return "התחל בדיקת דירוג אשראי";
+    if (currentStep === 2) {
+       if (isCreditApproved) return "המשך להקמת הרשאה";
+       if (eligibilityCheck?.status === "pending") return "אשר חיווי חיובי";
+       return "התחל בדיקת זכאות אשראי";
     }
+    if (currentStep === 3) return "הקמת הרשאה לחיוב";
+    if (currentStep === 4) return "חתימה דיגיטלית מאובטחת";
     return "התחל להשתמש במערכת";
   };
 
@@ -174,8 +178,8 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
     isProcessing ||
     (currentStep === 0 && user.kycStatus === "approved" && !hasRequiredQr) ||
     (currentStep === 1 && (!hasRequiredDocuments || draft.rentAmount <= 0)) ||
-    (currentStep === 3 && user.bdiStatus === "red") ||
-    (currentStep === 4 && !canSign);
+    (currentStep === 2 && !draft.creditConsent && !isCreditApproved) ||
+    (currentStep === 5 && !canSign);
 
   const handleNext = async () => {
     if (isPrimaryDisabled) return;
@@ -208,23 +212,23 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
       }
 
       if (currentStep === 2) {
-        persistAgreement();
-        saveBankAuthorization(user.id);
-        setCurrentStep(3);
-        return;
-      }
-
-      if (currentStep === 3) {
         if (isCreditApproved) {
-          setCurrentStep(4);
+          setCurrentStep(3);
           return;
         }
         if (eligibilityCheck?.status === "pending") {
           resolveEligibilityCheck(user.id, true);
-          setCurrentStep(4);
+          setCurrentStep(3);
           return;
         }
         requestEligibilityCheck(user.id, activeContract?.landlordId);
+        return;
+      }
+
+      if (currentStep === 3) {
+        persistAgreement();
+        saveBankAuthorization(user.id);
+        setCurrentStep(4);
         return;
       }
 
@@ -393,8 +397,23 @@ function StepContent({
         />
       );
     case 2:
-      return <BankAuthorizationStep />;
+      return (
+        <CreditCheckStep
+          user={user}
+          eligibilityStatus={eligibilityStatus}
+          draft={draft}
+          onDraftChange={onDraftChange}
+          onSkipCredit={onSkipCredit}
+        />
+      );
     case 3:
+      return (
+        <BankAuthorizationStep 
+          draft={draft} 
+          onDraftChange={onDraftChange} 
+        />
+      );
+    case 4:
       return (
         <SignatureStep
           contract={contract}
@@ -403,11 +422,9 @@ function StepContent({
           monthlyPayment={monthlyPayment}
           canSign={canSign}
           user={user}
-          eligibilityStatus={eligibilityStatus}
-          onSkipCredit={onSkipCredit}
         />
       );
-    case 4:
+    case 5:
       return <FinishStep />;
     default:
       return null;
@@ -474,12 +491,26 @@ function IdentitySetupStep({
                 tone={landlordReady ? "success" : "warning"}
               />
               {!landlordReady && (
-                <button
-                  onClick={() => onDraftChange({ ...draft, landlordQrScanned: true })}
-                  className="rounded-xl bg-blue-50 py-2 text-[10px] font-black text-blue-600 border border-blue-100 hover:bg-blue-600 hover:text-white transition-all shadow-sm"
-                >
-                  שלח לאימות (דמו)
-                </button>
+                <div className="flex flex-col gap-2 mt-1">
+                  <button
+                    onClick={() => {
+                      const text = encodeURIComponent(`היי, אני בתהליך הקמת חוזה דיגיטלי ב-${BRAND_NAME}. אפשר להתחבר כאן כדי לאשר את הפרטים: https://rentflow.co/auth/landlord-sync`);
+                      window.open(`https://wa.me/?text=${text}`, '_blank');
+                    }}
+                    className="flex items-center justify-center gap-2 rounded-xl bg-emerald-50 py-2.5 text-[10px] font-black text-emerald-600 border border-emerald-100 hover:bg-emerald-600 hover:text-white transition-all shadow-sm"
+                  >
+                    <div className="h-4 w-4 bg-emerald-500 rounded-full flex items-center justify-center text-white">
+                      <FileText size={8} />
+                    </div>
+                    <span>שלח קישור למשכיר ב-WhatsApp</span>
+                  </button>
+                  <button
+                    onClick={() => onDraftChange({ ...draft, landlordQrScanned: true })}
+                    className="rounded-xl bg-blue-50 py-2 text-[10px] font-black text-blue-600 border border-blue-100 hover:bg-blue-600 hover:text-white transition-all shadow-sm opacity-60 hover:opacity-100"
+                  >
+                    אישור מהיר (דמו)
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -701,71 +732,235 @@ function PropertyStep({
   );
 }
 
-function BankAuthorizationStep() {
+function BankAuthorizationStep({
+  draft,
+  onDraftChange
+}: {
+  draft: any;
+  onDraftChange: (nextDraft: any) => void;
+}) {
+  const ISRAELI_BANKS = [
+    { id: "leumi", name: 'בנק לאומי', code: "10" },
+    { id: "hapoalim", name: 'בנק הפועלים', code: "12" },
+    { id: "mizrahi", name: 'מזרחי טפחות', code: "20" },
+    { id: "discount", name: 'בנק דיסקונט', code: "11" },
+    { id: "fibi", name: 'הבנק הבינלאומי', code: "31" },
+    { id: "yahav", name: 'בנק יהב', code: "4" },
+    { id: "onezero", name: 'וואן זירו', code: "18" },
+    { id: "mercantile", name: 'מרכנתיל דיסקונט', code: "17" },
+    { id: "massad", name: 'בנק מסד', code: "46" },
+    { id: "jerusalem", name: 'בנק ירושלים', code: "54" },
+  ];
+
+  const selectedBank = draft.bankId;
+
   return (
     <div className="space-y-8">
       <StepHeader
-        title="הקמת הרשאה לחיוב חשבון / הוראת קבע"
-        subtitle="בשלב זה מגדירים ומאשרים את ההרשאה לחיוב שוטף, לפני מעבר לחתימה הדיגיטלית."
+        title="הקמת הרשאה לחיוב חשבון"
+        subtitle="הוספת פרטי הבנק שלך לצורך הקמת הרשאה לחיוב שוטף ומאובטח."
       />
 
-      <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="mb-6 flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white">
-              <Landmark size={22} />
+      <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="rounded-[32px] border border-slate-200 bg-white p-8 shadow-sm">
+          <div className="mb-8 flex items-center gap-4">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg">
+              <Landmark size={26} />
             </div>
             <div>
-              <p className="text-lg font-black text-slate-900">מסך הוראת קבע</p>
-              <p className="text-xs font-bold text-slate-400">הרשאה מאובטחת לחיוב שוטף ומבוקר.</p>
+              <p className="text-xl font-black text-slate-900">פרטי חשבון בנק</p>
+              <p className="text-sm font-bold text-slate-400">יש לבחור את הבנק ולהזין פרטי סניף וחשבון.</p>
             </div>
           </div>
 
-          <p className="text-base font-bold leading-8 text-slate-600">
-            בשלב זה תוקם הרשאה לחיוב חשבון לצורך ביצוע תשלומים שוטפים בצורה מאובטחת ומבוקרת.
-          </p>
-
-          <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            <StatusPill title="אימות חשבון" value="מוכן" tone="success" />
-            <StatusPill title="מסלול חיוב" value="הוראת קבע" tone="info" />
-            <StatusPill title="שלב הבא" value="חתימה" tone="warning" />
+          <div className="space-y-6">
+            <div>
+              <label className="mb-3 block text-sm font-black text-slate-700">בחר בנק</label>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {ISRAELI_BANKS.map((bank) => (
+                  <button
+                    key={bank.id}
+                    onClick={() => onDraftChange({ ...draft, bankId: bank.id })}
+                    className={cn(
+                      "flex flex-col items-center justify-center gap-3 rounded-2xl border p-4 transition-all",
+                      selectedBank === bank.id
+                        ? "border-slate-900 bg-slate-900 text-white shadow-xl scale-[1.02]"
+                        : "border-slate-100 bg-slate-50 text-slate-500 hover:border-slate-200 hover:bg-white"
+                    )}
+                  >
+                    <div className={cn(
+                      "h-10 w-10 rounded-xl flex items-center justify-center shadow-sm",
+                      selectedBank === bank.id ? "bg-white/20" : "bg-white"
+                    )}>
+                      <Building2 size={20} className={selectedBank === bank.id ? "text-white" : "text-slate-400"} />
+                    </div>
+                    <span className="text-xs font-black text-center">{bank.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
-          <div className="mt-6 rounded-[24px] border border-slate-200 bg-slate-50 p-5">
-            <p className="text-sm font-black text-slate-900">איך ממשיכים?</p>
-            <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-              לחיצה על כפתור ההמשך שבתחתית המסך תשלים את הקמת ההרשאה, תשמור את המסמך הנלווה, ותעביר את המשתמש ישירות לשלב החתימה.
-            </p>
+          <div className="mt-8 rounded-[24px] border border-slate-200 bg-slate-50 p-6">
+            <div className="flex items-start gap-4">
+               <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                  <ShieldCheck size={18} />
+               </div>
+               <div>
+                  <p className="text-sm font-black text-slate-900">אבטחת המידע שלך</p>
+                  <p className="mt-2 text-xs font-bold leading-6 text-slate-500">
+                     פרטי החשבון מוצפנים ונשמרים לצורך הקמת ההרשאה בלבד. לא נעשה שימוש בפרטים אלו ללא אישור חתימה דיגיטלית בשלב הבא.
+                  </p>
+               </div>
+            </div>
           </div>
         </div>
 
-        <div className="rounded-[32px] bg-slate-950 p-6 text-white shadow-2xl">
-          <div className="flex h-full flex-col justify-between">
-            <div>
-              <p className="text-[11px] font-black tracking-[0.14em] text-slate-500">
-                פעולה מרכזית
-              </p>
-              <h3 className="mt-3 text-3xl font-black tracking-tight">
-                הקמת הוראת קבע
-              </h3>
-              <p className="mt-4 text-sm font-bold leading-7 text-slate-300">
-                לאחר אישור ההרשאה המערכת תעדכן את התהליך לשני הצדדים ותאפשר מעבר מיידי לחתימה.
-              </p>
+        <div className="rounded-[32px] bg-slate-950 p-8 text-white shadow-2xl flex flex-col justify-between">
+          <div>
+            <div className="mb-8 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 text-blue-400">
+               <Landmark size={32} />
             </div>
+            <p className="text-[11px] font-black tracking-[0.14em] text-slate-500 uppercase">
+               פעולה מאובטחת
+            </p>
+            <h3 className="mt-4 text-3xl font-black tracking-tight leading-tight">
+               הקמת הרשאה לחיוב חשבון
+            </h3>
+            <p className="mt-6 text-sm font-bold leading-8 text-slate-300">
+               לאחר הזנת פרטי הבנק ואישור ההרשאה, המערכת תבצע אימות מול הבנק ותאפשר מעבר מיידי לשלב החתימה על החוזה.
+            </p>
+          </div>
 
-            <div className="mt-8 rounded-[28px] border border-white/10 bg-white/5 p-5">
-              <p className="text-xs font-black tracking-[0.12em] text-slate-400">חיווי מערכת</p>
-              <p className="mt-2 text-2xl font-black">המשך להקמת הרשאה</p>
-              <p className="mt-3 text-sm font-bold leading-6 text-slate-300">
-                הרשאת החיוב תשמר כחלק מהמסמכים הפעילים של ההסכם, בלי לעבור למסך נוסף.
-              </p>
+          <div className="mt-12 rounded-[28px] border border-white/10 bg-white/5 p-6 relative overflow-hidden">
+            <div className="relative z-10">
+               <p className="text-xs font-black tracking-[0.12em] text-slate-400">חיווי מערכת</p>
+               <p className="mt-3 text-2xl font-black italic font-display">המשך לאישור</p>
+               <p className="mt-4 text-sm font-bold leading-7 text-slate-300">
+                  ההרשאה תוקם באופן אוטומטי ותוצמד להסכם השכירות.
+               </p>
             </div>
+            <div className="absolute -bottom-8 -left-8 h-32 w-32 bg-blue-500/10 rounded-full blur-3xl" />
           </div>
         </div>
       </div>
     </div>
   );
 }
+
+function CreditCheckStep({
+  user,
+  eligibilityStatus,
+  draft,
+  onDraftChange,
+  onSkipCredit,
+}: {
+  user: User;
+  eligibilityStatus?: "pending" | "approved" | "rejected";
+  draft: OnboardingDraft;
+  onDraftChange: (nextDraft: OnboardingDraft) => void;
+  onSkipCredit: () => void;
+}) {
+  const approved = user.bdiStatus === "green";
+  const rejected = user.bdiStatus === "red" || eligibilityStatus === "rejected";
+  const isPending = eligibilityStatus === "pending";
+
+  return (
+    <div className="space-y-8">
+      <StepHeader
+        title="בדיקת זכאות ודירוג אשראי"
+        subtitle="לפני הקמת ההרשאה לחיוב, המערכת מבצעת בדיקת זכאות פיננסית כדי להבטיח את אמינות התשלומים."
+      />
+
+      <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="rounded-[32px] border border-slate-200 bg-white p-8 shadow-sm">
+          <div className="mb-8 flex items-center gap-4">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg">
+              <ShieldCheck size={26} />
+            </div>
+            <div>
+              <p className="text-xl font-black text-slate-900">חיווי אשראי</p>
+              <p className="text-sm font-bold text-slate-400">אישור לביצוע בדיקת נתוני אשראי מול הגורמים המוסמכים.</p>
+            </div>
+          </div>
+
+          {!approved && !rejected && (
+             <div className="space-y-6">
+                <label className="flex cursor-pointer items-start gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-6 transition-all hover:bg-white hover:border-blue-200">
+                  <input
+                    type="checkbox"
+                    checked={draft.creditConsent}
+                    onChange={(e) => onDraftChange({ ...draft, creditConsent: e.target.checked })}
+                    className="mt-1 h-6 w-6 rounded-lg border-2 border-slate-300 text-blue-600 focus:ring-blue-600"
+                  />
+                  <div className="text-sm font-bold leading-7 text-slate-600">
+                    אני מאשר/ת ל-{BRAND_NAME} לבצע בדיקת חיווי אשראי מול מאגרי המידע המוסמכים לצורך בחינת זכאות להצטרפות למסלול התשלומים הדיגיטלי. ידוע לי כי הבדיקה הינה תנאי הכרחי להמשך התהליך.
+                  </div>
+                </label>
+             </div>
+          )}
+
+          {approved && (
+            <InfoPanel tone="success" className="mt-4">
+               <CheckCircle2 size={24} />
+               <div>
+                  <p className="text-lg font-black">זכאות אושרה בהצלחה</p>
+                  <p className="mt-1 text-sm font-bold">דירוג האשראי שלך נמצא תקין. ניתן להמשיך להקמת הרשאה לחיוב.</p>
+               </div>
+            </InfoPanel>
+          )}
+
+          {rejected && (
+            <div className="space-y-4 mt-4">
+              <InfoPanel tone="error">
+                <AlertCircle size={24} />
+                <div>
+                    <p className="text-lg font-black">לא ניתן לאשר זכאות כרגע</p>
+                    <p className="mt-1 text-sm font-bold">לצערו, דירוג האשראי אינו מאפשר המשך בתנאים הנוכחיים.</p>
+                </div>
+              </InfoPanel>
+              <button 
+                onClick={onSkipCredit}
+                className="w-full py-4 border border-slate-200 rounded-2xl text-xs font-black text-slate-400 hover:text-slate-900 transition-all uppercase tracking-widest"
+              >
+                דלג על בדיקה (למטרות הדגמה)
+              </button>
+            </div>
+          )}
+
+          {isPending && !approved && !rejected && (
+             <div className="mt-6 flex items-center gap-4 p-6 bg-blue-50 rounded-2xl border border-blue-100 animate-pulse">
+                <div className="h-4 w-4 rounded-full bg-blue-500" />
+                <p className="text-sm font-black text-blue-900">מעבד נתוני אשראי... אנא המתן</p>
+             </div>
+          )}
+        </div>
+
+        <div className="rounded-[32px] bg-slate-950 p-8 text-white shadow-2xl flex flex-col justify-between">
+           <div>
+              <p className="text-[11px] font-black tracking-[0.14em] text-slate-500 uppercase">מידע חשוב</p>
+              <h3 className="mt-4 text-3xl font-black tracking-tight leading-tight italic font-display">מדוע נדרשת בדיקה?</h3>
+              <p className="mt-6 text-sm font-bold leading-8 text-slate-300">
+                בדיקת האשראי מאפשרת לנו להעניק בטחון מלא למשכיר ולוודא שהתהליך הדיגיטלי מתבצע באחריות פיננסית מלאה. הבדיקה אינה פוגעת בדירוג האשראי שלך.
+              </p>
+           </div>
+           
+           <div className="mt-8 grid grid-cols-2 gap-4">
+              <div className="p-4 bg-white/5 rounded-2xl border border-white/10">
+                 <p className="text-[10px] font-black text-slate-500 uppercase mb-1">זמן בדיקה</p>
+                 <p className="text-lg font-black italic font-display">כ-30 שניות</p>
+              </div>
+              <div className="p-4 bg-white/5 rounded-2xl border border-white/10">
+                 <p className="text-[10px] font-black text-slate-500 uppercase mb-1">אבטחה</p>
+                 <p className="text-lg font-black italic font-display">PCI-DSS</p>
+              </div>
+           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 function SignatureStep({
   contract,
@@ -774,8 +969,6 @@ function SignatureStep({
   monthlyPayment,
   canSign,
   user,
-  eligibilityStatus,
-  onSkipCredit,
 }: {
   contract: Contract | null;
   property: Property | null;
@@ -783,17 +976,15 @@ function SignatureStep({
   monthlyPayment: number;
   canSign: boolean;
   user: User;
-  eligibilityStatus?: "pending" | "approved" | "rejected";
-  onSkipCredit: () => void;
 }) {
   const approved = user.bdiStatus === "green";
-  const rejected = user.bdiStatus === "red" || eligibilityStatus === "rejected";
+  const rejected = user.bdiStatus === "red";
 
   return (
     <div className="space-y-8">
       <StepHeader
         title="חתימה דיגיטלית מאובטחת"
-        subtitle="החתימה נפתחת לאחר חיווי חיובי, ומאפשרת לסיים את החוזה ואת שטר החוב באותו שלב."
+        subtitle="לאחר אישור הזכאות והקמת ההרשאה, ניתן לסיים את החוזה ואת שטר החוב בחתימה אחת."
       />
 
       <div
@@ -819,25 +1010,13 @@ function SignatureStep({
           {approved ? "חיווי חיובי התקבל" : "ממתין לחיווי דירוג אשראי"}
         </h3>
         <p className="mx-auto mt-3 max-w-xl text-sm font-bold leading-7 text-slate-500">
-          המערכת לא תאפשר מעבר לחתימה על שטר חוב ללא סטטוס חיובי. ניתן להריץ בדיקה, לאשר חיווי חיובי, או לבצע דילוג מתועד שמסמן אישור ידני.
+          המערכת מאשרת את החתימה רק לאחר קבלת סטטוס חיובי. החוזה ושטר החוב ייחתמו דיגיטלית ויאובטחו במערכת.
         </p>
 
-        <div className="mt-8 grid gap-3 sm:grid-cols-3">
-          <StatusPill title="סטטוס משתמש" value={user.bdiStatus ?? "pending"} tone={approved ? "success" : rejected ? "danger" : "info"} />
-          <StatusPill title="רשומת בדיקה" value={eligibilityStatus ?? "טרם נפתחה"} tone={approved ? "success" : "info"} />
-          <StatusPill title="תנאי חתימה" value={approved ? "פתוח" : "חסום"} tone={approved ? "success" : "danger"} />
+        <div className="mt-8 grid gap-3 sm:grid-cols-2">
+          <StatusPill title="סטטוס אשראי" value={user.bdiStatus ?? "ממתין"} tone={approved ? "success" : rejected ? "danger" : "info"} />
+          <StatusPill title="תנאי חתימה" value={approved ? "מאושר" : "חסום"} tone={approved ? "success" : "danger"} />
         </div>
-
-        {!approved && (
-          <button
-            type="button"
-            onClick={onSkipCredit}
-            className="mt-8 inline-flex items-center justify-center gap-3 rounded-2xl border border-slate-300 bg-white px-6 py-4 text-sm font-black text-slate-900 shadow-sm transition hover:border-slate-900"
-          >
-            <AlertCircle size={18} />
-            <span>דלג ואשר ידנית</span>
-          </button>
-        )}
       </div>
 
       {!canSign && (
@@ -887,65 +1066,139 @@ function SignatureStep({
 
 function FinishStep() {
   return (
-    <div className="space-y-8 py-8 text-center">
-      <div className="relative inline-block">
-        <div className="mx-auto flex h-32 w-32 items-center justify-center rounded-full bg-green-500 text-white shadow-sleek-lg">
-          <CheckCircle2 size={64} />
+    <div className="flex flex-col items-center justify-center py-16 text-center space-y-10 animate-in fade-in zoom-in duration-700">
+      <div className="relative group">
+        <div className="absolute inset-0 bg-emerald-400/20 blur-[60px] rounded-full scale-150 animate-pulse" />
+        <div className="relative mx-auto flex h-40 w-40 items-center justify-center rounded-full bg-emerald-500 text-white shadow-[0_20px_50px_rgba(16,185,129,0.4)] transition-transform group-hover:scale-105">
+          <CheckCircle2 size={80} strokeWidth={1.5} />
         </div>
-        <div className="absolute -right-4 -top-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-green-100 bg-white text-green-500 shadow-xl">
-          <ShieldCheck size={24} />
-        </div>
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.5 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.5 }}
+          className="absolute -right-2 -top-2 flex h-14 w-14 items-center justify-center rounded-2xl border-4 border-white bg-slate-900 text-emerald-400 shadow-2xl"
+        >
+          <ShieldCheck size={28} />
+        </motion.div>
       </div>
 
-      <div className="space-y-4">
-        <h2 className="text-3xl font-black tracking-tighter text-slate-900 md:text-4xl">ברוך הבא לבית החדש!</h2>
-        <p className="mx-auto max-w-md font-medium leading-relaxed text-slate-500">
-          כל המסמכים החתומים נשלחו למייל שלך ולבעל הנכס. מעכשיו, הכל מנוהל ב-{BRAND_NAME}.
+      <div className="space-y-6 max-w-2xl px-4">
+        <h2 className="text-4xl md:text-5xl font-black tracking-tight text-slate-900 font-display italic">
+          ברוך הבא לבית החדש!
+        </h2>
+        <p className="text-lg md:text-xl font-bold leading-relaxed text-slate-500">
+          כל המסמכים נחתמו ואובטחו בהצלחה. עותק דיגיטלי נשלח אליך ולבעל הנכס בדקות אלו.
         </p>
       </div>
 
-      <div className="inline-flex flex-col gap-2 rounded-3xl border border-slate-100 bg-slate-50 p-6 shadow-sm">
-        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">מה קורה עכשיו?</p>
-        <p className="text-xs font-bold leading-relaxed text-slate-600">
-          החיוב הקרוב יבוצע אוטומטית • תקבל התראה יומיים לפני • אפשר לדווח על כל תקלה בקליק
-        </p>
+      <div className="grid gap-4 sm:grid-cols-2 w-full max-w-2xl">
+         <div className="p-6 bg-slate-50 rounded-[32px] border border-slate-100 flex flex-col items-center gap-3">
+            <div className="h-10 w-10 bg-white rounded-full flex items-center justify-center shadow-sm text-slate-900">
+               <Calculator size={20} />
+            </div>
+            <p className="text-sm font-black text-slate-900">חיובים אוטומטיים</p>
+            <p className="text-xs font-bold text-slate-500 leading-6">התשלומים יבוצעו לפי התאריכים בחוזה ללא צורך בפעולה נוספת.</p>
+         </div>
+         <div className="p-6 bg-slate-50 rounded-[32px] border border-slate-100 flex flex-col items-center gap-3">
+            <div className="h-10 w-10 bg-white rounded-full flex items-center justify-center shadow-sm text-slate-900">
+               <AlertCircle size={20} />
+            </div>
+            <p className="text-sm font-black text-slate-900">דיווח תקלות</p>
+            <p className="text-xs font-bold text-slate-500 leading-6">מעכשיו תוכל לדווח על כל תקלה בבית ישירות מהדשבורד שלך.</p>
+         </div>
+      </div>
+
+      <div className="pt-4">
+         <span className="px-6 py-2 bg-slate-900 text-white rounded-full text-xs font-black tracking-widest uppercase">
+            תהליך הושלם בבטחה
+         </span>
       </div>
     </div>
   );
 }
 
-export function BDICheckStandalone() {
+export function BDICheckStandalone({
+  users = [],
+  onUpdateUser,
+}: {
+  users?: User[];
+  onUpdateUser?: (userId: string, data: Partial<User>) => void;
+}) {
   const [status, setStatus] = useState<"idle" | "processing" | "success" | "failed">("idle");
+  const [selectedUserId, setSelectedUserId] = useState<string>("");
+  const [lastScore, setLastScore] = useState<number>(0);
 
   const runCheck = () => {
+    if (!selectedUserId) return;
     setStatus("processing");
-    setTimeout(() => setStatus("success"), 2500);
+    const score = 600 + Math.floor(Math.random() * 200);
+    setLastScore(score);
+
+    setTimeout(() => {
+      setStatus("success");
+      if (onUpdateUser) {
+        onUpdateUser(selectedUserId, {
+          bdiStatus: score > 700 ? "green" : score > 650 ? "yellow" : "red",
+        });
+      }
+    }, 2000);
   };
 
+  const selectedUser = users.find((u) => u.id === selectedUserId);
+
   return (
-    <div className="mx-auto max-w-md animate-in zoom-in-95 rounded-[36px] border border-slate-200 bg-white p-6 text-right shadow-2xl duration-500 sm:p-8 md:p-12" dir="rtl">
+    <div
+      className="mx-auto max-w-md animate-in zoom-in-95 rounded-[36px] border border-slate-200 bg-white p-6 text-right shadow-2xl duration-500 sm:p-8 md:p-12"
+      dir="rtl"
+    >
       <div className="mb-12 text-center">
         <div className="mx-auto mb-8 flex h-20 w-20 rotate-3 items-center justify-center rounded-3xl bg-slate-900 text-white shadow-xl shadow-slate-900/20">
           <ShieldCheck size={36} />
         </div>
-        <h2 className="text-3xl font-black tracking-tighter text-slate-900 md:text-4xl">בדיקת זכאות מערכת נתוני אשראי</h2>
-        <p className="mt-3 text-[15px] font-bold text-slate-500">הפק דוח אשראי חתום לזירוז חתימת החוזה</p>
+        <h2 className="text-3xl font-black tracking-tighter text-slate-900 md:text-4xl">
+          בדיקת זכאות מערכת נתוני אשראי
+        </h2>
+        <p className="mt-3 text-[15px] font-bold text-slate-500">
+          כלי ניהולי להפעלת שאילתת BDI ידנית ועדכון סטטוס משתמש
+        </p>
       </div>
 
       {status === "idle" && (
         <div className="space-y-8">
-          <InputField label="מספר תעודת זהות" placeholder="למשל: 312456789" />
+          <div className="space-y-2">
+            <label className="text-[11px] font-black uppercase tracking-widest text-slate-400 mr-2">בחר משתמש לבדיקה</label>
+            <select
+              value={selectedUserId}
+              onChange={(e) => setSelectedUserId(e.target.value)}
+              className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 p-4 text-sm font-bold focus:border-slate-900 focus:outline-none"
+            >
+              <option value="">בחר משתמש...</option>
+              {users
+                .filter((u) => u.role === "tenant")
+                .map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} ({u.email})
+                  </option>
+                ))}
+            </select>
+          </div>
+
           <div className="flex items-start gap-4 rounded-2xl border border-slate-100 bg-slate-50 p-6 shadow-inner">
-            <input type="checkbox" className="mt-1 h-5 w-5 rounded-lg border-2 border-slate-300 text-slate-900 focus:ring-slate-900" />
+            <input
+              type="checkbox"
+              defaultChecked
+              className="mt-1 h-5 w-5 rounded-lg border-2 border-slate-300 text-slate-900 focus:ring-slate-900"
+            />
             <span className="text-[11px] font-black leading-relaxed tracking-[0.1em] text-slate-400">
-              אני מאשר ביצוע בדיקת נתוני אשראי. המידע ישמש להערכת זכאות בלבד • מסלול soft check ללא פגיעה בדירוג
+              ביצוע השאילתה מתועד ביומן המערכת ומשפיע על זכאות המשתמש לחתימה • מסלול soft check
             </span>
           </div>
           <button
             onClick={runCheck}
-            className="w-full rounded-2xl bg-slate-900 py-5 text-[15px] font-black text-white shadow-xl transition-all hover:bg-black active:scale-95"
+            disabled={!selectedUserId}
+            className="w-full rounded-2xl bg-slate-900 py-5 text-[15px] font-black text-white shadow-xl transition-all hover:bg-black active:scale-95 disabled:opacity-30"
           >
-            בצע בדיקה מיידית
+            בצע בדיקה ועדכן DB
           </button>
         </div>
       )}
@@ -955,9 +1208,8 @@ export function BDICheckStandalone() {
           <div className="relative mx-auto mb-10 h-20 w-20 animate-spin rounded-full border-4 border-slate-900 border-t-transparent shadow-xl">
             <div className="absolute inset-0 rounded-full border-4 border-slate-100 opacity-20"></div>
           </div>
-          <p className="animate-pulse text-2xl font-black tracking-tighter text-slate-900">מתחבר למאגרי המידע...</p>
-          <p className="mt-4 text-[11px] font-bold leading-loose tracking-[0.2em] text-slate-400">
-            מערכת נתוני אשראי • מסד נתוני אזרחים • בדיקת עיקולים
+          <p className="animate-pulse text-2xl font-black tracking-tighter text-slate-900">
+            מושך נתונים עבור {selectedUser?.name}...
           </p>
         </div>
       )}
@@ -967,27 +1219,28 @@ export function BDICheckStandalone() {
           <div className="mx-auto mb-10 flex h-28 w-28 rotate-6 scale-110 items-center justify-center rounded-[32px] bg-emerald-500 text-white shadow-2xl">
             <CheckCircle2 size={56} />
           </div>
-          <h3 className="text-4xl font-black tracking-tighter text-slate-900">זכאי! (Grade: A+)</h3>
-          <p className="mt-2 text-[15px] font-bold text-slate-500">ציון מערכת נתוני אשראי שלך מצוין ומאפשר המשך תהליך מיידי.</p>
+          <h3 className="text-4xl font-black tracking-tighter text-slate-900">הבדיקה הושלמה!</h3>
+          <p className="mt-2 text-[15px] font-bold text-slate-500">הסטטוס של {selectedUser?.name} עודכן בהצלחה במערכת.</p>
 
           <div className="group relative mt-12 overflow-hidden rounded-[32px] border border-white/5 bg-slate-950 p-8 text-right shadow-2xl">
             <div className="absolute left-0 top-0 h-1 w-full bg-gradient-to-r from-emerald-500 to-emerald-400"></div>
             <div className="mb-5 flex items-center justify-between">
-              <span className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">ציון אשראי bdi</span>
-              <span className="text-sm font-black uppercase text-emerald-400">מעולה</span>
+              <span className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">ציון אשראי מעודכן</span>
+              <span className="text-sm font-black uppercase text-emerald-400">
+                {lastScore > 700 ? "A+" : "B"}
+              </span>
             </div>
             <div className="flex items-end gap-4">
-              <span className="text-6xl font-black tracking-tighter text-white tabular-nums">782</span>
+              <span className="text-6xl font-black tracking-tighter text-white tabular-nums">{lastScore}</span>
               <span className="mb-3 text-sm font-bold tracking-widest text-slate-600">/ 850</span>
-            </div>
-            <div className="mt-8 h-3 w-full overflow-hidden rounded-full bg-white/5">
-              <div className="h-full w-[88%] rounded-full bg-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.4)]"></div>
             </div>
           </div>
 
-          <button className="mt-12 flex w-full items-center justify-center gap-4 rounded-2xl border-2 border-slate-900 py-5 text-[13px] font-black tracking-[0.2em] text-slate-900 transition-all hover:bg-slate-50 active:scale-95">
-            <span>שלח אסמכתא חתומה למשכיר</span>
-            <ChevronLeft size={20} />
+          <button
+            onClick={() => setStatus("idle")}
+            className="mt-12 w-full rounded-2xl border-2 border-slate-900 py-5 text-[13px] font-black tracking-[0.2em] text-slate-900 transition-all hover:bg-slate-50"
+          >
+            בדיקה נוספת
           </button>
         </div>
       )}
