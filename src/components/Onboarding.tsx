@@ -20,6 +20,7 @@ import {
   ShieldCheck,
   UploadCloud,
   UserCheck,
+  MapPin,
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { Contract, Property, User, UtilityPaymentMode } from "../types";
@@ -442,90 +443,73 @@ function IdentitySetupStep({
   draft: OnboardingDraft;
   onDraftChange: (nextDraft: OnboardingDraft) => void;
 }) {
-  const tenantReady = draft.tenantQrScanned;
-  const landlordReady = draft.landlordQrScanned;
-  const bothReady = tenantReady && landlordReady;
   const contractAddress = contract?.propertyAddress ?? "הנכס המשויך לתהליך";
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <StepHeader
-        title="פרטי משתמש / פתיחת תהליך"
-        subtitle="סריקה של ה-QR האישי לשוכר, מעקב אחר שני המכשירים ואימות זהות לפני המשך לפרטי הדירה."
+        title="אימות זהות ופרטי שוכר"
+        subtitle="נא לוודא את הפרטים האישיים ולהשלים את תהליך אימות הזהות (KYC) כדי שנוכל להתקדם לחוזה."
       />
 
-      <div className="grid gap-5 lg:grid-cols-[1.08fr_0.92fr]">
-        <QrScanCard
-          title="QR שוכר"
-          description="סרוק מהמכשיר של השוכר בלבד. לאחר הסריקה ממשיכים ישירות לאימות זהות ולהשלמת התהליך."
-          scanned={tenantReady}
-          onToggle={() => onDraftChange({ ...draft, tenantQrScanned: !draft.tenantQrScanned })}
-        />
-
-        <div className="rounded-[28px] border border-slate-200 bg-slate-50/70 p-6 shadow-sm">
-          <div className="flex items-start gap-3">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-white">
-              <ArrowLeftRight size={20} />
+      <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
+        {/* Profile Card */}
+        <div className="rounded-[40px] border border-slate-200 bg-white p-8 md:p-10 shadow-2xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 blur-3xl rounded-full -translate-y-1/2 translate-x-1/2"></div>
+          
+          <div className="flex flex-col md:flex-row items-center gap-8 relative z-10">
+            <div className="h-24 w-24 rounded-[32px] bg-slate-900 text-white flex items-center justify-center text-3xl font-black shadow-xl shadow-slate-900/20 group-hover:scale-105 transition-transform">
+              {user.name.charAt(0)}
             </div>
-            <div>
-              <p className="text-lg font-black text-slate-900">ניהול חיבור דו-מכשירי</p>
-              <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-                ה-QR של המשכיר מוצג רק בעמוד המשכיר או במסך ניהול התהליך המשותף. כאן מוצג ה-QR של השוכר בלבד כדי למנוע בלבול.
-              </p>
-              <p className="mt-3 text-xs font-black tracking-[0.12em] text-slate-400">
-                {contractAddress}
-              </p>
+            <div className="text-center md:text-right flex-1">
+               <h3 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight italic">{user.name}</h3>
+               <p className="text-slate-500 font-bold mt-1">{user.email}</p>
+               <div className="mt-6 flex flex-wrap justify-center md:justify-start gap-3">
+                  <div className="px-4 py-2 bg-slate-50 border border-slate-100 rounded-full text-[11px] font-black text-slate-400 tracking-widest uppercase">
+                    סטטוס: שוכר מועמד
+                  </div>
+                  <div className="px-4 py-2 bg-blue-50 border border-blue-100 rounded-full text-[11px] font-black text-blue-600 tracking-widest uppercase">
+                    ID: {user.id.slice(-8)}
+                  </div>
+               </div>
             </div>
           </div>
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            <ProcessStatusPill
-              label="שוכר"
-              value={tenantReady ? "מחובר" : "ממתין לסריקת שוכר"}
-              tone={tenantReady ? "success" : "info"}
-            />
-            <div className="flex flex-col gap-2">
-              <ProcessStatusPill
-                label="משכיר"
-                value={landlordReady ? "מחובר" : "ממתין לסריקת משכיר"}
-                tone={landlordReady ? "success" : "warning"}
-              />
-              {!landlordReady && (
-                <div className="flex flex-col gap-2 mt-1">
-                  <button
-                    onClick={() => {
-                      const text = encodeURIComponent(`היי, אני בתהליך הקמת חוזה דיגיטלי ב-${BRAND_NAME}. אפשר להתחבר כאן כדי לאשר את הפרטים: https://rentflow.co/auth/landlord-sync`);
-                      window.open(`https://wa.me/?text=${text}`, '_blank');
-                    }}
-                    className="flex items-center justify-center gap-2 rounded-xl bg-emerald-50 py-2.5 text-[10px] font-black text-emerald-600 border border-emerald-100 hover:bg-emerald-600 hover:text-white transition-all shadow-sm"
-                  >
-                    <div className="h-4 w-4 bg-emerald-500 rounded-full flex items-center justify-center text-white">
-                      <FileText size={8} />
-                    </div>
-                    <span>שלח קישור למשכיר ב-WhatsApp</span>
-                  </button>
-                  <button
-                    onClick={() => onDraftChange({ ...draft, landlordQrScanned: true })}
-                    className="rounded-xl bg-blue-50 py-2 text-[10px] font-black text-blue-600 border border-blue-100 hover:bg-blue-600 hover:text-white transition-all shadow-sm opacity-60 hover:opacity-100"
-                  >
-                    אישור מהיר (דמו)
-                  </button>
+          <div className="mt-12 pt-10 border-t border-slate-100">
+             <div className="grid gap-8 md:grid-cols-2">
+                <div className="space-y-2">
+                   <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest mr-2">מספר תעודת זהות</label>
+                   <input 
+                    type="text" 
+                    placeholder="הזן 9 ספרות"
+                    className="w-full bg-slate-50 border-2 border-transparent rounded-2xl p-5 text-sm font-bold focus:bg-white focus:border-slate-900 transition-all outline-none"
+                   />
                 </div>
-              )}
-            </div>
+                <div className="space-y-2">
+                   <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest mr-2">מספר טלפון נייד</label>
+                   <input 
+                    type="tel" 
+                    value={user.phone}
+                    readOnly
+                    className="w-full bg-slate-50 border-2 border-transparent rounded-2xl p-5 text-sm font-bold text-slate-400 cursor-not-allowed outline-none"
+                   />
+                </div>
+             </div>
           </div>
+        </div>
 
-          <InfoPanel tone={bothReady ? "success" : "info"} className="mt-5">
-            <QrCode size={22} />
-            <div>
-              <h3>{bothReady ? "שני הצדדים מחוברים" : "המערכת ממתינה להשלמת החיבור"}</h3>
-              <p>
-                {bothReady
-                  ? "שני הצדדים מחוברים וניתן להמשיך לשלב הבא."
-                  : "התהליך תומך בשני מכשירים במקביל. כשהמשכיר יסרוק את ה-QR שלו מהעמוד הייעודי, הסטטוס יתעדכן ותתאפשר התקדמות."}
-              </p>
-            </div>
-          </InfoPanel>
+        {/* Property Context Card */}
+        <div className="rounded-[40px] border border-blue-100 bg-blue-50/50 p-8 flex flex-col items-center justify-center text-center relative overflow-hidden">
+           <div className="h-16 w-16 bg-white rounded-2xl border border-blue-100 flex items-center justify-center text-blue-600 mb-6 shadow-sm">
+              <MapPin size={32} />
+           </div>
+           <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em] mb-2">הנכס שאליו אתה מצטרף</p>
+           <h4 className="text-xl font-black text-slate-900 leading-tight italic">{contractAddress}</h4>
+           <div className="mt-8 w-full h-px bg-blue-100"></div>
+           <div className="mt-8 flex items-center gap-3 bg-white px-6 py-3 rounded-full border border-blue-100">
+              <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div>
+              <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest">ממתין לאימות זהות</span>
+           </div>
         </div>
       </div>
 
