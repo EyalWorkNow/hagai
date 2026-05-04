@@ -23,7 +23,9 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
-  MapPin
+  MapPin,
+  TrendingUp,
+  CheckCircle2,
 } from "lucide-react";
 
 // Local Component Imports
@@ -66,7 +68,7 @@ type AppNavItem = {
  * גרים פה Main Application
  */
 export default function App() {
-  const { db, currentUser: user, siteAccessSession, isReady, logout } = useAppData();
+  const { db, currentUser: user, siteAccessSession, isReady, logout, linkProperty } = useAppData();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -113,6 +115,23 @@ export default function App() {
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
   }, [activeTab, siteAccessSession, showOnboardingFlow, user?.id]);
+
+  // Handle propertyId from URL for already logged-in users
+  useEffect(() => {
+    if (user && user.role === "tenant" && isReady) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const propertyId = urlParams.get("propertyId");
+      if (propertyId) {
+        const hasProperty = db.properties.some(p => p.tenantId === user.id);
+        if (!hasProperty) {
+          linkProperty(user.id, propertyId);
+          setShowOnboardingFlow(true);
+          // Clear URL parameter without refreshing
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      }
+    }
+  }, [user, isReady, db.properties, linkProperty]);
 
   // 1. Initial Loading Screen
   if (!isReady) {
@@ -504,7 +523,7 @@ function MessageUser({ name, collapsed, online, onClick }: { name: string, colla
 
 export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
   const { db, login, register, clearSiteAccess } = useAppData();
-  const [isRegister, setIsRegister] = useState(false);
+  const [isRegister, setIsRegister] = useState(Boolean(propertyId));
   const [showRoleSelection, setShowRoleSelection] = useState(false);
   const [showPropertyBoard, setShowPropertyBoard] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
@@ -519,20 +538,32 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
     password: string;
   } | null>(null);
 
+  // When coming from a QR invite (propertyId present), skip role selection — always register as tenant
   if (showRoleSelection && pendingDraft) {
-     return (
-       <RoleSelection
-         onSelect={(role) => {
-           register({
-             name: pendingDraft.name,
-             email: pendingDraft.email,
-             password: pendingDraft.password,
-             role,
-             propertyId: role === "tenant" ? propertyId : undefined,
-           });
-         }}
-       />
-     );
+    if (propertyId) {
+      // Auto-register as tenant immediately
+      register({
+        name: pendingDraft.name,
+        email: pendingDraft.email,
+        password: pendingDraft.password,
+        role: "tenant",
+        propertyId,
+      });
+      return null;
+    }
+    return (
+      <RoleSelection
+        onSelect={(role) => {
+          register({
+            name: pendingDraft.name,
+            email: pendingDraft.email,
+            password: pendingDraft.password,
+            role,
+            propertyId: role === "tenant" ? propertyId : undefined,
+          });
+        }}
+      />
+    );
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -543,14 +574,29 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
     try {
       if (isRegister) {
         if (!name.trim()) throw new Error("נא להזין שם מלא");
-        setPendingDraft({
-          name: name.trim(),
-          email: email.trim().toLowerCase(),
-          password,
-        });
-        setShowRoleSelection(true);
+        if (!email.trim()) throw new Error("נא להזין כתובת דוא\"ל");
+        if (!password.trim()) throw new Error("נא להזין סיסמה");
+
+        if (propertyId) {
+          // QR invite flow — register directly as tenant, no role selection
+          register({
+            name: name.trim(),
+            email: email.trim().toLowerCase(),
+            password,
+            role: "tenant",
+            propertyId,
+          });
+        } else {
+          // Normal flow — show role selection
+          setPendingDraft({
+            name: name.trim(),
+            email: email.trim().toLowerCase(),
+            password,
+          });
+          setShowRoleSelection(true);
+        }
       } else {
-        login(email, password);
+        login(email, password, propertyId);
       }
     } catch (err: any) {
       console.error(err);
@@ -575,6 +621,7 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
     
     setName(usernameMap[demoEmail] || demoEmail.split('@')[0]);
     setError(null);
+    login(demoEmail, "123123", propertyId);
   };
 
   const handleGoogleStyleLogin = () => {
@@ -616,58 +663,177 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
         alt="Modern Architecture" 
       />
 
-      {propertyId && (
-        <div className="absolute top-10 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-top-10 duration-700">
-           <div className="bg-white/90 backdrop-blur-xl border border-blue-100 px-8 py-4 rounded-[32px] shadow-2xl flex items-center gap-4">
-              <div className="h-12 w-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center shadow-lg">
-                 <MapPin size={24} />
+      {propertyId ? (
+        /* Focused Join Property UI */
+        <div className="relative z-10 w-full max-w-4xl px-4 py-10 md:py-20 flex flex-col items-center">
+          <div className="w-full bg-white/95 backdrop-blur-3xl rounded-[40px] p-8 md:p-16 shadow-[0_50px_100px_rgba(0,0,0,0.4)] border border-white/40 animate-in zoom-in-95 fade-in duration-700">
+             
+             <div className="flex flex-col md:flex-row items-center gap-10 mb-12">
+                <div className="h-32 w-32 md:h-40 md:w-40 bg-slate-900 rounded-[40px] flex items-center justify-center border-4 border-white shadow-2xl shrink-0">
+                   <img src={hagaiLogo} alt="Logo" className="h-20 md:h-24 w-auto object-contain scale-110" />
+                </div>
+                <div className="text-center md:text-right">
+                   <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600/10 text-blue-600 rounded-full mb-4">
+                      <div className="h-2 w-2 rounded-full bg-blue-600 animate-pulse" />
+                      <span className="text-[11px] font-black uppercase tracking-widest">הזמנה להצטרפות לנכס</span>
+                   </div>
+                   <h1 className="text-4xl md:text-6xl font-black text-slate-900 tracking-tighter italic font-display leading-[1.1] mb-4">
+                      הצטרפות לדירה ב-{db.properties.find(p => p.id === propertyId)?.address || "נכס חדש במערכת"}
+                   </h1>
+                   <p className="text-lg font-bold text-slate-500 leading-relaxed">
+                      הוזמנת על ידי המשכיר להתחיל את תהליך השכירות הדיגיטלי ב-{BRAND_NAME}. <br className="hidden md:block" />
+                      וודאות מוחלטת, ביטחון מלא, וללא צ'קים פיזיים.
+                   </p>
+                </div>
+             </div>
+
+             <div className="h-px w-full bg-slate-100 mb-12" />
+
+             <div className="grid md:grid-cols-[1fr_0.8fr] gap-12 items-start">
+                {/* Form Side */}
+                <div className="space-y-8">
+                   <div className="flex items-center gap-4">
+                      <button 
+                        onClick={() => setIsRegister(true)}
+                        className={cn(
+                          "flex-1 py-4 rounded-2xl font-black text-sm transition-all",
+                          isRegister ? "bg-slate-950 text-white shadow-xl" : "bg-slate-50 text-slate-400 hover:bg-slate-100"
+                        )}
+                      >
+                         יצירת חשבון דייר
+                      </button>
+                      <button 
+                        onClick={() => setIsRegister(false)}
+                        className={cn(
+                          "flex-1 py-4 rounded-2xl font-black text-sm transition-all",
+                          !isRegister ? "bg-slate-950 text-white shadow-xl" : "bg-slate-50 text-slate-400 hover:bg-slate-100"
+                        )}
+                      >
+                         כניסת משתמש קיים
+                      </button>
+                   </div>
+
+                   <form onSubmit={handleSubmit} className="space-y-4">
+                      {isRegister && (
+                        <AuthInput
+                          label="שם מלא"
+                          icon={<UserIcon size={18} />}
+                          value={name}
+                          onChange={setName}
+                          placeholder="ישראל ישראלי"
+                          name="name"
+                        />
+                      )}
+                      <AuthInput
+                        label='דוא"ל'
+                        icon={<Mail size={18} />}
+                        value={email}
+                        onChange={setEmail}
+                        placeholder="your@email.com"
+                        type="email"
+                        name="email"
+                      />
+                      <AuthInput
+                        label="סיסמה"
+                        icon={<Lock size={18} />}
+                        value={password}
+                        onChange={setPassword}
+                        placeholder="••••••••"
+                        type="password"
+                        name="password"
+                      />
+
+                      <button 
+                        type="submit"
+                        disabled={isLoading}
+                        className="w-full py-6 bg-blue-600 text-white rounded-[24px] font-black text-lg shadow-2xl hover:bg-blue-700 transition-all active:scale-[0.98] disabled:bg-slate-300 mt-4"
+                      >
+                         {isLoading ? "מעבד..." : isRegister ? "הרשמה והמשך לאונבורדינג" : "כניסה והמשך לאונבורדינג"}
+                      </button>
+                   </form>
+
+                   {error && (
+                      <div className="p-4 bg-red-50 border border-red-100 rounded-2xl text-red-600 text-sm font-bold flex items-center gap-3">
+                         <AlertCircle size={18} />
+                         {error}
+                      </div>
+                   )}
+                </div>
+
+                {/* Info Side */}
+                <div className="space-y-6">
+                   <div className="p-6 rounded-[32px] bg-slate-50 border border-slate-100">
+                      <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-4">מה קורה אחרי ההרשמה?</h3>
+                      <ul className="space-y-4">
+                         {[
+                           { icon: <ShieldCheck size={18} />, text: "אימות זהות (KYC) בטוח ומאובטח" },
+                           { icon: <TrendingUp size={18} />, text: "בדיקת זכאות ודירוג אשראי (BDI)" },
+                           { icon: <FileText size={18} />, text: "חתימה דיגיטלית על חוזה השכירות" },
+                           { icon: <CreditCard size={18} />, text: "הקמת הוראת קבע לחיובים חודשיים" }
+                         ].map((item, i) => (
+                           <li key={i} className="flex items-center gap-3 text-[13px] font-bold text-slate-600">
+                              <div className="h-8 w-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-blue-600 shadow-sm shrink-0">
+                                 {item.icon}
+                              </div>
+                              {item.text}
+                           </li>
+                         ))}
+                      </ul>
+                   </div>
+                   
+                   <div className="p-6 rounded-[32px] bg-blue-600 text-white shadow-xl">
+                      <p className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-2">תמיכה ושאלות</p>
+                      <p className="text-sm font-bold leading-relaxed">זקוק לעזרה בתהליך ההצטרפות? המוקד שלנו זמין עבורך לכל שאלה.</p>
+                      <button className="mt-4 px-6 py-2 bg-white/20 hover:bg-white/30 rounded-full text-[11px] font-black transition-all">
+                         פתיחת צ׳אט תמיכה
+                      </button>
+                   </div>
+                </div>
+             </div>
+          </div>
+        </div>
+      ) : (
+        /* Default Hero Experience */
+        <div className="relative z-10 w-full flex-1 flex flex-col items-center justify-center px-2 py-10 sm:px-4 md:py-20 md:pt-[80px]">
+           <div className="animate-in fade-in slide-in-from-bottom-10 duration-1000 flex flex-col items-center">
+              
+              {/* Centered Logo & Brand */}
+              <div className="mb-8 flex flex-col items-center gap-4">
+                 <div className="h-20 w-20 md:h-24 md:w-24 bg-white/20 backdrop-blur-md rounded-[28px] flex items-center justify-center border border-white/30 shadow-[0_30px_60px_rgba(0,0,0,0.3)] animate-bounce-slow">
+                    <img src={hagaiLogo} alt="Logo" className="h-14 md:h-16 w-auto object-contain scale-[1.2]" />
+                 </div>
+                 <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter italic font-display drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)]">
+                    {BRAND_NAME}
+                 </h1>
               </div>
-              <div className="text-right">
-                 <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-0.5">הוזמנת לנכס</p>
-                 <p className="text-base font-black text-slate-900 italic">{db.properties.find(p => p.id === propertyId)?.address || "נכס חדש במערכת"}</p>
+
+              <h2 className="text-4xl md:text-6xl font-black text-white leading-tight tracking-tighter drop-shadow-2xl italic font-display opacity-90">
+                 מערכת תשלומי<br />שכר דירה חכמה.
+              </h2>
+              
+              <div className="mt-6 flex justify-center w-full px-4 max-w-2xl">
+                 <span className="px-6 py-3 bg-black/30 backdrop-blur-xl border border-white/10 rounded-[24px] text-white font-bold text-sm md:text-base leading-relaxed text-center shadow-2xl">
+                    מחליפים את הצ'קים הפיזיים בביטחון דיגיטלי מלא - וודאות מוחלטת למשכיר, נוחות מקסימלית לשוכר
+                 </span>
+              </div>
+
+              <div className="mt-8 md:mt-10">
+                 <button 
+                    onClick={() => setShowPropertyBoard(true)}
+                    className="flex w-full max-w-[280px] items-center justify-center gap-3 rounded-[24px] bg-white px-8 py-5 text-lg font-black text-slate-900 shadow-[0_20px_40px_rgba(0,0,0,0.3)] transition-all hover:bg-blue-600 hover:text-white active:scale-95 md:w-auto md:max-w-none md:px-12 md:text-xl md:hover:scale-105"
+                 >
+                    <span>שוק דירות</span>
+                    <Home size={24} />
+                 </button>
               </div>
            </div>
         </div>
       )}
-      
-      {/* Main Content Area - Center vertically and horizontally */}
-      <div className="relative z-10 w-full flex-1 flex flex-col items-center justify-center px-2 py-10 sm:px-4 md:py-20 md:pt-[80px]">
-         <div className="animate-in fade-in slide-in-from-bottom-10 duration-1000 flex flex-col items-center">
-            
-            {/* Centered Logo & Brand */}
-            <div className="mb-8 flex flex-col items-center gap-4">
-               <div className="h-20 w-20 md:h-24 md:w-24 bg-white/20 backdrop-blur-md rounded-[28px] flex items-center justify-center border border-white/30 shadow-[0_30px_60px_rgba(0,0,0,0.3)] animate-bounce-slow">
-                  <img src={hagaiLogo} alt="Logo" className="h-14 md:h-16 w-auto object-contain scale-[1.2]" />
-               </div>
-               <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter italic font-display drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)]">
-                  {BRAND_NAME}
-               </h1>
-            </div>
 
-            <h2 className="text-4xl md:text-6xl font-black text-white leading-tight tracking-tighter drop-shadow-2xl italic font-display opacity-90">
-               מערכת תשלומי<br />שכר דירה חכמה.
-            </h2>
-            
-            <div className="mt-6 flex justify-center w-full px-4 max-w-2xl">
-               <span className="px-6 py-3 bg-black/30 backdrop-blur-xl border border-white/10 rounded-[24px] text-white font-bold text-sm md:text-base leading-relaxed text-center shadow-2xl">
-                  מחליפים את הצ'קים הפיזיים בביטחון דיגיטלי מלא - וודאות מוחלטת למשכיר, נוחות מקסימלית לשוכר
-               </span>
-            </div>
+      {/* 5. Combined Login & Stats Command Bar (Only shown if NOT in focused join flow) */}
+      {!propertyId && (
+        <div className="relative z-30 flex w-full max-w-full flex-col items-center gap-4 px-0 pb-8 md:fixed md:bottom-8 md:left-1/2 md:max-w-7xl md:-translate-x-1/2 md:gap-6 md:px-4 md:pb-0">
 
-            <div className="mt-8 md:mt-10">
-               <button 
-                  onClick={() => setShowPropertyBoard(true)}
-                  className="flex w-full max-w-[280px] items-center justify-center gap-3 rounded-[24px] bg-white px-8 py-5 text-lg font-black text-slate-900 shadow-[0_20px_40px_rgba(0,0,0,0.3)] transition-all hover:bg-blue-600 hover:text-white active:scale-95 md:w-auto md:max-w-none md:px-12 md:text-xl md:hover:scale-105"
-               >
-                  <span>שוק דירות</span>
-                  <Home size={24} />
-               </button>
-            </div>
-         </div>
-      </div>
-
-      {/* 5. Combined Login & Stats Command Bar */}
-      <div className="relative z-30 flex w-full max-w-full flex-col items-center gap-4 px-0 pb-8 md:fixed md:bottom-8 md:left-1/2 md:max-w-7xl md:-translate-x-1/2 md:gap-6 md:px-4 md:pb-0">
          
          {/* Unified "Command Bar" for Login + Stats (Darkened Glass) */}
          <div className="bg-white/90 backdrop-blur-3xl rounded-[32px] md:rounded-[48px] p-5 md:p-10 border border-white/40 shadow-[0_40px_100px_rgba(0,0,0,0.5)] w-full flex flex-col gap-5 md:gap-10">
@@ -741,7 +907,8 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
             <div className="h-3 w-px bg-slate-200"></div>
             <QuickAccessBtn icon={<UserPlus size={14} />} label="מועמד" onClick={() => handleDemoLogin("noa@example.com")} />
          </div>
-      </div>
+        </div>
+      )}
 
       {/* Property Board Modal */}
       {showPropertyBoard && (

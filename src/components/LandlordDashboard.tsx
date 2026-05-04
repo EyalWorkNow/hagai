@@ -26,7 +26,9 @@ import {
   X,
   ChevronRight,
   Database,
-  Info
+  Info,
+  Copy,
+  Link2
 } from "lucide-react";
 import { Property, Payment, User, Contract } from "../types";
 import { cn } from "../lib/utils";
@@ -843,6 +845,17 @@ function InviteTenantModal({
                   הצג את הקוד לשוכר לסריקה. לאחר הסריקה הוא יועבר ישירות לתהליך ההרשמה במכשיר שלו.
                 </p>
                 <div className="mt-6 flex flex-col w-full gap-3">
+                  <button 
+                    onClick={() => {
+                      const link = window.location.origin + "/?propertyId=" + property.id;
+                      navigator.clipboard.writeText(link);
+                      alert("הקישור הועתק ללוח!");
+                    }}
+                    className="w-full py-3 bg-slate-100 text-slate-900 rounded-xl font-black text-xs hover:bg-slate-200 active:scale-95 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Copy size={14} />
+                    <span>העתק קישור להצטרפות</span>
+                  </button>
                   <button 
                     onClick={() => {
                       const link = window.location.origin + "/?propertyId=" + property.id;

@@ -128,8 +128,9 @@ type AppDataContextValue = {
   isReady: boolean;
   requestSiteAccess: (username: string, password: string) => void;
   clearSiteAccess: () => void;
-  login: (email: string, password: string) => void;
+  login: (email: string, password: string, propertyId?: string) => void;
   register: (payload: RegisterPayload) => void;
+  linkProperty: (userId: string, propertyId: string) => void;
   logout: () => void;
   resetDatabase: () => void;
   updateUser: (userId: string, patch: Partial<User>) => void;
@@ -465,7 +466,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const login = (email: string, password: string) => {
+  const login = (email: string, password: string, propertyId?: string) => {
     const normalizedEmail = email.trim().toLowerCase();
     const account = db.authAccounts.find(
       (candidate) =>
@@ -480,6 +481,43 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     // This allows the user to re-experience the onboarding flow as requested.
     if (normalizedEmail === "noa@example.com") {
       restartOnboarding(account.userId);
+    }
+
+    // Link property if provided for existing tenant
+    if (propertyId) {
+      applyDbUpdate((nextDb) => {
+        const user = findUser(nextDb, account.userId);
+        if (user && user.role === "tenant") {
+          const property = nextDb.properties.find(p => p.id === propertyId);
+          if (property && !property.tenantId) {
+            property.tenantId = user.id;
+            property.status = "occupied";
+            
+            // Ensure contract exists
+            let contract = findOnboardingContract(nextDb, user.id);
+            if (!contract) {
+              const contractId = buildId("contract");
+              nextDb.contracts.unshift({
+                id: contractId,
+                propertyId: property.id,
+                propertyAddress: property.address,
+                landlordId: property.landlordId,
+                tenantId: user.id,
+                tenantName: user.name,
+                rentAmount: property.rent,
+                buildingCommitteeAmount: property.costs?.buildingCommittee ?? 0,
+                arnonaAmount: property.costs?.arnona ?? 0,
+                utilityPaymentMode: "separate",
+                monthlyPaymentAmount: property.rent,
+                status: "waiting_kyc",
+                guaranteeType: "bank_guarantee",
+                createdAt: nowIso(),
+                templateId: "template_standard",
+              });
+            }
+          }
+        }
+      });
     }
 
     setSession({ userId: account.userId });
@@ -527,16 +565,81 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         createdAt: nowIso(),
       });
 
-      // Link property if provided for new tenant
+      // Link property and create contract if provided for new tenant
       if (role === "tenant" && propertyId) {
         const property = nextDb.properties.find(p => p.id === propertyId);
         if (property) {
           property.tenantId = userId;
           property.status = "occupied";
+
+          // Create onboarding contract
+          const contractId = buildId("contract");
+          nextDb.contracts.unshift({
+            id: contractId,
+            propertyId: property.id,
+            propertyAddress: property.address,
+            landlordId: property.landlordId,
+            tenantId: userId,
+            tenantName: name,
+            rentAmount: property.rent,
+            buildingCommitteeAmount: property.costs?.buildingCommittee ?? 0,
+            arnonaAmount: property.costs?.arnona ?? 0,
+            utilityPaymentMode: "separate",
+            monthlyPaymentAmount: property.rent,
+            status: "waiting_kyc",
+            guaranteeType: "bank_guarantee",
+            createdAt: nowIso(),
+            templateId: "template_standard",
+          });
+          
+          nextDb.documents.unshift({
+            id: buildId("document"),
+            ownerType: "contract",
+            ownerId: contractId,
+            label: "טיוטת חוזה שכירות",
+            category: "contract",
+            status: "pending",
+          });
         }
       }
     });
     setSession({ userId });
+  };
+
+  const linkProperty = (userId: string, propertyId: string) => {
+    applyDbUpdate((nextDb) => {
+      const user = findUser(nextDb, userId);
+      if (!user || user.role !== "tenant") return;
+
+      const property = nextDb.properties.find(p => p.id === propertyId);
+      if (property && !property.tenantId) {
+        property.tenantId = user.id;
+        property.status = "occupied";
+        
+        // Ensure contract exists
+        let contract = findOnboardingContract(nextDb, user.id);
+        if (!contract) {
+          const contractId = buildId("contract");
+          nextDb.contracts.unshift({
+            id: contractId,
+            propertyId: property.id,
+            propertyAddress: property.address,
+            landlordId: property.landlordId,
+            tenantId: user.id,
+            tenantName: user.name,
+            rentAmount: property.rent,
+            buildingCommitteeAmount: property.costs?.buildingCommittee ?? 0,
+            arnonaAmount: property.costs?.arnona ?? 0,
+            utilityPaymentMode: "separate",
+            monthlyPaymentAmount: property.rent,
+            status: "waiting_kyc",
+            guaranteeType: "bank_guarantee",
+            createdAt: nowIso(),
+            templateId: "template_standard",
+          });
+        }
+      }
+    });
   };
 
   const logout = () => {
@@ -1268,6 +1371,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         createUtilityCharge,
         createDebtLetter,
         restartOnboarding,
+        linkProperty,
       }}
     >
       {children}

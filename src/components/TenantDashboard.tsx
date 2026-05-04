@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   Wrench,
   X,
+  Link2,
 } from "lucide-react";
 import { Contract, Payment, Property, ServiceCall, User } from "../types";
 import { cn } from "../lib/utils";
@@ -527,11 +528,24 @@ function TenantJoinProcessCard({
           <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
             ה-QR המוצג כאן מיועד לשוכר בלבד. ה-QR של המשכיר מופיע רק בעמוד המשכיר או במסך התהליך המשותף.
           </p>
+          <button 
+            onClick={() => {
+              const link = window.location.origin + "/?propertyId=" + (contract?.propertyId || "");
+              navigator.clipboard.writeText(link);
+              alert("הקישור הועתק ללוח!");
+            }}
+            className="mt-3 flex items-center gap-2 text-xs font-black text-blue-600 hover:text-blue-700 transition-colors"
+          >
+            <Link2 size={14} />
+            <span>העתק קישור להצטרפות</span>
+          </button>
         </div>
-        <div className="grid h-14 w-14 shrink-0 grid-cols-3 gap-1 rounded-[18px] bg-slate-950 p-3 md:h-16 md:w-16 md:rounded-[20px]">
-          {Array.from({ length: 9 }).map((_, index) => (
-            <span key={index} className={cn("rounded-sm", [0, 2, 4, 6, 8].includes(index) ? "bg-white" : "bg-white/25")} />
-          ))}
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[18px] bg-white p-1 md:h-16 md:w-16 md:rounded-[20px] shadow-sm">
+          <img 
+            src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(window.location.origin + "/?propertyId=" + (contract?.propertyId || ""))}`}
+            alt="Process QR"
+            className="h-full w-full object-contain"
+          />
         </div>
       </div>
 

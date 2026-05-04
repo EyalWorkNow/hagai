@@ -1310,19 +1310,15 @@ function QrScanCard({
     >
       <div
         className={cn(
-          "grid h-24 w-24 shrink-0 grid-cols-3 gap-1 rounded-3xl p-4 sm:h-28 sm:w-28",
-          scanned ? "bg-emerald-500" : "bg-slate-950",
+          "flex h-24 w-24 shrink-0 items-center justify-center rounded-3xl p-2 sm:h-28 sm:w-28 bg-white shadow-inner",
+          scanned ? "border-2 border-emerald-500" : "border-2 border-slate-900",
         )}
       >
-        {Array.from({ length: 9 }).map((_, index) => (
-          <span
-            key={index}
-            className={cn(
-              "rounded-sm",
-              [0, 2, 4, 6, 8].includes(index) ? "bg-white" : "bg-white/25",
-            )}
-          />
-        ))}
+        <img 
+          src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(window.location.origin + "/onboarding")}`}
+          alt="QR Code"
+          className="h-full w-full object-contain"
+        />
       </div>
       <div className="min-w-0">
         <div className="mb-3 flex items-center justify-center gap-2 sm:justify-start">
