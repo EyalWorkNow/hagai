@@ -31,6 +31,8 @@
   body,
   #root {
     min-height: 100%;
+    width: 100%;
+    overflow-x: hidden;
   }
 
   body {
@@ -39,6 +41,7 @@
     direction: rtl;
     text-align: right;
     -webkit-text-size-adjust: 100%;
+    overscroll-behavior-x: none;
   }
 
   input,

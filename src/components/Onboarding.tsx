@@ -34,7 +34,7 @@ interface OnboardingProps {
   onLogout: () => void;
 }
 
-type StepId = "identity" | "property" | "bank_auth" | "signature" | "finish";
+type StepId = "identity" | "property" | "credit" | "bank_auth" | "signature" | "finish";
 
 type StepMeta = {
   id: StepId;
@@ -180,7 +180,7 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
     (currentStep === 0 && user.kycStatus === "approved" && !hasRequiredQr) ||
     (currentStep === 1 && (!hasRequiredDocuments || draft.rentAmount <= 0)) ||
     (currentStep === 2 && !draft.creditConsent && !isCreditApproved) ||
-    (currentStep === 5 && !canSign);
+    (currentStep === 4 && !canSign);
 
   const handleNext = async () => {
     if (isPrimaryDisabled) return;
@@ -261,28 +261,28 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-100 p-3 text-right sm:p-4" dir="rtl">
-      <div className="mb-5 flex w-full max-w-5xl flex-col gap-4 px-1 sm:mb-7 sm:flex-row sm:items-center sm:justify-between sm:px-2">
-        <div className="flex items-center gap-4">
-          <img src={hagaiLogo} alt={BRAND_NAME} className="h-16 w-auto object-contain drop-shadow-sm" />
-          <div>
-            <span className="text-2xl font-black text-slate-900 tracking-tighter font-display">
+    <div className="flex min-h-screen flex-col items-center justify-start overflow-x-hidden bg-slate-100 px-3 py-4 text-right sm:p-4 md:justify-center" dir="rtl">
+      <div className="mb-4 flex w-full max-w-5xl flex-col gap-4 px-1 sm:mb-6 sm:px-2 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-4 justify-center md:justify-start">
+          <img src={hagaiLogo} alt={BRAND_NAME} className="h-14 w-auto object-contain md:h-16" />
+          <div className="text-right">
+            <span className="text-xl md:text-2xl font-black text-slate-900 tracking-tighter font-display italic leading-none">
               {BRAND_NAME}
             </span>
-            <p className="text-[11px] font-black text-slate-400">{BRAND_SLOGAN}</p>
+            <p className="text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-widest mt-1">{BRAND_SLOGAN}</p>
           </div>
         </div>
         <button
           onClick={onLogout}
-          className="flex items-center justify-center gap-3 rounded-2xl border border-slate-100 bg-white px-5 py-2.5 text-[13px] font-bold text-slate-600 shadow-sm transition-colors hover:text-red-500"
+          className="flex items-center justify-center gap-3 rounded-2xl border border-slate-100 bg-white px-5 py-3 text-[13px] font-bold text-slate-600 shadow-sm transition-all hover:bg-slate-50 active:scale-95 md:px-6"
         >
           <LogOut size={16} />
-          <span>יציאה</span>
+          <span>יציאה מהחשבון</span>
         </button>
       </div>
 
-      <div className="w-full max-w-5xl overflow-visible rounded-[28px] border border-slate-200 bg-white shadow-2xl sm:rounded-[32px]">
-        <div className="grid grid-cols-2 gap-3 border-b border-slate-100 bg-slate-50/60 p-3 sm:grid-cols-3 md:grid-cols-5 md:p-5">
+      <div className="w-full max-w-5xl overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-2xl md:rounded-[40px]">
+        <div className="grid grid-cols-2 gap-2 border-b border-slate-100 bg-slate-50/60 p-2 sm:grid-cols-3 md:grid-cols-6 md:p-4">
           {STEPS.map((step, index) => (
             <StepIndicator
               key={step.id}
@@ -298,7 +298,7 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
           ))}
         </div>
 
-        <div className="min-h-[460px] p-4 sm:p-6 md:p-10">
+        <div className="min-h-[420px] p-4 sm:p-6 md:min-h-[460px] md:p-10">
           <AnimatePresence mode="wait">
             <motion.div
               key={currentStep}
@@ -306,7 +306,7 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -16 }}
               transition={{ duration: 0.25, ease: "easeOut" }}
-              className="space-y-8"
+              className="space-y-6 md:space-y-8"
             >
               <StepContent
                 stepIndex={currentStep}
@@ -324,11 +324,11 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
           </AnimatePresence>
         </div>
 
-        <div className="flex flex-col-reverse items-center justify-between gap-4 border-t bg-slate-50/50 p-4 sm:p-6 md:flex-row md:p-8">
+        <div className="flex flex-col-reverse items-center justify-between gap-3 border-t bg-slate-50/50 p-4 sm:p-6 md:flex-row md:gap-4 md:p-8">
           <button
             onClick={handleBack}
             disabled={currentStep === 0 || isProcessing || currentStep === STEPS.length - 1}
-            className="flex w-full items-center justify-center gap-3 rounded-2xl border border-slate-200 py-4 text-xs font-black uppercase tracking-widest text-slate-400 transition-colors hover:text-slate-900 disabled:opacity-30 md:w-auto md:border-none md:py-0"
+            className="flex w-full items-center justify-center gap-3 rounded-2xl border border-slate-200 py-3 text-xs font-black uppercase tracking-widest text-slate-400 transition-colors hover:text-slate-900 disabled:opacity-30 md:w-auto md:border-none md:py-0"
           >
             <ChevronRight size={18} />
             <span>שלב קודם</span>
@@ -337,7 +337,7 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
           <button
             onClick={handleNext}
             disabled={isPrimaryDisabled}
-            className="flex w-full items-center justify-center gap-3 rounded-2xl bg-slate-900 px-7 py-4 text-[13px] font-black text-white shadow-xl transition-all hover:bg-black active:scale-95 disabled:bg-slate-300 disabled:shadow-none md:w-auto md:px-10 md:text-[14px]"
+            className="flex w-full items-center justify-center gap-3 rounded-2xl bg-slate-900 px-7 py-3.5 text-[13px] font-black text-white shadow-xl transition-all hover:bg-black active:scale-95 disabled:bg-slate-300 disabled:shadow-none md:w-auto md:px-10 md:py-4 md:text-[14px]"
           >
             {isProcessing ? (
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
@@ -446,25 +446,25 @@ function IdentitySetupStep({
   const contractAddress = contract?.propertyAddress ?? "הנכס המשויך לתהליך";
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-700 md:space-y-8">
       <StepHeader
         title="אימות זהות ופרטי שוכר"
         subtitle="נא לוודא את הפרטים האישיים ולהשלים את תהליך אימות הזהות (KYC) כדי שנוכל להתקדם לחוזה."
       />
 
-      <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
+      <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr] lg:gap-8">
         {/* Profile Card */}
-        <div className="rounded-[40px] border border-slate-200 bg-white p-8 md:p-10 shadow-2xl relative overflow-hidden group">
+        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-2xl relative overflow-hidden group md:rounded-[40px] md:p-10">
           <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 blur-3xl rounded-full -translate-y-1/2 translate-x-1/2"></div>
           
-          <div className="flex flex-col md:flex-row items-center gap-8 relative z-10">
-            <div className="h-24 w-24 rounded-[32px] bg-slate-900 text-white flex items-center justify-center text-3xl font-black shadow-xl shadow-slate-900/20 group-hover:scale-105 transition-transform">
+          <div className="flex flex-col items-center gap-5 relative z-10 md:flex-row md:gap-8">
+            <div className="h-20 w-20 rounded-[28px] bg-slate-900 text-white flex items-center justify-center text-2xl font-black shadow-xl shadow-slate-900/20 group-hover:scale-105 transition-transform md:h-24 md:w-24 md:rounded-[32px] md:text-3xl">
               {user.name.charAt(0)}
             </div>
             <div className="text-center md:text-right flex-1">
                <h3 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight italic">{user.name}</h3>
                <p className="text-slate-500 font-bold mt-1">{user.email}</p>
-               <div className="mt-6 flex flex-wrap justify-center md:justify-start gap-3">
+               <div className="mt-5 flex flex-wrap justify-center gap-2 md:mt-6 md:justify-start md:gap-3">
                   <div className="px-4 py-2 bg-slate-50 border border-slate-100 rounded-full text-[11px] font-black text-slate-400 tracking-widest uppercase">
                     סטטוס: שוכר מועמד
                   </div>
@@ -475,14 +475,14 @@ function IdentitySetupStep({
             </div>
           </div>
 
-          <div className="mt-12 pt-10 border-t border-slate-100">
-             <div className="grid gap-8 md:grid-cols-2">
+          <div className="mt-8 border-t border-slate-100 pt-6 md:mt-12 md:pt-10">
+             <div className="grid gap-4 md:grid-cols-2 md:gap-8">
                 <div className="space-y-2">
                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest mr-2">מספר תעודת זהות</label>
                    <input 
                     type="text" 
                     placeholder="הזן 9 ספרות"
-                    className="w-full bg-slate-50 border-2 border-transparent rounded-2xl p-5 text-sm font-bold focus:bg-white focus:border-slate-900 transition-all outline-none"
+                    className="w-full bg-slate-50 border-2 border-transparent rounded-2xl p-4 text-sm font-bold focus:bg-white focus:border-slate-900 transition-all outline-none md:p-5"
                    />
                 </div>
                 <div className="space-y-2">
@@ -491,7 +491,7 @@ function IdentitySetupStep({
                     type="tel" 
                     value={user.phone}
                     readOnly
-                    className="w-full bg-slate-50 border-2 border-transparent rounded-2xl p-5 text-sm font-bold text-slate-400 cursor-not-allowed outline-none"
+                    className="w-full bg-slate-50 border-2 border-transparent rounded-2xl p-4 text-sm font-bold text-slate-400 cursor-not-allowed outline-none md:p-5"
                    />
                 </div>
              </div>
@@ -499,14 +499,14 @@ function IdentitySetupStep({
         </div>
 
         {/* Property Context Card */}
-        <div className="rounded-[40px] border border-blue-100 bg-blue-50/50 p-8 flex flex-col items-center justify-center text-center relative overflow-hidden">
+        <div className="rounded-[28px] border border-blue-100 bg-blue-50/50 p-5 flex flex-col items-center justify-center text-center relative overflow-hidden md:rounded-[40px] md:p-8">
            <div className="h-16 w-16 bg-white rounded-2xl border border-blue-100 flex items-center justify-center text-blue-600 mb-6 shadow-sm">
               <MapPin size={32} />
            </div>
            <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em] mb-2">הנכס שאליו אתה מצטרף</p>
            <h4 className="text-xl font-black text-slate-900 leading-tight italic">{contractAddress}</h4>
-           <div className="mt-8 w-full h-px bg-blue-100"></div>
-           <div className="mt-8 flex items-center gap-3 bg-white px-6 py-3 rounded-full border border-blue-100">
+           <div className="mt-6 w-full h-px bg-blue-100 md:mt-8"></div>
+           <div className="mt-6 flex items-center gap-3 bg-white px-5 py-3 rounded-full border border-blue-100 md:mt-8 md:px-6">
               <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div>
               <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest">ממתין לאימות זהות</span>
            </div>
@@ -559,14 +559,14 @@ function PropertyStep({
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 md:space-y-8">
       <StepHeader
         title="פרטי דירה"
         subtitle="עדכון נתוני הדירה, העלאת חוזה ואישור הסעיפים לפני מעבר להקמת הוראת הקבע."
       />
 
       <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
-        <div className="space-y-5 rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="space-y-5 rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm md:rounded-[32px] md:p-6">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white">
               <Building2 size={22} />
@@ -679,14 +679,14 @@ function PropertyStep({
         </div>
       </div>
 
-      <div className="rounded-[32px] bg-slate-950 p-6 text-white shadow-2xl">
+      <div className="rounded-[28px] bg-slate-950 p-5 text-white shadow-2xl md:rounded-[32px] md:p-6">
         <div className="flex items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-blue-300">
             <Calculator size={22} />
           </div>
           <div>
             <p className="text-sm font-black text-slate-400">תשלום חודשי סופי</p>
-            <p className="text-4xl font-black tracking-tight tabular-nums">
+            <p className="text-3xl font-black tracking-tight tabular-nums md:text-4xl">
               {formatCurrency(monthlyPayment)}
             </p>
           </div>
@@ -739,14 +739,14 @@ function BankAuthorizationStep({
   const selectedBank = draft.bankId;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 md:space-y-8">
       <StepHeader
         title="הקמת הרשאה לחיוב חשבון"
         subtitle="הוספת פרטי הבנק שלך לצורך הקמת הרשאה לחיוב שוטף ומאובטח."
       />
 
       <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-[32px] border border-slate-200 bg-white p-8 shadow-sm">
+        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm md:rounded-[32px] md:p-8">
           <div className="mb-8 flex items-center gap-4">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg">
               <Landmark size={26} />
@@ -800,7 +800,7 @@ function BankAuthorizationStep({
           </div>
         </div>
 
-        <div className="rounded-[32px] bg-slate-950 p-8 text-white shadow-2xl flex flex-col justify-between">
+        <div className="rounded-[28px] bg-slate-950 p-5 text-white shadow-2xl flex flex-col justify-between md:rounded-[32px] md:p-8">
           <div>
             <div className="mb-8 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 text-blue-400">
                <Landmark size={32} />
@@ -808,7 +808,7 @@ function BankAuthorizationStep({
             <p className="text-[11px] font-black tracking-[0.14em] text-slate-500 uppercase">
                פעולה מאובטחת
             </p>
-            <h3 className="mt-4 text-3xl font-black tracking-tight leading-tight">
+            <h3 className="mt-4 text-2xl font-black tracking-tight leading-tight md:text-3xl">
                הקמת הרשאה לחיוב חשבון
             </h3>
             <p className="mt-6 text-sm font-bold leading-8 text-slate-300">
@@ -816,7 +816,7 @@ function BankAuthorizationStep({
             </p>
           </div>
 
-          <div className="mt-12 rounded-[28px] border border-white/10 bg-white/5 p-6 relative overflow-hidden">
+          <div className="mt-8 rounded-[24px] border border-white/10 bg-white/5 p-5 relative overflow-hidden md:mt-12 md:rounded-[28px] md:p-6">
             <div className="relative z-10">
                <p className="text-xs font-black tracking-[0.12em] text-slate-400">חיווי מערכת</p>
                <p className="mt-3 text-2xl font-black italic font-display">המשך לאישור</p>
@@ -850,14 +850,14 @@ function CreditCheckStep({
   const isPending = eligibilityStatus === "pending";
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 md:space-y-8">
       <StepHeader
         title="בדיקת זכאות ודירוג אשראי"
         subtitle="לפני הקמת ההרשאה לחיוב, המערכת מבצעת בדיקת זכאות פיננסית כדי להבטיח את אמינות התשלומים."
       />
 
       <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-[32px] border border-slate-200 bg-white p-8 shadow-sm">
+        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm md:rounded-[32px] md:p-8">
           <div className="mb-8 flex items-center gap-4">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg">
               <ShieldCheck size={26} />
@@ -870,7 +870,7 @@ function CreditCheckStep({
 
           {!approved && !rejected && (
              <div className="space-y-6">
-                <label className="flex cursor-pointer items-start gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-6 transition-all hover:bg-white hover:border-blue-200">
+                <label className="flex cursor-pointer items-start gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-5 transition-all hover:bg-white hover:border-blue-200 md:p-6">
                   <input
                     type="checkbox"
                     checked={draft.creditConsent}
@@ -896,7 +896,7 @@ function CreditCheckStep({
 
           {rejected && (
             <div className="space-y-4 mt-4">
-              <InfoPanel tone="error">
+              <InfoPanel tone="danger">
                 <AlertCircle size={24} />
                 <div>
                     <p className="text-lg font-black">לא ניתן לאשר זכאות כרגע</p>
@@ -920,10 +920,10 @@ function CreditCheckStep({
           )}
         </div>
 
-        <div className="rounded-[32px] bg-slate-950 p-8 text-white shadow-2xl flex flex-col justify-between">
+        <div className="rounded-[28px] bg-slate-950 p-5 text-white shadow-2xl flex flex-col justify-between md:rounded-[32px] md:p-8">
            <div>
               <p className="text-[11px] font-black tracking-[0.14em] text-slate-500 uppercase">מידע חשוב</p>
-              <h3 className="mt-4 text-3xl font-black tracking-tight leading-tight italic font-display">מדוע נדרשת בדיקה?</h3>
+              <h3 className="mt-4 text-2xl font-black tracking-tight leading-tight italic font-display md:text-3xl">מדוע נדרשת בדיקה?</h3>
               <p className="mt-6 text-sm font-bold leading-8 text-slate-300">
                 בדיקת האשראי מאפשרת לנו להעניק בטחון מלא למשכיר ולוודא שהתהליך הדיגיטלי מתבצע באחריות פיננסית מלאה. הבדיקה אינה פוגעת בדירוג האשראי שלך.
               </p>
@@ -965,7 +965,7 @@ function SignatureStep({
   const rejected = user.bdiStatus === "red";
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 md:space-y-8">
       <StepHeader
         title="חתימה דיגיטלית מאובטחת"
         subtitle="לאחר אישור הזכאות והקמת ההרשאה, ניתן לסיים את החוזה ואת שטר החוב בחתימה אחת."
@@ -1235,8 +1235,8 @@ export function BDICheckStandalone({
 function StepHeader({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <div className="mx-auto max-w-2xl text-center">
-      <h2 className="text-3xl font-black tracking-tight text-slate-900 md:text-4xl">{title}</h2>
-      <p className="mt-4 text-[14px] font-bold leading-7 text-slate-500 md:text-[15px]">{subtitle}</p>
+      <h2 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl md:text-4xl">{title}</h2>
+      <p className="mt-3 text-[13px] font-bold leading-7 text-slate-500 md:mt-4 md:text-[15px]">{subtitle}</p>
     </div>
   );
 }
@@ -1268,10 +1268,10 @@ function StepIndicator({
         canNavigate ? "cursor-pointer hover:border-slate-900" : "cursor-default",
       )}
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
         <div
           className={cn(
-            "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all",
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all sm:h-10 sm:w-10",
             isActive ? "bg-slate-900 text-white" : "bg-white text-slate-300",
           )}
         >
@@ -1279,7 +1279,7 @@ function StepIndicator({
         </div>
         <div className="min-w-0">
           <p className="truncate text-[10px] font-black text-slate-400">שלב {index + 1}</p>
-          <p className="truncate text-[12px] font-black">{step.title}</p>
+          <p className="text-[12px] font-black leading-5 sm:truncate">{step.title}</p>
         </div>
       </div>
     </button>
@@ -1302,7 +1302,7 @@ function QrScanCard({
       type="button"
       onClick={onToggle}
       className={cn(
-        "flex min-h-[190px] items-center gap-5 rounded-[28px] border p-5 text-right shadow-sm transition-all",
+        "flex min-h-[170px] flex-col items-center gap-4 rounded-[24px] border p-5 text-center shadow-sm transition-all sm:min-h-[190px] sm:flex-row sm:gap-5 sm:rounded-[28px] sm:text-right",
         scanned
           ? "border-emerald-200 bg-emerald-50"
           : "border-slate-200 bg-white hover:border-slate-900",
@@ -1310,7 +1310,7 @@ function QrScanCard({
     >
       <div
         className={cn(
-          "grid h-28 w-28 shrink-0 grid-cols-3 gap-1 rounded-3xl p-4",
+          "grid h-24 w-24 shrink-0 grid-cols-3 gap-1 rounded-3xl p-4 sm:h-28 sm:w-28",
           scanned ? "bg-emerald-500" : "bg-slate-950",
         )}
       >
@@ -1325,7 +1325,7 @@ function QrScanCard({
         ))}
       </div>
       <div className="min-w-0">
-        <div className="mb-3 flex items-center gap-2">
+        <div className="mb-3 flex items-center justify-center gap-2 sm:justify-start">
           <QrCode size={20} className={scanned ? "text-emerald-700" : "text-slate-500"} />
           <h3 className="text-lg font-black text-slate-900">{title}</h3>
         </div>
@@ -1381,7 +1381,7 @@ function UploadCard({
   return (
     <div
       className={cn(
-        "relative flex aspect-video flex-col items-center justify-center rounded-[28px] border-2 border-dashed p-6 text-center transition-all",
+        "relative flex min-h-[168px] flex-col items-center justify-center rounded-[24px] border-2 border-dashed p-5 text-center transition-all sm:aspect-video sm:min-h-0 sm:rounded-[28px] sm:p-6",
         complete ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50/50",
       )}
     >
@@ -1390,10 +1390,10 @@ function UploadCard({
           <CheckCircle2 size={16} />
         </div>
       )}
-      <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-slate-100 bg-white text-slate-400">
+      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-100 bg-white text-slate-400 sm:mb-6 sm:h-16 sm:w-16">
         {icon}
       </div>
-      <span className="text-[17px] font-black text-slate-900">{label}</span>
+      <span className="text-[16px] font-black text-slate-900 sm:text-[17px]">{label}</span>
       {sub && <span className="mt-2 text-[11px] font-bold tracking-[0.1em] text-slate-400">{sub}</span>}
     </div>
   );
@@ -1473,7 +1473,7 @@ function SignatureDocumentCard({
   return (
     <div
       className={cn(
-        "rounded-[28px] border p-6 shadow-sm",
+        "rounded-[24px] border p-5 shadow-sm md:rounded-[28px] md:p-6",
         complete ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50",
       )}
     >
@@ -1526,7 +1526,7 @@ function InfoPanel({
   return (
     <div
       className={cn(
-        "flex items-start gap-4 rounded-[28px] border p-5 text-right",
+        "flex items-start gap-3 rounded-[24px] border p-4 text-right md:gap-4 md:rounded-[28px] md:p-5",
         tone === "info" && "border-blue-100 bg-blue-50 text-blue-800",
         tone === "success" && "border-emerald-100 bg-emerald-50 text-emerald-800",
         tone === "danger" && "border-rose-100 bg-rose-50 text-rose-800",

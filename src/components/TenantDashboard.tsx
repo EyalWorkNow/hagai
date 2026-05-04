@@ -150,7 +150,7 @@ export default function TenantDashboard({
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 text-right" dir="rtl">
+    <div className="space-y-5 animate-in fade-in duration-500 text-right md:space-y-8" dir="rtl">
       <AnimatePresence>
         {isRetryDialogOpen && (
           <RetryPaymentDialog
@@ -197,8 +197,8 @@ export default function TenantDashboard({
             </div>
           )}
 
-          <div className="grid gap-8 xl:grid-cols-12 items-start">
-            <div className="xl:col-span-8 space-y-8">
+          <div className="grid gap-5 xl:grid-cols-12 xl:items-start md:gap-8">
+            <div className="space-y-5 xl:col-span-8 md:space-y-8">
               <HeroCard hero={viewModel.hero} onAction={handleAction} />
 
               <QuickActionsGrid
@@ -212,7 +212,7 @@ export default function TenantDashboard({
                   onOpenOnboarding={() => handleAction("openOnboarding")}
                 />
               ) : (
-                <div className="grid gap-8 lg:grid-cols-2">
+                <div className="grid gap-5 lg:grid-cols-2 md:gap-8">
                   <RecentPaymentsCard payments={viewModel.paymentHistory} />
                   <RecentActivityCard
                     serviceCalls={viewModel.serviceHighlights}
@@ -222,7 +222,7 @@ export default function TenantDashboard({
               )}
             </div>
 
-            <div className="xl:col-span-4 space-y-8">
+            <div className="space-y-5 xl:col-span-4 md:space-y-8">
               <TenantJoinProcessCard
                 user={user}
                 contract={contracts[0] ?? null}
@@ -286,11 +286,11 @@ function DashboardHeader({
   ];
 
   return (
-    <div className="dashboard-card p-6 md:p-8 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-8 md:gap-10 bg-slate-950 text-white relative overflow-hidden">
+    <div className="dashboard-card p-5 md:p-8 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-5 md:gap-10 bg-slate-950 text-white relative overflow-hidden">
       <div className="absolute top-[-50%] left-[-10%] w-96 h-96 bg-blue-600/30 rounded-full blur-[100px] pointer-events-none" />
       
-      <div className="flex items-center gap-5 min-w-0 relative z-10 w-full xl:w-auto shrink-0 xl:border-l xl:border-white/10 xl:pl-10">
-        <div className="h-16 w-16 shrink-0 rounded-[24px] bg-blue-600 text-white flex items-center justify-center text-2xl font-black shadow-xl shadow-blue-900/50">
+      <div className="flex items-center gap-4 min-w-0 relative z-10 w-full xl:w-auto shrink-0 xl:border-l xl:border-white/10 xl:pl-10 md:gap-5">
+        <div className="h-14 w-14 shrink-0 rounded-[22px] bg-blue-600 text-white flex items-center justify-center text-xl font-black shadow-xl shadow-blue-900/50 md:h-16 md:w-16 md:rounded-[24px] md:text-2xl">
           {user.name.charAt(0)}
         </div>
         <div className="min-w-0">
@@ -319,7 +319,7 @@ function DashboardHeader({
          {rows.map((row) => (
            <div key={row.label} className="flex flex-col items-start bg-white/5 shadow-inner shadow-white/5 rounded-2xl p-4 md:p-5 border border-white/10 w-full hover:bg-white/10 transition-colors">
              <p className="text-xs font-black text-slate-400 drop-shadow-sm">{row.label}</p>
-             <p className="mt-1.5 text-xl font-black text-white tabular-nums drop-shadow-md">₪{row.value.toLocaleString()}</p>
+             <p className="mt-1.5 text-lg font-black text-white tabular-nums drop-shadow-md md:text-xl">₪{row.value.toLocaleString()}</p>
            </div>
          ))}
       </div>
@@ -339,29 +339,29 @@ function HeroCard({
   return (
     <section
       className={cn(
-        "dashboard-card relative overflow-hidden p-8 md:p-10 transition-all",
+        "dashboard-card relative overflow-hidden p-5 md:p-10 transition-all",
         palette.wrapper,
       )}
     >
       <div className={cn("absolute inset-y-0 left-0 w-1/3 blur-3xl opacity-60", palette.glow)} />
 
-      <div className="relative z-10 flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
-        <div className="space-y-5">
-          <div className="flex items-center gap-4">
-            <div className={cn("h-16 w-16 shrink-0 rounded-full flex items-center justify-center text-white shadow-xl", palette.icon)}>
+      <div className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between md:gap-8">
+        <div className="space-y-4 md:space-y-5">
+          <div className="flex items-center gap-3 md:gap-4">
+            <div className={cn("h-14 w-14 shrink-0 rounded-full flex items-center justify-center text-white shadow-xl md:h-16 md:w-16", palette.icon)}>
               {renderHeroIcon(hero.state)}
             </div>
             <div>
               <span className={cn("inline-flex rounded-full px-3 py-1 text-xs font-black", palette.badge)}>
                 {hero.badge}
               </span>
-              <h2 className={cn("mt-3 text-3xl md:text-4xl font-black tracking-tight", palette.title)}>
+              <h2 className={cn("mt-3 text-2xl md:text-4xl font-black tracking-tight", palette.title)}>
                 {hero.title}
               </h2>
             </div>
           </div>
 
-          <p className={cn("max-w-2xl text-base md:text-lg leading-7 font-semibold", palette.description)}>
+          <p className={cn("max-w-2xl text-sm md:text-lg leading-7 font-semibold", palette.description)}>
             {hero.description}
           </p>
 
@@ -384,9 +384,9 @@ function HeroCard({
           </div>
         </div>
 
-        <div className="w-full max-w-sm shrink-0 rounded-[28px] bg-white/75 p-6 border border-white/70 shadow-xl shadow-slate-900/5">
+        <div className="w-full max-w-sm shrink-0 rounded-[24px] bg-white/75 p-5 border border-white/70 shadow-xl shadow-slate-900/5 md:rounded-[28px] md:p-6">
           <p className="text-xs font-black text-slate-400">{hero.amountLabel}</p>
-          <p className="mt-3 text-4xl font-black text-slate-900 tracking-tight tabular-nums">
+          <p className="mt-3 text-3xl font-black text-slate-900 tracking-tight tabular-nums md:text-4xl">
             {hero.amountValue}
           </p>
 
@@ -459,7 +459,7 @@ function AlertBanner({
       {actionLabel && (
         <button
           onClick={onAction}
-          className="shrink-0 rounded-[18px] bg-white px-4 py-3 text-sm font-black text-slate-900 border border-white shadow-sm hover:border-slate-200 transition-all"
+          className="w-full shrink-0 rounded-[18px] bg-white px-4 py-3 text-sm font-black text-slate-900 border border-white shadow-sm hover:border-slate-200 transition-all md:w-auto"
         >
           {actionLabel}
         </button>
@@ -476,12 +476,12 @@ function QuickActionsGrid({
   onNavigate: (target: TenantDashboardNavTarget) => void;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
       {actions.map((action) => (
         <button
           key={action.id}
           onClick={() => onNavigate(action.id)}
-          className="dashboard-card flex min-h-[148px] flex-col items-start justify-between p-5 text-right hover:-translate-y-0.5 hover:shadow-xl transition-all"
+          className="dashboard-card flex min-h-[136px] flex-col items-start justify-between p-4 text-right hover:-translate-y-0.5 hover:shadow-xl transition-all md:min-h-[148px] md:p-5"
         >
           <div className="flex w-full items-start justify-between gap-3">
             <div className="h-12 w-12 rounded-2xl bg-slate-100 text-slate-700 flex items-center justify-center">
@@ -494,8 +494,8 @@ function QuickActionsGrid({
             )}
           </div>
           <div>
-            <h3 className="text-base font-black text-slate-900">{action.label}</h3>
-            <p className="mt-1 text-sm text-slate-500 font-semibold leading-6">{action.description}</p>
+            <h3 className="text-sm font-black text-slate-900 md:text-base">{action.label}</h3>
+            <p className="mt-1 text-xs text-slate-500 font-semibold leading-5 md:text-sm md:leading-6">{action.description}</p>
           </div>
         </button>
       ))}
@@ -520,7 +520,7 @@ function TenantJoinProcessCard({
   const bothConnected = tenantConnected && landlordConnected;
 
   return (
-    <section className="dashboard-card overflow-hidden p-6 md:p-7">
+    <section className="dashboard-card overflow-hidden p-5 md:p-7">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h3 className="text-xl font-black text-slate-900">חיבור לתהליך</h3>
@@ -528,7 +528,7 @@ function TenantJoinProcessCard({
             ה-QR המוצג כאן מיועד לשוכר בלבד. ה-QR של המשכיר מופיע רק בעמוד המשכיר או במסך התהליך המשותף.
           </p>
         </div>
-        <div className="grid h-16 w-16 grid-cols-3 gap-1 rounded-[20px] bg-slate-950 p-3">
+        <div className="grid h-14 w-14 shrink-0 grid-cols-3 gap-1 rounded-[18px] bg-slate-950 p-3 md:h-16 md:w-16 md:rounded-[20px]">
           {Array.from({ length: 9 }).map((_, index) => (
             <span key={index} className={cn("rounded-sm", [0, 2, 4, 6, 8].includes(index) ? "bg-white" : "bg-white/25")} />
           ))}
@@ -596,8 +596,8 @@ function ProcessStatusBox({
 
 function RecentPaymentsCard({ payments }: { payments: Payment[] }) {
   return (
-    <section className="dashboard-card p-6 md:p-7">
-      <div className="mb-6 flex items-center justify-between">
+    <section className="dashboard-card p-5 md:p-7">
+      <div className="mb-5 flex items-center justify-between md:mb-6">
         <div>
           <h3 className="text-xl font-black text-slate-900">תשלומים אחרונים</h3>
           <p className="mt-1 text-sm text-slate-500 font-semibold">חיובים אחרונים והסטטוס שלהם</p>
@@ -630,15 +630,15 @@ function RecentActivityCard({
   onOpenMaintenance: () => void;
 }) {
   return (
-    <section className="dashboard-card p-6 md:p-7">
-      <div className="mb-6 flex items-center justify-between gap-6">
+    <section className="dashboard-card p-5 md:p-7">
+      <div className="mb-5 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between md:mb-6 md:gap-6">
         <div>
           <h3 className="text-xl font-black text-slate-900">תחזוקה ועדכונים</h3>
           <p className="mt-1 text-sm text-slate-500 font-semibold">קריאות פעילות ומה שחשוב לדעת עכשיו</p>
         </div>
         <button
           onClick={onOpenMaintenance}
-          className="shrink-0 rounded-[18px] border border-slate-200 bg-white px-5 py-2 text-sm font-black text-slate-700 hover:bg-slate-50"
+          className="w-full shrink-0 rounded-[18px] border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 hover:bg-slate-50 sm:w-auto sm:py-2"
         >
           למסך התחזוקה
         </button>
@@ -671,7 +671,7 @@ function SummaryCard({
   metrics: Array<{ label: string; value: string }>;
 }) {
   return (
-    <section className="dashboard-card bg-slate-900 border-slate-900 p-7 text-white shadow-2xl shadow-slate-900/10 overflow-hidden relative">
+    <section className="dashboard-card bg-slate-900 border-slate-900 p-5 text-white shadow-2xl shadow-slate-900/10 overflow-hidden relative md:p-7">
       <div className="absolute top-0 right-0 h-36 w-36 rounded-full bg-blue-500/15 blur-3xl" />
       <div className="relative z-10">
         <span className="inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-black text-blue-100">
@@ -707,7 +707,7 @@ function RenewalBanner({
   onAction: () => void;
 }) {
   return (
-    <section className="dashboard-card border-amber-100 bg-amber-50/90 p-6">
+    <section className="dashboard-card border-amber-100 bg-amber-50/90 p-5 md:p-6">
       <div className="flex items-start gap-3">
         <div className="h-11 w-11 shrink-0 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center">
           <Calendar size={20} />
@@ -735,8 +735,8 @@ function DocumentsCard({
   onAction: (action?: TenantActionKind) => void;
 }) {
   return (
-    <section className="dashboard-card p-6">
-      <div className="mb-5 flex items-center justify-between">
+    <section className="dashboard-card p-5 md:p-6">
+      <div className="mb-5 flex items-center justify-between gap-4">
         <div>
           <h3 className="text-xl font-black text-slate-900">מסמכים ואישורים</h3>
           <p className="mt-1 text-sm text-slate-500 font-semibold">גישה מהירה למסמכים של הדירה</p>
@@ -749,7 +749,7 @@ function DocumentsCard({
           <button
             key={document.id}
             onClick={() => onAction(document.action)}
-            className="flex w-full items-center justify-between gap-4 rounded-[22px] border border-slate-100 bg-slate-50/70 px-4 py-4 hover:bg-white hover:border-slate-200 transition-all"
+            className="flex w-full items-center justify-between gap-3 rounded-[22px] border border-slate-100 bg-slate-50/70 px-4 py-4 hover:bg-white hover:border-slate-200 transition-all"
           >
             <div className="text-right">
               <p className="text-sm font-black text-slate-900">{document.label}</p>
@@ -782,8 +782,8 @@ function NextStepsCard({
   onAction: (action?: TenantActionKind) => void;
 }) {
   return (
-    <section className="dashboard-card p-6">
-      <div className="mb-5 flex items-center justify-between">
+    <section className="dashboard-card p-5 md:p-6">
+      <div className="mb-5 flex items-center justify-between gap-4">
         <div>
           <h3 className="text-xl font-black text-slate-900">מה כדאי לעשות עכשיו</h3>
           <p className="mt-1 text-sm text-slate-500 font-semibold">פעולות קצרות לפי מצב החשבון הנוכחי</p>
@@ -869,7 +869,7 @@ function EmptyDashboardState({
   onOpenOnboarding: () => void;
 }) {
   return (
-    <section className="dashboard-card p-8 md:p-10">
+    <section className="dashboard-card p-6 md:p-10">
       <div className="mx-auto max-w-2xl text-center">
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[24px] bg-slate-100 text-slate-500">
           <FileText size={28} />
@@ -908,7 +908,7 @@ function CardEmptyState({
   description: string;
 }) {
   return (
-    <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50/60 px-6 py-10 text-center">
+    <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50/60 px-5 py-8 text-center md:px-6 md:py-10">
       <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-400 border border-slate-200">
         {icon}
       </div>
@@ -922,14 +922,14 @@ function PaymentRow({ payment }: { payment: Payment }) {
   const tone = getPaymentTone(payment.status);
 
   return (
-    <div className="flex items-center justify-between gap-4 rounded-[22px] border border-slate-100 bg-slate-50/70 px-4 py-4">
+    <div className="flex flex-col items-stretch gap-3 rounded-[22px] border border-slate-100 bg-slate-50/70 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
       <div className="min-w-0">
         <p className="text-sm font-black text-slate-900">
           {payment.type === "rent" ? "שכר דירה" : "תשלום נוסף"}
         </p>
         <p className="mt-1 text-sm text-slate-500 font-semibold">{formatDisplayDate(payment.date)}</p>
       </div>
-      <div className="text-left shrink-0">
+      <div className="shrink-0 text-right sm:text-left">
         <p className="text-base font-black text-slate-900 tabular-nums">
           {formatCurrency(payment.amount)}
         </p>
@@ -967,7 +967,7 @@ function ServiceCallRow({ call }: { call: ServiceCall }) {
           };
 
   return (
-    <div className="flex items-center justify-between gap-4 rounded-[22px] border border-slate-100 bg-slate-50/70 px-4 py-4">
+    <div className="flex flex-col items-stretch gap-3 rounded-[22px] border border-slate-100 bg-slate-50/70 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
       <div className="flex items-center gap-4 min-w-0">
         <div className="h-11 w-11 rounded-2xl bg-white border border-slate-200 text-slate-600 flex items-center justify-center shrink-0">
           {statusConfig.icon}
@@ -979,7 +979,7 @@ function ServiceCallRow({ call }: { call: ServiceCall }) {
           </p>
         </div>
       </div>
-      <span className={cn("shrink-0 rounded-full px-3 py-1 text-xs font-black", statusConfig.badge)}>
+      <span className={cn("w-fit shrink-0 rounded-full px-3 py-1 text-xs font-black", statusConfig.badge)}>
         {statusConfig.label}
       </span>
     </div>

@@ -93,6 +93,7 @@ export default function App() {
 
   const isSidebarExpanded = isSidebarOpen || isMobileSidebarOpen;
   const navItems = user ? getNavItemsForRole(user.role) : [];
+  const activeNavLabel = navItems.find((item) => item.id === activeTab)?.label ?? "בית";
   const recentContacts = useMemo(() => {
     if (!user || user.role !== "landlord") return [];
 
@@ -106,6 +107,12 @@ export default function App() {
       .filter((candidate): candidate is User => Boolean(candidate))
       .slice(0, 3);
   }, [db.messageTopics, db.users, user]);
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [activeTab, siteAccessSession, showOnboardingFlow, user?.id]);
 
   // 1. Initial Loading Screen
   if (!isReady) {
@@ -270,7 +277,7 @@ export default function App() {
       <main className="flex-1 flex min-w-0 flex-col relative bg-[#F9FBFB]">
         
         {/* Top Header Bar */}
-        <header className="h-24 shrink-0 bg-white/70 backdrop-blur-xl border-b border-slate-200/40 flex items-center justify-between gap-3 px-4 md:px-12 z-20 sticky top-0">
+        <header className="h-20 shrink-0 bg-white/80 backdrop-blur-xl border-b border-slate-200/40 flex items-center justify-between gap-3 px-4 md:h-24 md:px-12 z-20 sticky top-0">
           <div className="flex items-center gap-8 flex-1 min-w-0">
              <div className="relative group max-w-sm w-full hidden lg:block">
                 <Search size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-slate-900 transition-colors" />
@@ -280,30 +287,36 @@ export default function App() {
                   className="w-full bg-slate-100/50 border border-transparent rounded-2xl py-3 pl-6 pr-12 text-[13px] focus:outline-none focus:bg-white focus:border-slate-200 focus:ring-4 focus:ring-slate-900/5 transition-all font-semibold placeholder:text-slate-400" 
                 />
              </div>
+             <div className="min-w-0 lg:hidden">
+                <p className="truncate text-[15px] font-black leading-tight text-slate-900">{activeNavLabel}</p>
+                <p className="mt-1 text-[11px] font-bold text-slate-400">
+                  {user.role === "admin" ? "מנהל מערכת" : user.role === "landlord" ? "משכיר" : "דייר"}
+                </p>
+             </div>
           </div>
 
-          <div className="flex items-center gap-3 md:gap-8">
+          <div className="flex items-center gap-2 md:gap-8">
             <button
               onClick={() => setIsMobileSidebarOpen(true)}
-              className="h-12 w-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-lg md:hidden"
+              className="h-11 w-11 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-lg md:hidden"
               aria-label="פתח תפריט"
             >
               <Menu size={20} />
             </button>
-            <button className="relative h-12 w-12 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-all bg-white rounded-2xl border border-slate-100 hover:border-slate-200 shadow-sm">
+            <button className="relative h-11 w-11 md:h-12 md:w-12 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-all bg-white rounded-2xl border border-slate-100 hover:border-slate-200 shadow-sm">
               <Bell size={20} />
               <span className="absolute top-3 right-3 h-2.5 w-2.5 bg-blue-500 rounded-full border-2 border-white"></span>
             </button>
             <div className="hidden sm:block h-8 w-px bg-slate-200"></div>
-            <div className="flex items-center gap-5 shrink-0">
+            <div className="flex items-center gap-3 md:gap-5 shrink-0">
               <div className="text-right hidden sm:block min-w-0">
                 <p className="text-[15px] font-bold text-slate-900 leading-none max-w-[220px] font-display tracking-tight break-words">{user.name}</p>
                 <p className="mt-1.5 text-[10px] text-slate-400 font-bold tracking-wide">
                   {user.role === "admin" ? "מנהל מערכת" : user.role === "landlord" ? "משכיר" : "שוכר"}
                 </p>
               </div>
-              <button className="h-14 w-14 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-900 overflow-hidden hover:border-slate-900 shadow-sm transition-all group">
-                 <div className="h-10 w-10 rounded-xl bg-slate-100 flex items-center justify-center group-hover:scale-105 transition-transform">
+              <button className="h-11 w-11 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-900 overflow-hidden hover:border-slate-900 shadow-sm transition-all group md:h-14 md:w-14">
+                 <div className="h-8 w-8 rounded-xl bg-slate-100 flex items-center justify-center group-hover:scale-105 transition-transform md:h-10 md:w-10">
                     <UserIcon size={20} />
                  </div>
               </button>
@@ -312,7 +325,7 @@ export default function App() {
         </header>
 
         {/* Content Scroll Area */}
-        <div className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-8 lg:p-12 custom-scrollbar scroll-smooth">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-8 lg:p-12 custom-scrollbar scroll-smooth">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -594,7 +607,7 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
   const successRate = "99.5%";
 
   return (
-    <div className="relative min-h-screen w-full flex flex-col items-center justify-center bg-slate-100 font-sans selection:bg-slate-900 selection:text-white overflow-hidden p-4 md:p-8" dir="rtl">
+    <div className="relative min-h-screen w-full flex flex-col items-center justify-start bg-slate-100 font-sans selection:bg-slate-900 selection:text-white overflow-x-hidden p-4 md:justify-center md:p-8" dir="rtl">
       
       {/* 1. Full-Page Background Image */}
       <img 
@@ -617,8 +630,8 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
         </div>
       )}
       
-      {/* Main Content Area (Lifted Up) */}
-      <div className="relative z-10 w-full max-w-4xl px-4 text-center mt-[-15vh]">
+      {/* Main Content Area - Center vertically and horizontally */}
+      <div className="relative z-10 w-full flex-1 flex flex-col items-center justify-center px-2 py-10 sm:px-4 md:py-20 md:pt-[80px]">
          <div className="animate-in fade-in slide-in-from-bottom-10 duration-1000 flex flex-col items-center">
             
             {/* Centered Logo & Brand */}
@@ -635,16 +648,16 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
                מערכת תשלומי<br />שכר דירה חכמה.
             </h2>
             
-            <div className="mt-6 flex justify-center w-full px-4">
-               <span className="px-6 py-2 bg-black/25 backdrop-blur-xl border border-white/10 rounded-full text-white font-bold text-sm md:text-base lg:text-lg whitespace-nowrap overflow-hidden text-ellipsis max-w-full shadow-2xl">
+            <div className="mt-6 flex justify-center w-full px-4 max-w-2xl">
+               <span className="px-6 py-3 bg-black/30 backdrop-blur-xl border border-white/10 rounded-[24px] text-white font-bold text-sm md:text-base leading-relaxed text-center shadow-2xl">
                   מחליפים את הצ'קים הפיזיים בביטחון דיגיטלי מלא - וודאות מוחלטת למשכיר, נוחות מקסימלית לשוכר
                </span>
             </div>
 
-            <div className="mt-10">
+            <div className="mt-8 md:mt-10">
                <button 
                   onClick={() => setShowPropertyBoard(true)}
-                  className="px-12 py-5 bg-white text-slate-900 rounded-[24px] font-black text-xl hover:bg-blue-600 hover:text-white transition-all shadow-[0_20px_40px_rgba(0,0,0,0.3)] hover:scale-105 active:scale-95 flex items-center gap-3"
+                  className="flex w-full max-w-[280px] items-center justify-center gap-3 rounded-[24px] bg-white px-8 py-5 text-lg font-black text-slate-900 shadow-[0_20px_40px_rgba(0,0,0,0.3)] transition-all hover:bg-blue-600 hover:text-white active:scale-95 md:w-auto md:max-w-none md:px-12 md:text-xl md:hover:scale-105"
                >
                   <span>שוק דירות</span>
                   <Home size={24} />
@@ -653,38 +666,36 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
          </div>
       </div>
 
-      {/* 5. Combined Login & Stats Command Bar (Floating at Bottom) */}
-      <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-4 w-full max-w-[95vw] px-4">
+      {/* 5. Combined Login & Stats Command Bar */}
+      <div className="relative z-30 flex w-full max-w-full flex-col items-center gap-4 px-0 pb-8 md:fixed md:bottom-8 md:left-1/2 md:max-w-7xl md:-translate-x-1/2 md:gap-6 md:px-4 md:pb-0">
          
          {/* Unified "Command Bar" for Login + Stats (Darkened Glass) */}
-         <div className="bg-white/80 backdrop-blur-3xl rounded-[48px] p-8 border border-white/40 shadow-[0_40px_100px_rgba(0,0,0,0.5)] w-full max-w-7xl flex flex-col gap-8">
+         <div className="bg-white/90 backdrop-blur-3xl rounded-[32px] md:rounded-[48px] p-5 md:p-10 border border-white/40 shadow-[0_40px_100px_rgba(0,0,0,0.5)] w-full flex flex-col gap-5 md:gap-10">
             
-            {/* Stats Group - Now Integrated without Double Background */}
-            <div className="flex items-center justify-center gap-24">
-               <div className="text-center">
-                  <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">דירות מנוהלות</p>
-                  <p className="text-5xl font-black text-slate-900 tabular-nums italic font-display leading-none">{managedPropertiesCount}</p>
+            {/* Stats Group */}
+            <div className="grid w-full grid-cols-2 gap-3 sm:flex sm:items-center sm:justify-center sm:gap-10 md:gap-24">
+               <div className="rounded-[24px] bg-slate-50/80 p-4 text-center sm:bg-transparent sm:p-0">
+                  <p className="text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1 md:mb-2">דירות מנוהלות</p>
+                  <p className="text-4xl md:text-6xl font-black text-slate-900 tabular-nums italic font-display leading-none">{managedPropertiesCount}</p>
                </div>
-               <div className="h-12 w-px bg-slate-200" />
-               <div className="text-center">
-                  <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">שיעור הצלחה</p>
-                  <p className="text-5xl font-black text-blue-600 tabular-nums italic font-display leading-none">{successRate}</p>
+               <div className="hidden sm:block h-16 w-px bg-slate-200" />
+               <div className="rounded-[24px] bg-slate-50/80 p-4 text-center sm:bg-transparent sm:p-0">
+                  <p className="text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1 md:mb-2">שיעור הצלחה</p>
+                  <p className="text-4xl md:text-6xl font-black text-blue-600 tabular-nums italic font-display leading-none">{successRate}</p>
                </div>
             </div>
-
-            <div className="h-px w-full bg-slate-100/80" />
 
             <div className="h-px w-full bg-slate-100" />
 
             {/* Compact Login Form */}
-            <form onSubmit={handleSubmit} className="flex flex-wrap lg:flex-nowrap items-center gap-4">
-               <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3 min-w-0">
+            <form onSubmit={handleSubmit} className="flex flex-col md:flex-row items-center gap-3 md:gap-4">
+               <div className="w-full flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <AuthInputCompact 
                      icon={<UserIcon size={18} />} 
                      value={name} 
                      onChange={setName} 
-                     placeholder="שם משתמש" 
-                     name="username"
+                     placeholder="שם מלא" 
+                     name="name"
                   />
                   <AuthInputCompact 
                      icon={<Lock size={18} />} 
@@ -706,92 +717,88 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
                <button 
                   type="submit"
                   disabled={isLoading}
-                  className="h-16 px-12 bg-slate-950 text-white rounded-[24px] font-black text-base tracking-widest hover:bg-blue-600 transition-all active:scale-[0.95] disabled:bg-slate-400 shrink-0 shadow-2xl"
+                  className="w-full md:w-auto h-14 md:h-16 px-8 md:px-12 bg-slate-950 text-white rounded-[22px] md:rounded-[24px] font-black text-sm md:text-base tracking-widest hover:bg-blue-600 transition-all active:scale-[0.95] disabled:bg-slate-400 shrink-0 shadow-2xl"
                >
                   {isLoading ? "מעבד..." : "כניסה למערכת"}
                </button>
             </form>
 
             {error && (
-               <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-red-500 text-white px-6 py-2 rounded-full text-xs font-black shadow-xl animate-in slide-in-from-bottom-2">
+               <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-red-500 text-white px-6 py-2 rounded-full text-[10px] font-black shadow-xl animate-in slide-in-from-bottom-2">
                   {error}
                </div>
             )}
          </div>
 
-         {/* Quick Access Navbar */}
-         <div className="bg-white/95 backdrop-blur-2xl px-8 py-3 rounded-full shadow-2xl border border-white/50 flex items-center gap-4 overflow-x-auto no-scrollbar whitespace-nowrap scale-90 opacity-80 hover:opacity-100 hover:scale-100 transition-all duration-500">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2 hidden md:block">גישה מהירה:</p>
-            <QuickAccessBtn icon={<ShieldCheck size={16} />} label="מנהל" onClick={() => handleDemoLogin("admin@admin.com")} />
+         {/* Quick Access Navbar - Hidden on very small screens or made scrollable */}
+         <div className="grid w-full grid-cols-4 gap-1 rounded-[28px] border border-white/50 bg-white/95 px-3 py-2.5 shadow-2xl backdrop-blur-2xl opacity-95 transition-all duration-500 hover:opacity-100 md:flex md:w-auto md:max-w-full md:items-center md:gap-3 md:overflow-x-auto md:rounded-full md:px-6 md:scale-90 md:hover:scale-100">
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2 hidden sm:block">דמו:</p>
+            <QuickAccessBtn icon={<ShieldCheck size={14} />} label="אדמין" onClick={() => handleDemoLogin("admin@admin.com")} />
             <div className="h-3 w-px bg-slate-200"></div>
-            <QuickAccessBtn icon={<Home size={16} />} label="משכיר" onClick={() => handleDemoLogin("landlord@landlord.com")} />
+            <QuickAccessBtn icon={<Home size={14} />} label="משכיר" onClick={() => handleDemoLogin("landlord@landlord.com")} />
             <div className="h-3 w-px bg-slate-200"></div>
-            <QuickAccessBtn icon={<UserIcon size={16} />} label="דייר" onClick={() => handleDemoLogin("tenant@tenant.com")} />
+            <QuickAccessBtn icon={<UserIcon size={14} />} label="דייר" onClick={() => handleDemoLogin("tenant@tenant.com")} />
             <div className="h-3 w-px bg-slate-200"></div>
-            <QuickAccessBtn icon={<UserPlus size={16} />} label="מועמד" onClick={() => handleDemoLogin("noa@example.com")} />
-            
-            <div className="mr-4 pl-4 border-r border-slate-200">
-               <button onClick={clearSiteAccess} className="text-[10px] font-black text-slate-400 hover:text-slate-900 transition-colors uppercase tracking-widest">החלף קוד</button>
-            </div>
+            <QuickAccessBtn icon={<UserPlus size={14} />} label="מועמד" onClick={() => handleDemoLogin("noa@example.com")} />
          </div>
       </div>
 
       {/* Property Board Modal */}
       {showPropertyBoard && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 md:p-8 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="w-full max-w-6xl bg-white rounded-[48px] shadow-2xl overflow-hidden border border-white/20 flex flex-col h-full max-h-[90vh]">
-             <div className="flex items-center justify-between p-8 md:px-12 border-b border-slate-100 shrink-0">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-2 md:p-8 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="w-full max-w-6xl bg-white rounded-[40px] md:rounded-[48px] shadow-2xl overflow-hidden border border-white/20 flex flex-col h-full max-h-[90vh]">
+             <div className="flex items-center justify-between p-6 md:px-12 border-b border-slate-100 shrink-0">
                 <div className="text-right">
-                   <h2 className="text-3xl md:text-4xl font-black text-slate-900 italic font-display tracking-tight">לוח הדירות של <span className="text-blue-600">{BRAND_NAME}</span></h2>
-                   <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1">Discover your next luxury residence</p>
+                   <h2 className="text-2xl md:text-4xl font-black text-slate-900 italic font-display tracking-tight">לוח הדירות של <span className="text-blue-600">{BRAND_NAME}</span></h2>
+                   <p className="text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1">Discover your next luxury residence</p>
                 </div>
-                <button onClick={() => setShowPropertyBoard(false)} className="h-14 w-14 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 hover:bg-slate-900 hover:text-white transition-all shadow-sm">
-                   <X size={28} />
+                <button onClick={() => setShowPropertyBoard(false)} className="h-12 w-12 md:h-14 md:w-14 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 hover:bg-slate-900 hover:text-white transition-all shadow-sm">
+                   <X size={24} />
                 </button>
              </div>
              
-             <div className="p-8 md:p-12 overflow-y-auto no-scrollbar">
-                <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+             <div className="p-6 md:p-12 overflow-y-auto no-scrollbar">
+                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                    {publicProperties.map(p => (
                       <div 
                         key={p.id} 
                         onClick={() => setSelectedProperty(p)}
-                        className="group relative bg-white rounded-[40px] border border-slate-100 hover:border-blue-200 shadow-sm hover:shadow-2xl transition-all cursor-pointer overflow-hidden flex flex-col h-full"
+                        className="group relative bg-white rounded-[32px] border border-slate-100 hover:border-blue-200 shadow-sm hover:shadow-2xl transition-all cursor-pointer overflow-hidden flex flex-col h-full"
                       >
                          {/* Property Image Container */}
-                         <div className="relative h-64 overflow-hidden">
+                         <div className="relative h-48 overflow-hidden">
                             <img 
                               src={p.imageUrl || propertyPlaceholder} 
                               alt={p.address} 
                               className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
                             />
                             <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                            <div className="absolute top-5 right-5">
-                               <span className="px-4 py-2 bg-emerald-500 text-white text-[10px] font-black rounded-full shadow-lg">פנוי</span>
+                            <div className="absolute top-4 right-4">
+                               <span className="px-3 py-1.5 bg-emerald-500 text-white text-[9px] font-black rounded-full shadow-lg">פנוי</span>
                             </div>
                          </div>
 
-                         <div className="p-8 flex flex-col flex-1">
-                            <div className="flex justify-between items-center mb-4">
-                               <h3 className="text-xl font-black text-slate-900 truncate pl-2">{p.address}</h3>
-                               <span className="text-2xl font-black text-blue-600 tabular-nums italic font-display shrink-0">₪{p.rent.toLocaleString()}</span>
+                         <div className="p-6 flex flex-col flex-1">
+                            <div className="flex justify-between items-center mb-3">
+                               <h3 className="text-lg font-black text-slate-900 truncate pl-2">{p.address}</h3>
+                               <span className="text-xl font-black text-blue-600 tabular-nums italic font-display shrink-0">₪{p.rent.toLocaleString()}</span>
                             </div>
                             
-                            <div className="flex items-center gap-4 mb-6">
+                            <div className="flex items-center gap-4 mb-4">
                                <div className="flex items-center gap-1.5 text-slate-400">
                                   <div className="h-2 w-2 rounded-full bg-blue-500" />
-                                  <span className="text-xs font-bold">{p.rooms || 3} חדרים</span>
+                                  <span className="text-[10px] font-bold">{p.rooms || 3} חדרים</span>
                                </div>
                                <div className="flex items-center gap-1.5 text-slate-400">
                                   <div className="h-2 w-2 rounded-full bg-slate-300" />
-                                  <span className="text-xs font-bold">{p.sizeSqm || 85} מ״ר</span>
+                                  <span className="text-[10px] font-bold">{p.sizeSqm || 85} מ״ר</span>
                                </div>
                             </div>
 
-                            <p className="text-sm text-slate-500 font-medium mb-8 line-clamp-2 leading-relaxed">{p.description || "דירה משופצת במיקום מעולה, מוארת ומרווחת..."}</p>
+                            <p className="text-xs text-slate-500 font-medium mb-6 line-clamp-2 leading-relaxed">{p.description || "דירה משופצת במיקום מעולה, מוארת ומרווחת..."}</p>
                             
                             <div className="mt-auto">
-                               <button className="w-full py-4 bg-slate-50 border border-slate-100 rounded-2xl text-[11px] font-black text-slate-400 group-hover:bg-slate-900 group-hover:text-white group-hover:border-slate-900 transition-all uppercase tracking-widest shadow-sm">
+                               <button className="w-full py-3 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-black text-slate-400 group-hover:bg-slate-900 group-hover:text-white group-hover:border-slate-900 transition-all uppercase tracking-widest shadow-sm">
                                   צפה בפרטים מלאים
                                </button>
                             </div>
@@ -839,7 +846,7 @@ function SiteAccessScreen() {
   };
 
   return (
-    <div className="relative min-h-screen w-full flex flex-col items-center justify-center bg-slate-900 font-sans selection:bg-slate-900 selection:text-white overflow-hidden p-4 md:p-8" dir="rtl">
+    <div className="relative min-h-screen w-full flex flex-col items-center justify-start bg-slate-900 font-sans selection:bg-slate-900 selection:text-white overflow-x-hidden p-4 py-6 md:justify-center md:p-8" dir="rtl">
       
       {/* 1. Full-Page Background Image */}
       <img 
@@ -850,19 +857,32 @@ function SiteAccessScreen() {
       <div className="absolute inset-0 bg-slate-900/40 z-0" />
       
       {/* 2. Top-Left Branding Layer */}
+        <div className="relative z-10 mb-5 flex w-full max-w-5xl flex-col gap-5 px-2 sm:mb-8 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-4 justify-center md:justify-start">
+          <img src={hagaiLogo} alt={BRAND_NAME} className="h-14 md:h-18 w-auto object-contain" />
+          <div className="text-right">
+            <span className="text-xl md:text-2xl font-black text-slate-900 tracking-tighter font-display italic">
+              {BRAND_NAME}
+            </span>
+            <p className="text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-widest">{BRAND_SLOGAN}</p>
+          </div>
+        </div>
+        </div>
+
           {/* 3. Immersive Centered Access Card */}
-      <div className="relative z-10 w-full max-w-xl px-4 animate-in zoom-in-95 fade-in duration-1000">
-         <div className="bg-white/85 backdrop-blur-3xl rounded-[32px] p-10 md:p-16 shadow-[0_40px_100px_rgba(0,0,0,0.3)] border border-white/40 text-center">
+      <div className="relative z-10 w-full max-w-xl px-0 sm:px-4 animate-in zoom-in-95 fade-in duration-1000">
+         <div className="bg-white/85 backdrop-blur-3xl rounded-[28px] md:rounded-[32px] p-6 sm:p-8 md:p-16 shadow-[0_40px_100px_rgba(0,0,0,0.3)] border border-white/40 text-center">
             
-            <div className="flex justify-center mb-8">
-               <div className="h-20 w-20 bg-slate-950 text-white rounded-2xl flex items-center justify-center shadow-2xl">
-                  <ShieldCheck size={40} />
+            <div className="flex justify-center mb-6 md:mb-8">
+               <div className="h-16 w-16 md:h-20 md:w-20 bg-slate-950 text-white rounded-2xl flex items-center justify-center shadow-2xl">
+                  <ShieldCheck size={34} className="md:hidden" />
+                  <ShieldCheck size={40} className="hidden md:block" />
                </div>
             </div>
 
-            <div className="mb-10">
-               <h2 className="text-4xl font-black text-slate-900 tracking-tighter leading-tight italic font-display">כניסה מוקדמת</h2>
-               <p className="text-slate-400 font-bold text-sm mt-3 px-8">אנא הזן את פרטי הגישה לשכבת האבטחה של המערכת</p>
+            <div className="mb-8 md:mb-10">
+               <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tighter leading-tight italic font-display">כניסה מוקדמת</h2>
+               <p className="text-slate-400 font-bold text-sm mt-3 px-2 md:px-8">אנא הזן את פרטי הגישה לשכבת האבטחה של המערכת</p>
             </div>
 
             {error && (
@@ -872,7 +892,7 @@ function SiteAccessScreen() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-5 md:space-y-6">
                <AuthInput
                  label="שם משתמש"
                  icon={<UserIcon size={18} />}
@@ -896,7 +916,7 @@ function SiteAccessScreen() {
                <button
                  type="submit"
                  disabled={isLoading}
-                 className="w-full h-16 bg-[#020617] text-white rounded-[16px] font-black text-lg shadow-2xl hover:bg-black transition-all active:scale-[0.98] disabled:bg-slate-400 flex items-center justify-center gap-3"
+                 className="w-full h-14 md:h-16 bg-[#020617] text-white rounded-[16px] font-black text-base md:text-lg shadow-2xl hover:bg-black transition-all active:scale-[0.98] disabled:bg-slate-400 flex items-center justify-center gap-3"
                >
                  {isLoading ? (
                    <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
@@ -908,7 +928,7 @@ function SiteAccessScreen() {
                  )}
                </button>
             </form>
-            <div className="mt-10 p-6 bg-slate-50/50 rounded-[24px] border border-slate-200 text-right">
+            <div className="mt-8 md:mt-10 p-5 md:p-6 bg-slate-50/50 rounded-[24px] border border-slate-200 text-right">
                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">מידע למורשים</p>
                <div className="space-y-2 text-[11px] font-bold text-slate-500 leading-relaxed">
                   <p>• הגישה מותרת למשתמשים מורשים בלבד.</p>
@@ -925,10 +945,10 @@ function QuickAccessBtn({ icon, label, onClick }: { icon: ReactNode, label: stri
    return (
       <button 
          onClick={onClick}
-         className="flex items-center gap-2 px-4 py-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-all group"
+         className="flex items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-slate-500 transition-all hover:bg-slate-50 hover:text-slate-900 group md:justify-start md:gap-2 md:px-4"
       >
          <span className="text-slate-400 group-hover:text-blue-600 transition-colors">{icon}</span>
-         <span className="text-xs font-bold">{label}</span>
+         <span className="text-[11px] font-bold md:text-xs">{label}</span>
       </button>
    );
 }
