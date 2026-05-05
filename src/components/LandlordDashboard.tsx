@@ -30,7 +30,7 @@ import {
   Copy,
   Link2
 } from "lucide-react";
-import { Property, Payment, User, Contract } from "../types";
+import { Property, Payment, User, Contract, OnboardingInvite } from "../types";
 import { cn } from "../lib/utils";
 import { useAppData } from "../lib/appData";
 import { InfoTooltip } from "./SharedViews";
@@ -490,6 +490,7 @@ export default function LandlordDashboard({ user }: { user: User }) {
           property={selectedProperty}
           contracts={contracts}
           users={db.users}
+          invites={db.onboardingInvites}
           onInvite={(payload) =>
             inviteTenant(user.id, {
               propertyId: selectedProperty.id,
@@ -797,32 +798,63 @@ function AddPropertyModal({
   );
 }
 
+const TENANT_ONBOARDING_STEPS = [
+  "פתיחת תהליך",
+  "פרטי דירה",
+  "בדיקת זכאות",
+  "הרשאה לחיוב",
+  "חתימה",
+  "סיום",
+];
+
+function getTenantOnboardingStatus(tenant: User | null) {
+  if (!tenant) return "ממתין לדייר שיסרוק את ההזמנה ויירשם";
+  if (tenant.onboardingComplete) return "הדייר השלים את תהליך ההרשמה";
+
+  const stepIndex = Math.min(
+    Math.max(tenant.onboardingStep ?? 0, 0),
+    TENANT_ONBOARDING_STEPS.length - 1,
+  );
+
+  return `הדייר בשלב ${stepIndex + 1} מתוך ${TENANT_ONBOARDING_STEPS.length}: ${TENANT_ONBOARDING_STEPS[stepIndex]}`;
+}
+
 function InviteTenantModal({
   property,
   contracts,
   users,
+  invites,
   onInvite,
   onClose,
 }: {
   property: Property;
   contracts: Contract[];
   users: User[];
+  invites: OnboardingInvite[];
   onInvite: (payload: { email: string; phone?: string; landlordCreditSkipApproved: boolean }) => void;
   onClose: () => void;
 }) {
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const [landlordCreditSkipApproved, setLandlordCreditSkipApproved] = useState(false);
-  const [isSent, setIsSent] = useState(false);
-  const propertyContract = contracts.find((contract) => contract.propertyId === property.id);
+  const propertyContract =
+    contracts.find(
+      (contract) => contract.propertyId === property.id && contract.tenantId === property.tenantId,
+    ) ?? contracts.find((contract) => contract.propertyId === property.id);
   const tenant = propertyContract?.tenantId
     ? users.find((candidate) => candidate.id === propertyContract.tenantId)
     : null;
-  const processStatus = tenant
-    ? tenant.onboardingComplete
-      ? "הדייר השלים את תהליך ההרשמה"
-      : `הדייר בשלב ${Math.min((tenant.onboardingStep ?? 0) + 1, 5)} מתוך 5`
-    : "ממתין לדייר שיסרוק את ההזמנה ויירשם";
+  const existingInvite =
+    invites.find(
+      (invite) =>
+        invite.propertyId === property.id &&
+        tenant?.email &&
+        invite.tenantEmail.toLowerCase() === tenant.email.toLowerCase(),
+    ) ?? invites.find((invite) => invite.propertyId === property.id);
+  const [phone, setPhone] = useState(tenant?.phone ?? existingInvite?.tenantPhone ?? "");
+  const [email, setEmail] = useState(tenant?.email ?? existingInvite?.tenantEmail ?? "");
+  const [landlordCreditSkipApproved, setLandlordCreditSkipApproved] = useState(
+    Boolean(existingInvite?.landlordCreditSkipApproved),
+  );
+  const [isSent, setIsSent] = useState(false);
+  const processStatus = getTenantOnboardingStatus(tenant);
 
   const handleSend = () => {
     if (!email.trim()) return;

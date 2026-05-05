@@ -1,4 +1,4 @@
-import { HTMLAttributes, InputHTMLAttributes, PointerEvent, ReactNode, useMemo, useRef, useState } from "react";
+import { HTMLAttributes, InputHTMLAttributes, PointerEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   AlertCircle,
@@ -183,6 +183,19 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
   );
   const [isProcessing, setIsProcessing] = useState(false);
 
+  const moveToStep = (step: number) => {
+    const nextStep = Math.min(Math.max(step, 0), STEPS.length - 1);
+    updateUser(user.id, { onboardingStep: nextStep });
+    setCurrentStep(nextStep);
+  };
+
+  useEffect(() => {
+    const syncedStep = getInitialStep(user);
+    if (syncedStep > currentStep) {
+      setCurrentStep(syncedStep);
+    }
+  }, [currentStep, user]);
+
   const identityDigits = draft.identityNumber.replace(/\D/g, "");
   const phoneDigits = draft.phoneNumber.replace(/\D/g, "");
   const hasValidOptionalIdentity = identityDigits.length === 0 || identityDigits.length === 9;
@@ -244,30 +257,29 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
           submitKyc(user.id);
           approveKyc(user.id);
           persistAgreement();
-          setCurrentStep(1);
+          moveToStep(1);
           return;
         }
         if (user.kycStatus === "submitted") {
           approveKyc(user.id);
           persistAgreement();
-          setCurrentStep(1);
+          moveToStep(1);
           return;
         }
         persistAgreement();
-        setCurrentStep(1);
+        moveToStep(1);
         return;
       }
 
       if (currentStep === 1) {
         persistAgreement();
-        updateUser(user.id, { onboardingStep: 2 });
-        setCurrentStep(2);
+        moveToStep(2);
         return;
       }
 
       if (currentStep === 2) {
         if (isCreditApproved) {
-          setCurrentStep(3);
+          moveToStep(3);
           return;
         }
         requestEligibilityCheck(user.id, activeContract?.landlordId);
@@ -277,14 +289,14 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
       if (currentStep === 3) {
         persistAgreement();
         saveBankAuthorization(user.id);
-        setCurrentStep(4);
+        moveToStep(4);
         return;
       }
 
       if (currentStep === 4) {
         persistAgreement();
         signOnboardingContract(user.id);
-        setCurrentStep(STEPS.length - 1);
+        moveToStep(STEPS.length - 1);
         return;
       }
 
@@ -299,7 +311,7 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
     if (isCreditApproved || !landlordCreditSkipApproved) return;
     persistAgreement();
     skipEligibilityCheck(user.id, activeContract?.landlordId);
-    setCurrentStep(3);
+    moveToStep(3);
   };
 
   const handleBack = () => {
