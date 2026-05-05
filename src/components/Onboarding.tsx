@@ -1,4 +1,4 @@
-import { ChangeEvent, HTMLAttributes, InputHTMLAttributes, ReactNode, useMemo, useState } from "react";
+import { HTMLAttributes, InputHTMLAttributes, PointerEvent, ReactNode, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   AlertCircle,
@@ -17,7 +17,6 @@ import {
   LogOut,
   PenLine,
   ShieldCheck,
-  UploadCloud,
   UserCheck,
   MapPin,
 } from "lucide-react";
@@ -62,12 +61,12 @@ type OnboardingDraft = {
   arnonaAmount: number;
   utilityPaymentMode: UtilityPaymentMode;
   creditConsent: boolean;
+  landlordCreditSkipApproved: boolean;
   bankId: string;
   branchNumber: string;
   accountNumber: string;
   accountHolderName: string;
   bankConsent: boolean;
-  signatureName: string;
   signatureAccepted: boolean;
 };
 
@@ -134,12 +133,12 @@ function buildInitialDraft(contract: Contract | null, property: Property | null,
     arnonaAmount: contract?.arnonaAmount ?? property?.costs?.arnona ?? 0,
     utilityPaymentMode: contract?.utilityPaymentMode ?? "separate",
     creditConsent: false,
+    landlordCreditSkipApproved: false,
     bankId: "",
     branchNumber: "",
     accountNumber: "",
     accountHolderName: "",
     bankConsent: false,
-    signatureName: "",
     signatureAccepted: false,
   };
 }
@@ -182,14 +181,14 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
   const hasValidOptionalPhone = phoneDigits.length === 0 || phoneDigits.length >= 9;
   const hasRequiredIdentity = draft.idPhotoUploaded && draft.selfieUploaded && hasValidOptionalIdentity && hasValidOptionalPhone;
   const isCreditApproved = user.bdiStatus === "green";
-  const hasRequiredDocuments = draft.contractDocumentUploaded && draft.clausesApproved;
+  const hasRequiredDocuments = draft.clausesApproved;
   const hasRequiredBankDetails =
     Boolean(draft.bankId) &&
     /^\d{2,4}$/.test(draft.branchNumber) &&
     /^\d{5,12}$/.test(draft.accountNumber) &&
     draft.accountHolderName.trim().length >= 2 &&
     draft.bankConsent;
-  const hasRequiredSignature = draft.signatureAccepted && draft.signatureName.trim().length >= 2;
+  const hasRequiredSignature = draft.signatureAccepted;
   const monthlyPayment = calculateMonthlyPayment(draft);
   const canSign = Boolean(activeContract && isCreditApproved);
 
@@ -198,6 +197,7 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
       ...draft,
       tenantQrScanned: true,
       landlordQrScanned: true,
+      contractDocumentUploaded: true,
     });
   };
 
@@ -289,7 +289,7 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
   };
 
   const handleSkipCredit = () => {
-    if (isProcessing || isCreditApproved) return;
+    if (isProcessing || isCreditApproved || !draft.landlordCreditSkipApproved) return;
     persistAgreement();
     skipEligibilityCheck(user.id, activeContract?.landlordId);
     setCurrentStep(3);
@@ -658,13 +658,6 @@ function PropertyStep({
   monthlyPayment: number;
   onDraftChange: DraftChangeHandler;
 }) {
-  const handleUpload = (event: ChangeEvent<HTMLInputElement>) => {
-    onDraftChange((currentDraft) => ({
-      ...currentDraft,
-      contractDocumentUploaded: Boolean(event.target.files?.length),
-    }));
-  };
-
   return (
     <div className="space-y-6 md:space-y-8">
       <StepHeader
@@ -740,50 +733,6 @@ function PropertyStep({
         </div>
 
         <div className="space-y-5">
-          <div
-            className={cn(
-              "group flex min-h-[220px] cursor-pointer flex-col items-center justify-center rounded-[28px] border-2 border-dashed p-6 text-center transition-all",
-              draft.contractDocumentUploaded
-                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                : "border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-900 hover:bg-white",
-            )}
-          >
-            <input
-              id="lease-contract-upload"
-              type="file"
-              className="sr-only"
-              accept=".pdf,.doc,.docx,image/*"
-              onChange={handleUpload}
-            />
-            <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-slate-900 shadow-sm">
-              {draft.contractDocumentUploaded ? <CheckCircle2 size={30} /> : <UploadCloud size={30} />}
-            </div>
-            <p className="text-lg font-black text-slate-900">העלאת חוזה שכירות</p>
-            <p className="mt-2 max-w-xs text-sm font-bold leading-6 text-slate-500">
-              קובץ PDF, Word או צילום חתום. לאחר העלאה המסמך נשמר כטיוטת חוזה פעילה.
-            </p>
-            <div className="mt-5 flex flex-wrap justify-center gap-3">
-              <label
-                htmlFor="lease-contract-upload"
-                className="rounded-2xl bg-slate-900 px-5 py-2.5 text-[11px] font-black text-white shadow-sm transition hover:bg-slate-700"
-              >
-                בחירת קובץ חוזה
-              </label>
-              <button
-                type="button"
-                onClick={() =>
-                  onDraftChange((currentDraft) => ({
-                    ...currentDraft,
-                    contractDocumentUploaded: true,
-                  }))
-                }
-                className="rounded-2xl bg-white px-5 py-2.5 text-[11px] font-black text-slate-700 shadow-sm transition hover:bg-slate-900 hover:text-white"
-              >
-                סימון חוזה כנקלט
-              </button>
-            </div>
-          </div>
-
           <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
             <div className="mb-6 flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white">
@@ -799,7 +748,6 @@ function PropertyStep({
               <input
                 type="checkbox"
                 checked={draft.clausesApproved}
-                disabled={!draft.contractDocumentUploaded}
                 onChange={(event) =>
                   onDraftChange((currentDraft) => ({
                     ...currentDraft,
@@ -812,12 +760,6 @@ function PropertyStep({
                 הצדדים קראו את סעיפי חוזה השכירות, אין מחלוקות פתוחות, וניתן להתקדם להקמת הרשאה ולחתימה.
               </span>
             </label>
-
-            {!draft.contractDocumentUploaded && (
-              <p className="mt-4 text-xs font-black text-amber-600">
-                יש להעלות חוזה לפני אישור הסעיפים.
-              </p>
-            )}
           </div>
         </div>
       </div>
@@ -1120,14 +1062,41 @@ function CreditCheckStep({
                 <AlertCircle size={24} />
                 <div>
                     <p className="text-lg font-black">לא ניתן לאשר זכאות כרגע</p>
-                    <p className="mt-1 text-sm font-bold">לצערו, דירוג האשראי אינו מאפשר המשך בתנאים הנוכחיים.</p>
+                    <p className="mt-1 text-sm font-bold">דילוג על בדיקת נתוני אשראי אפשרי רק לאחר אישור המשכיר.</p>
                 </div>
               </InfoPanel>
-              <button 
+              <label className="flex cursor-pointer items-start gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-5 transition hover:bg-white">
+                <input
+                  type="checkbox"
+                  checked={draft.landlordCreditSkipApproved}
+                  onChange={(event) =>
+                    onDraftChange((currentDraft) => ({
+                      ...currentDraft,
+                      landlordCreditSkipApproved: event.target.checked,
+                    }))
+                  }
+                  className="mt-1 h-5 w-5 rounded-lg border-2 border-slate-300 text-blue-600 focus:ring-blue-600"
+                />
+                <span className="text-sm font-bold leading-7 text-slate-600">
+                  התקבל אישור מפורש מבעל הדירה לדלג על בדיקת נתוני אשראי.
+                </span>
+              </label>
+              {!draft.landlordCreditSkipApproved && (
+                <a
+                  href="https://www.creditdata.org.il/"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex w-full items-center justify-center rounded-2xl border border-blue-100 bg-blue-50 px-4 py-4 text-xs font-black text-blue-700 transition hover:bg-blue-100"
+                >
+                  מעבר לאישור בדיקת נתוני אשראי
+                </a>
+              )}
+              <button
+                disabled={!draft.landlordCreditSkipApproved}
                 onClick={onSkipCredit}
-                className="w-full py-4 border border-slate-200 rounded-2xl text-xs font-black text-slate-400 hover:text-slate-900 transition-all uppercase tracking-widest"
+                className="w-full rounded-2xl border border-slate-200 py-4 text-xs font-black uppercase tracking-widest text-slate-500 transition-all hover:text-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-300"
               >
-                דלג על בדיקה (למטרות הדגמה)
+                דילוג באישור משכיר
               </button>
             </div>
           )}
@@ -1242,7 +1211,7 @@ function SignatureStep({
           title="אישור חוזה שכירות"
           description={draft.clausesApproved ? "כל סעיפי החוזה מאושרים לחתימה." : "נדרש אישור סעיפים לפני חתימה."}
           icon={<FileText size={26} />}
-          complete={draft.contractDocumentUploaded && draft.clausesApproved}
+          complete={draft.clausesApproved}
         />
         <SignatureDocumentCard
           title="שטר חוב"
@@ -1262,47 +1231,122 @@ function SignatureStep({
             <p className="text-xs font-bold text-slate-400">החתימה תינעל לאחר לחיצה על כפתור ההמשך.</p>
           </div>
         </div>
-        <div className="rounded-[28px] border-2 border-dashed border-slate-200 bg-slate-50 p-5">
-          <label className="mb-3 block text-[11px] font-black text-slate-400">
-            שם לחתימה דיגיטלית
-          </label>
-          <input
-            type="text"
-            value={draft.signatureName}
-            onChange={(event) => {
-              const signatureName = event.target.value;
-              onDraftChange((currentDraft) => ({
-                ...currentDraft,
-                signatureName,
-                signatureAccepted: signatureName.trim().length >= 2 ? currentDraft.signatureAccepted : false,
-              }));
-            }}
-            placeholder={user.name}
-            className="h-14 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black outline-none transition placeholder:text-slate-300 focus:border-slate-900 focus:ring-4 focus:ring-slate-900/5"
-          />
-          <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl bg-white p-4">
-            <input
-              type="checkbox"
-              checked={draft.signatureAccepted}
-              disabled={draft.signatureName.trim().length < 2}
-              onChange={(event) =>
-                onDraftChange((currentDraft) => ({
-                  ...currentDraft,
-                  signatureAccepted: event.target.checked,
-                }))
-              }
-              className="mt-1 h-5 w-5 rounded-lg border-2 border-slate-300 text-blue-600 focus:ring-blue-600 disabled:opacity-40"
-            />
-            <span className="text-sm font-bold leading-7 text-slate-600">
-              אני מאשר/ת שזו חתימתי הדיגיטלית על חוזה השכירות, שטר החוב והרשאת החיוב.
-            </span>
-          </label>
-          {draft.signatureAccepted && (
-            <div className="mt-5 flex h-32 items-center justify-center rounded-[24px] bg-white text-3xl font-black italic text-slate-900 shadow-inner font-display">
-              {draft.signatureName}
-            </div>
-          )}
+        <SignaturePad
+          signed={draft.signatureAccepted}
+          onSignedChange={(signed) =>
+            onDraftChange((currentDraft) => ({
+              ...currentDraft,
+              signatureAccepted: signed,
+            }))
+          }
+        />
+      </div>
+    </div>
+  );
+}
+
+function SignaturePad({
+  signed,
+  onSignedChange,
+}: {
+  signed: boolean;
+  onSignedChange: (signed: boolean) => void;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const drawingRef = useRef(false);
+  const previousPointRef = useRef<{ x: number; y: number } | null>(null);
+
+  const getCanvasPoint = (event: PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    };
+  };
+
+  const drawPoint = (event: PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    const point = getCanvasPoint(event);
+    if (!canvas || !point) return;
+
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    context.lineWidth = 3;
+    context.lineCap = "round";
+    context.lineJoin = "round";
+    context.strokeStyle = "#0f172a";
+
+    const previousPoint = previousPointRef.current ?? point;
+    context.beginPath();
+    context.moveTo(previousPoint.x, previousPoint.y);
+    context.lineTo(point.x, point.y);
+    context.stroke();
+    previousPointRef.current = point;
+  };
+
+  const handlePointerDown = (event: PointerEvent<HTMLCanvasElement>) => {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    drawingRef.current = true;
+    previousPointRef.current = getCanvasPoint(event);
+    drawPoint(event);
+    onSignedChange(true);
+  };
+
+  const handlePointerMove = (event: PointerEvent<HTMLCanvasElement>) => {
+    if (!drawingRef.current) return;
+    drawPoint(event);
+  };
+
+  const stopDrawing = () => {
+    drawingRef.current = false;
+    previousPointRef.current = null;
+  };
+
+  const clearSignature = () => {
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) return;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    onSignedChange(false);
+  };
+
+  return (
+    <div className="rounded-[28px] border-2 border-dashed border-slate-200 bg-slate-50 p-4 sm:p-5">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-black text-slate-900">חתימה ידנית</p>
+          <p className="mt-1 text-xs font-bold text-slate-500">חתום עם האצבע או העכבר בתוך המשטח.</p>
         </div>
+        <button
+          type="button"
+          onClick={clearSignature}
+          className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-[11px] font-black text-slate-500 transition hover:text-slate-900"
+        >
+          נקה חתימה
+        </button>
+      </div>
+      <canvas
+        ref={canvasRef}
+        width={900}
+        height={280}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={stopDrawing}
+        onPointerCancel={stopDrawing}
+        onPointerLeave={stopDrawing}
+        className="h-48 w-full touch-none rounded-[24px] border border-slate-200 bg-white shadow-inner"
+        aria-label="משטח חתימה"
+      />
+      <div className={cn(
+        "mt-4 rounded-2xl p-4 text-sm font-bold leading-7",
+        signed ? "bg-emerald-50 text-emerald-700" : "bg-white text-slate-500",
+      )}>
+        {signed
+          ? "החתימה נקלטה. ניתן להמשיך לסיום החוזה."
+          : "יש לחתום בתוך המשטח כדי לפתוח את המשך התהליך."}
       </div>
     </div>
   );
