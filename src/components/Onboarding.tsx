@@ -16,14 +16,11 @@ import {
   Landmark,
   LogOut,
   PenLine,
-  QrCode,
   ShieldCheck,
   UploadCloud,
   UserCheck,
   MapPin,
-  ScanLine,
 } from "lucide-react";
-import { BarcodeScanner } from "./BarcodeScanner";
 import { cn } from "../lib/utils";
 import { Contract, Property, User, UtilityPaymentMode } from "../types";
 import { useAppData } from "../lib/appData";
@@ -45,8 +42,6 @@ type StepMeta = {
 };
 
 type OnboardingDraft = {
-  tenantQrScanned: boolean;
-  landlordQrScanned: boolean;
   identityNumber: string;
   phoneNumber: string;
   idPhotoUploaded: boolean;
@@ -118,8 +113,6 @@ function findTenantProperty(properties: Property[], contract: Contract | null, u
 
 function buildInitialDraft(contract: Contract | null, property: Property | null, user?: User): OnboardingDraft {
   return {
-    tenantQrScanned: Boolean(contract?.tenantQrScannedAt),
-    landlordQrScanned: Boolean(contract?.landlordQrScannedAt),
     identityNumber: "",
     phoneNumber: user?.phone ?? "",
     idPhotoUploaded: false,
@@ -180,7 +173,6 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
   const hasValidOptionalPhone = phoneDigits.length === 0 || phoneDigits.length >= 9;
   const hasRequiredIdentity = draft.idPhotoUploaded && draft.selfieUploaded && hasValidOptionalIdentity && hasValidOptionalPhone;
   const isCreditApproved = user.bdiStatus === "green";
-  const hasRequiredQr = draft.tenantQrScanned && draft.landlordQrScanned;
   const hasRequiredDocuments = draft.contractDocumentUploaded && draft.clausesApproved;
   const hasRequiredBankDetails =
     Boolean(draft.bankId) &&
@@ -193,14 +185,16 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
   const canSign = Boolean(activeContract && isCreditApproved);
 
   const persistAgreement = () => {
-    saveOnboardingAgreement(user.id, draft);
+    saveOnboardingAgreement(user.id, {
+      ...draft,
+      tenantQrScanned: true,
+      landlordQrScanned: true,
+    });
   };
 
   const getButtonText = () => {
     if (isProcessing) return "...";
     if (currentStep === 0) {
-      if (user.kycStatus === "pending") return "אימות זהות והמשך ל-QR";
-      if (user.kycStatus === "submitted") return "השלם אימות והמשך";
       return "המשך לפרטי הדירה";
     }
     if (currentStep === 1) return "שמור פרטי דירה והמשך";
@@ -217,7 +211,6 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
   const isPrimaryDisabled =
     isProcessing ||
     (currentStep === 0 && user.kycStatus !== "approved" && !hasRequiredIdentity) ||
-    (currentStep === 0 && user.kycStatus === "approved" && !hasRequiredQr) ||
     (currentStep === 1 && (!hasRequiredDocuments || draft.rentAmount <= 0)) ||
     (currentStep === 2 && !draft.creditConsent && !isCreditApproved) ||
     (currentStep === 3 && !hasRequiredBankDetails) ||
@@ -232,14 +225,14 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
         if (user.kycStatus === "pending") {
           submitKyc(user.id);
           approveKyc(user.id);
+          persistAgreement();
+          setCurrentStep(1);
           return;
         }
         if (user.kycStatus === "submitted") {
           approveKyc(user.id);
-          if (hasRequiredQr) {
-            persistAgreement();
-            setCurrentStep(1);
-          }
+          persistAgreement();
+          setCurrentStep(1);
           return;
         }
         persistAgreement();
@@ -494,8 +487,6 @@ function IdentitySetupStep({
   onDraftChange: DraftChangeHandler;
 }) {
   const contractAddress = contract?.propertyAddress ?? "הנכס המשויך לתהליך";
-  const [showScanner, setShowScanner] = useState<"tenant" | "landlord" | null>(null);
-  const [scanError, setScanError] = useState<string | null>(null);
 
   const kycApproved = user.kycStatus === "approved";
   const identityDigits = draft.identityNumber.replace(/\D/g, "");
@@ -506,36 +497,6 @@ function IdentitySetupStep({
     !draft.idPhotoUploaded ? "צילום תעודת זהות" : null,
     !draft.selfieUploaded ? "צילום סלפי או וידאו" : null,
   ].filter(Boolean);
-
-  const handleScan = (target: "tenant" | "landlord", value: string) => {
-    setShowScanner(null);
-
-    try {
-      const url = new URL(value);
-      const scannedPropertyId = url.searchParams.get("propertyId");
-      if (
-        target === "landlord" &&
-        scannedPropertyId &&
-        contract?.propertyId &&
-        scannedPropertyId !== contract.propertyId
-      ) {
-        setScanError("הקוד שנסרק שייך לנכס אחר. יש לסרוק את קוד ה-QR של המשכיר עבור הדירה הזו.");
-        return;
-      }
-    } catch {
-      // Manual fallback can be a raw code instead of a URL.
-    }
-
-    setScanError(null);
-    onDraftChange((currentDraft) => ({
-      ...currentDraft,
-      tenantQrScanned: target === "tenant" ? true : currentDraft.tenantQrScanned,
-      landlordQrScanned: target === "landlord" ? true : currentDraft.landlordQrScanned,
-    }));
-  };
-
-  // Tenant's own QR encodes their user ID so landlord can scan it
-  const tenantQrUrl = `${window.location.origin}/?tenantId=${user.id}`;
 
   return (
     <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-700 md:space-y-8">
@@ -647,7 +608,7 @@ function IdentitySetupStep({
         <div className="rounded-[24px] border border-blue-100 bg-blue-50 p-4 text-sm font-bold leading-7 text-blue-800">
           {missingIdentityItems.length > 0 ? (
             <>
-              <p className="font-black">כדי להמשיך ל-QR חסר:</p>
+              <p className="font-black">כדי להמשיך חסר:</p>
               <ul className="mt-2 list-disc space-y-1 pr-5">
                 {missingIdentityItems.map((item) => (
                   <li key={String(item)}>{item}</li>
@@ -655,150 +616,7 @@ function IdentitySetupStep({
               </ul>
             </>
           ) : (
-            "צילומי הזהות נקלטו. אפשר ללחוץ על הכפתור התחתון כדי לאשר זהות ולהמשיך ל-QR. ניתן להשלים תעודת זהות וטלפון גם לפני ההמשך אם רוצים."
-          )}
-        </div>
-      )}
-
-      {/* QR Scanning Section - only shown when KYC is approved */}
-      {kycApproved && (
-        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="flex items-center gap-3">
-            <div className="h-px flex-1 bg-slate-100" />
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">אישור הדדי בין הצדדים</p>
-            <div className="h-px flex-1 bg-slate-100" />
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            {/* Tenant QR - show your own QR for landlord to scan */}
-            <div className={cn(
-              "rounded-[24px] border-2 p-5 flex flex-col items-center gap-4 text-center transition-all",
-              draft.tenantQrScanned
-                ? "border-emerald-200 bg-emerald-50"
-                : "border-slate-200 bg-white"
-            )}>
-              <div className="flex items-center gap-2 self-stretch justify-center">
-                <QrCode size={18} className={draft.tenantQrScanned ? "text-emerald-600" : "text-slate-600"} />
-                <p className="text-sm font-black text-slate-900">הקוד שלי</p>
-              </div>
-              <p className="text-[11px] font-bold text-slate-500 leading-5">
-                הצג קוד זה למשכיר לסריקה
-              </p>
-              {/* QR Code Image */}
-              <div className={cn(
-                "w-32 h-32 rounded-2xl overflow-hidden border-2 shadow-sm flex items-center justify-center bg-white",
-                draft.tenantQrScanned ? "border-emerald-300" : "border-slate-200"
-              )}>
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(tenantQrUrl)}`}
-                  alt="קוד QR שלי"
-                  className="w-full h-full object-contain"
-                />
-              </div>
-              {draft.tenantQrScanned ? (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-full text-[11px] font-black">
-                  <CheckCircle2 size={13} />
-                  נסרק ואושר
-                </span>
-              ) : (
-                <button
-                  onClick={() =>
-                    onDraftChange((currentDraft) => ({
-                      ...currentDraft,
-                      tenantQrScanned: true,
-                    }))
-                  }
-                  className="w-full py-2.5 rounded-2xl bg-slate-900 text-white text-[11px] font-black hover:bg-black transition-all active:scale-95"
-                >
-                  סמן כנסרק על ידי המשכיר
-                </button>
-              )}
-            </div>
-
-            {/* Landlord QR - scan landlord's QR with camera */}
-            <div className={cn(
-              "rounded-[24px] border-2 p-5 flex flex-col items-center gap-4 text-center transition-all",
-              draft.landlordQrScanned
-                ? "border-emerald-200 bg-emerald-50"
-                : "border-blue-100 bg-blue-50/50"
-            )}>
-              <div className="flex items-center gap-2 self-stretch justify-center">
-                <ScanLine size={18} className={draft.landlordQrScanned ? "text-emerald-600" : "text-blue-600"} />
-                <p className="text-sm font-black text-slate-900">סרוק קוד המשכיר</p>
-              </div>
-              <p className="text-[11px] font-bold text-slate-500 leading-5">
-                סרוק את קוד ה-QR שהמשכיר מציג לך
-              </p>
-              <div className={cn(
-                "w-32 h-32 rounded-2xl border-2 flex items-center justify-center transition-all",
-                draft.landlordQrScanned
-                  ? "border-emerald-300 bg-emerald-50"
-                  : "border-dashed border-blue-200 bg-white"
-              )}>
-                {draft.landlordQrScanned ? (
-                  <CheckCircle2 size={40} className="text-emerald-500" />
-                ) : (
-                  <QrCode size={40} className="text-blue-300" />
-                )}
-              </div>
-              {draft.landlordQrScanned ? (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-full text-[11px] font-black">
-                  <CheckCircle2 size={13} />
-                  קוד המשכיר נסרק
-                </span>
-              ) : (
-                <div className="grid w-full gap-2">
-                  <button
-                    onClick={() => setShowScanner("landlord")}
-                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 py-2.5 text-[11px] font-black text-white transition-all hover:bg-blue-700 active:scale-95"
-                  >
-                    <Camera size={14} />
-                    פתח מצלמה לסריקה
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setScanError(null);
-                      onDraftChange((currentDraft) => ({
-                        ...currentDraft,
-                        landlordQrScanned: true,
-                      }));
-                    }}
-                    className="w-full rounded-2xl border border-blue-100 bg-white py-2.5 text-[11px] font-black text-blue-700 transition-all hover:border-blue-200 hover:bg-blue-50 active:scale-95"
-                  >
-                    סימון ידני ללא מצלמה
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {scanError && (
-            <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-start gap-3">
-              <AlertCircle size={16} className="text-rose-600 mt-0.5 shrink-0" />
-              <p className="text-xs font-bold text-rose-700">{scanError}</p>
-            </div>
-          )}
-
-          {!draft.tenantQrScanned || !draft.landlordQrScanned ? (
-            <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl flex items-start gap-3">
-              <AlertCircle size={16} className="text-amber-600 mt-0.5 shrink-0" />
-              <p className="text-xs font-bold text-amber-700">
-                {!draft.tenantQrScanned && !draft.landlordQrScanned
-                  ? "יש לאשר את שני הקודים כדי להמשיך לשלב הבא."
-                  : !draft.tenantQrScanned
-                    ? "יש לאשר שהמשכיר סרק את הקוד שלך."
-                    : "יש לסרוק את קוד ה-QR של המשכיר."}
-              </p>
-            </div>
-          ) : (
-            <InfoPanel tone="success">
-              <CheckCircle2 size={22} />
-              <div>
-                <h3>אישור הדדי הושלם</h3>
-                <p>שני הצדדים אישרו את הזהות. ניתן להמשיך לפרטי הדירה.</p>
-              </div>
-            </InfoPanel>
+            "צילומי הזהות נקלטו. אפשר ללחוץ על הכפתור התחתון כדי לאשר זהות ולהמשיך לפרטי הדירה."
           )}
         </div>
       )}
@@ -808,20 +626,10 @@ function IdentitySetupStep({
         <div>
           <h3>אבטחת מידע</h3>
           <p>
-            {BRAND_NAME} שומרת את נתוני הזיהוי והחוזה במסד המקומי של התהליך ומתקדמת רק אחרי התאמת QR ואימות KYC.
+            {BRAND_NAME} שומרת את נתוני הזיהוי והחוזה במסד המקומי של התהליך ומתקדמת רק אחרי אימות KYC.
           </p>
         </div>
       </InfoPanel>
-
-      {/* Camera QR Scanner Modal */}
-      {showScanner && (
-        <BarcodeScanner
-          title="סריקת קוד המשכיר"
-          description="כוון את המצלמה לקוד ה-QR של המשכיר"
-          onScan={(value) => handleScan(showScanner, value)}
-          onClose={() => setShowScanner(null)}
-        />
-      )}
     </div>
   );
 }
@@ -1714,59 +1522,6 @@ function StepIndicator({
           <p className="text-[9px] font-black text-slate-400">שלב {index + 1}</p>
           <p className="truncate text-[11px] font-black leading-4">{step.title}</p>
         </div>
-      </div>
-    </button>
-  );
-}
-
-function QrScanCard({
-  title,
-  description,
-  scanned,
-  onToggle,
-}: {
-  title: string;
-  description: string;
-  scanned: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className={cn(
-        "flex min-h-[170px] flex-col items-center gap-4 rounded-[24px] border p-5 text-center shadow-sm transition-all sm:min-h-[190px] sm:flex-row sm:gap-5 sm:rounded-[28px] sm:text-right",
-        scanned
-          ? "border-emerald-200 bg-emerald-50"
-          : "border-slate-200 bg-white hover:border-slate-900",
-      )}
-    >
-      <div
-        className={cn(
-          "flex h-24 w-24 shrink-0 items-center justify-center rounded-3xl p-2 sm:h-28 sm:w-28 bg-white shadow-inner",
-          scanned ? "border-2 border-emerald-500" : "border-2 border-slate-900",
-        )}
-      >
-        <img 
-          src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(window.location.origin + "/onboarding")}`}
-          alt="QR Code"
-          className="h-full w-full object-contain"
-        />
-      </div>
-      <div className="min-w-0">
-        <div className="mb-3 flex items-center justify-center gap-2 sm:justify-start">
-          <QrCode size={20} className={scanned ? "text-emerald-700" : "text-slate-500"} />
-          <h3 className="text-lg font-black text-slate-900">{title}</h3>
-        </div>
-        <p className="text-sm font-bold leading-6 text-slate-500">{description}</p>
-        <span
-          className={cn(
-            "mt-4 inline-flex rounded-full px-3 py-1 text-[11px] font-black",
-            scanned ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500",
-          )}
-        >
-          {scanned ? "נסרק ואושר" : "לחץ לסימון סריקה"}
-        </span>
       </div>
     </button>
   );
