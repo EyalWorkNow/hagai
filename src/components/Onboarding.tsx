@@ -176,7 +176,9 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
 
   const identityDigits = draft.identityNumber.replace(/\D/g, "");
   const phoneDigits = draft.phoneNumber.replace(/\D/g, "");
-  const hasRequiredIdentity = identityDigits.length === 9 && phoneDigits.length >= 9 && draft.idPhotoUploaded && draft.selfieUploaded;
+  const hasValidOptionalIdentity = identityDigits.length === 0 || identityDigits.length === 9;
+  const hasValidOptionalPhone = phoneDigits.length === 0 || phoneDigits.length >= 9;
+  const hasRequiredIdentity = draft.idPhotoUploaded && draft.selfieUploaded && hasValidOptionalIdentity && hasValidOptionalPhone;
   const isCreditApproved = user.bdiStatus === "green";
   const hasRequiredQr = draft.tenantQrScanned && draft.landlordQrScanned;
   const hasRequiredDocuments = draft.contractDocumentUploaded && draft.clausesApproved;
@@ -499,8 +501,8 @@ function IdentitySetupStep({
   const identityDigits = draft.identityNumber.replace(/\D/g, "");
   const phoneDigits = draft.phoneNumber.replace(/\D/g, "");
   const missingIdentityItems = [
-    identityDigits.length !== 9 ? "מספר תעודת זהות בן 9 ספרות" : null,
-    phoneDigits.length < 9 ? "מספר טלפון תקין" : null,
+    identityDigits.length > 0 && identityDigits.length !== 9 ? "מספר תעודת זהות בן 9 ספרות" : null,
+    phoneDigits.length > 0 && phoneDigits.length < 9 ? "מספר טלפון תקין" : null,
     !draft.idPhotoUploaded ? "צילום תעודת זהות" : null,
     !draft.selfieUploaded ? "צילום סלפי או וידאו" : null,
   ].filter(Boolean);
@@ -653,7 +655,7 @@ function IdentitySetupStep({
               </ul>
             </>
           ) : (
-            "כל פרטי הזהות נקלטו. אפשר ללחוץ על הכפתור התחתון כדי לאשר זהות ולהמשיך ל-QR."
+            "צילומי הזהות נקלטו. אפשר ללחוץ על הכפתור התחתון כדי לאשר זהות ולהמשיך ל-QR. ניתן להשלים תעודת זהות וטלפון גם לפני ההמשך אם רוצים."
           )}
         </div>
       )}
