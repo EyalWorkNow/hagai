@@ -67,6 +67,9 @@ type OnboardingDraft = {
   signatureAccepted: boolean;
 };
 
+type DraftUpdate = OnboardingDraft | ((currentDraft: OnboardingDraft) => OnboardingDraft);
+type DraftChangeHandler = (nextDraft: DraftUpdate) => void;
+
 const STEPS: StepMeta[] = [
   { id: "identity", title: "פתיחת תהליך", icon: <UserCheck size={20} /> },
   { id: "property", title: "פרטי דירה", icon: <Building2 size={20} /> },
@@ -418,7 +421,7 @@ function StepContent({
   draft: OnboardingDraft;
   monthlyPayment: number;
   canSign: boolean;
-  onDraftChange: (nextDraft: OnboardingDraft) => void;
+  onDraftChange: DraftChangeHandler;
   onSkipCredit: () => void;
 }) {
   switch (stepIndex) {
@@ -486,13 +489,21 @@ function IdentitySetupStep({
   user: User;
   contract: Contract | null;
   draft: OnboardingDraft;
-  onDraftChange: (nextDraft: OnboardingDraft) => void;
+  onDraftChange: DraftChangeHandler;
 }) {
   const contractAddress = contract?.propertyAddress ?? "הנכס המשויך לתהליך";
   const [showScanner, setShowScanner] = useState<"tenant" | "landlord" | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
 
   const kycApproved = user.kycStatus === "approved";
+  const identityDigits = draft.identityNumber.replace(/\D/g, "");
+  const phoneDigits = draft.phoneNumber.replace(/\D/g, "");
+  const missingIdentityItems = [
+    identityDigits.length !== 9 ? "מספר תעודת זהות בן 9 ספרות" : null,
+    phoneDigits.length < 9 ? "מספר טלפון תקין" : null,
+    !draft.idPhotoUploaded ? "צילום תעודת זהות" : null,
+    !draft.selfieUploaded ? "צילום סלפי או וידאו" : null,
+  ].filter(Boolean);
 
   const handleScan = (target: "tenant" | "landlord", value: string) => {
     setShowScanner(null);
@@ -514,11 +525,11 @@ function IdentitySetupStep({
     }
 
     setScanError(null);
-    onDraftChange({
-      ...draft,
-      tenantQrScanned: target === "tenant" ? true : draft.tenantQrScanned,
-      landlordQrScanned: target === "landlord" ? true : draft.landlordQrScanned,
-    });
+    onDraftChange((currentDraft) => ({
+      ...currentDraft,
+      tenantQrScanned: target === "tenant" ? true : currentDraft.tenantQrScanned,
+      landlordQrScanned: target === "landlord" ? true : currentDraft.landlordQrScanned,
+    }));
   };
 
   // Tenant's own QR encodes their user ID so landlord can scan it
@@ -563,10 +574,10 @@ function IdentitySetupStep({
                     inputMode="numeric"
                     value={draft.identityNumber}
                     onChange={(event) =>
-                      onDraftChange({
-                        ...draft,
+                      onDraftChange((currentDraft) => ({
+                        ...currentDraft,
                         identityNumber: event.target.value.replace(/\D/g, "").slice(0, 9),
-                      })
+                      }))
                     }
                     placeholder="הזן 9 ספרות"
                     className="w-full bg-slate-50 border-2 border-transparent rounded-2xl p-4 text-sm font-bold focus:bg-white focus:border-slate-900 transition-all outline-none md:p-5"
@@ -582,10 +593,10 @@ function IdentitySetupStep({
                     inputMode="tel"
                     value={draft.phoneNumber}
                     onChange={(event) =>
-                      onDraftChange({
-                        ...draft,
+                      onDraftChange((currentDraft) => ({
+                        ...currentDraft,
                         phoneNumber: event.target.value.replace(/[^\d-]/g, "").slice(0, 12),
-                      })
+                      }))
                     }
                     placeholder="050-0000000"
                     className="w-full bg-slate-50 border-2 border-transparent rounded-2xl p-4 text-sm font-bold focus:bg-white focus:border-slate-900 transition-all outline-none md:p-5"
@@ -619,20 +630,31 @@ function IdentitySetupStep({
           icon={<Camera size={24} />}
           sub="וודא שהפרטים ברורים וללא השתקפות"
           complete={kycApproved || draft.idPhotoUploaded}
-          onUpload={() => onDraftChange({ ...draft, idPhotoUploaded: true })}
+          onUpload={() => onDraftChange((currentDraft) => ({ ...currentDraft, idPhotoUploaded: true }))}
         />
         <UploadCard
           label="צילום סלפי וידאו"
           icon={<Camera size={24} />}
           sub="זיהוי פנים למניעת זיוף זהות"
           complete={kycApproved || draft.selfieUploaded}
-          onUpload={() => onDraftChange({ ...draft, selfieUploaded: true })}
+          onUpload={() => onDraftChange((currentDraft) => ({ ...currentDraft, selfieUploaded: true }))}
         />
       </div>
 
       {!kycApproved && (
         <div className="rounded-[24px] border border-blue-100 bg-blue-50 p-4 text-sm font-bold leading-7 text-blue-800">
-          מלא 9 ספרות תעודת זהות, טלפון, ושני צילומים. לאחר הלחיצה על הכפתור התחתון האימות יאושר בסביבת הדמו ותיפתח התאמת ה-QR.
+          {missingIdentityItems.length > 0 ? (
+            <>
+              <p className="font-black">כדי להמשיך ל-QR חסר:</p>
+              <ul className="mt-2 list-disc space-y-1 pr-5">
+                {missingIdentityItems.map((item) => (
+                  <li key={String(item)}>{item}</li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            "כל פרטי הזהות נקלטו. אפשר ללחוץ על הכפתור התחתון כדי לאשר זהות ולהמשיך ל-QR."
+          )}
         </div>
       )}
 
@@ -805,7 +827,7 @@ function PropertyStep({
   property: Property | null;
   draft: OnboardingDraft;
   monthlyPayment: number;
-  onDraftChange: (nextDraft: OnboardingDraft) => void;
+  onDraftChange: DraftChangeHandler;
 }) {
   const handleUpload = (event: ChangeEvent<HTMLInputElement>) => {
     onDraftChange({ ...draft, contractDocumentUploaded: Boolean(event.target.files?.length) });
@@ -988,7 +1010,7 @@ function BankAuthorizationStep({
   onDraftChange
 }: {
   draft: OnboardingDraft;
-  onDraftChange: (nextDraft: OnboardingDraft) => void;
+  onDraftChange: DraftChangeHandler;
 }) {
   const ISRAELI_BANKS = [
     { id: "leumi", name: 'בנק לאומי', code: "10" },
@@ -1161,7 +1183,7 @@ function CreditCheckStep({
   user: User;
   eligibilityStatus?: "pending" | "approved" | "rejected";
   draft: OnboardingDraft;
-  onDraftChange: (nextDraft: OnboardingDraft) => void;
+  onDraftChange: DraftChangeHandler;
   onSkipCredit: () => void;
 }) {
   const approved = user.bdiStatus === "green";
@@ -1280,7 +1302,7 @@ function SignatureStep({
   monthlyPayment: number;
   canSign: boolean;
   user: User;
-  onDraftChange: (nextDraft: OnboardingDraft) => void;
+  onDraftChange: DraftChangeHandler;
 }) {
   const approved = user.bdiStatus === "green";
   const rejected = user.bdiStatus === "red";
