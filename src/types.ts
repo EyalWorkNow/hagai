@@ -286,6 +286,7 @@ export interface OnboardingInvite {
   sentAt: string;
   status: "sent" | "opened" | "completed";
   contractVisibilityStep: 1 | 2 | 4;
+  landlordCreditSkipApproved?: boolean;
 }
 
 export interface NotificationRecord {

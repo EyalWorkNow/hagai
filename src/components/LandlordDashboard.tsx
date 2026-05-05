@@ -488,12 +488,15 @@ export default function LandlordDashboard({ user }: { user: User }) {
       {showInviteTenant && selectedProperty && (
         <InviteTenantModal
           property={selectedProperty}
+          contracts={contracts}
+          users={db.users}
           onInvite={(payload) =>
             inviteTenant(user.id, {
               propertyId: selectedProperty.id,
               tenantEmail: payload.email,
               tenantPhone: payload.phone,
               contractVisibilityStep: 2,
+              landlordCreditSkipApproved: payload.landlordCreditSkipApproved,
             })
           }
           onClose={() => setShowInviteTenant(false)}
@@ -796,22 +799,37 @@ function AddPropertyModal({
 
 function InviteTenantModal({
   property,
+  contracts,
+  users,
   onInvite,
   onClose,
 }: {
   property: Property;
-  onInvite: (payload: { email: string; phone?: string }) => void;
+  contracts: Contract[];
+  users: User[];
+  onInvite: (payload: { email: string; phone?: string; landlordCreditSkipApproved: boolean }) => void;
   onClose: () => void;
 }) {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [landlordCreditSkipApproved, setLandlordCreditSkipApproved] = useState(false);
   const [isSent, setIsSent] = useState(false);
+  const propertyContract = contracts.find((contract) => contract.propertyId === property.id);
+  const tenant = propertyContract?.tenantId
+    ? users.find((candidate) => candidate.id === propertyContract.tenantId)
+    : null;
+  const processStatus = tenant
+    ? tenant.onboardingComplete
+      ? "הדייר השלים את תהליך ההרשמה"
+      : `הדייר בשלב ${Math.min((tenant.onboardingStep ?? 0) + 1, 5)} מתוך 5`
+    : "ממתין לדייר שיסרוק את ההזמנה ויירשם";
 
   const handleSend = () => {
     if (!email.trim()) return;
     onInvite({
       email: email.trim().toLowerCase(),
       phone: phone.trim() || undefined,
+      landlordCreditSkipApproved,
     });
     setIsSent(true);
     setTimeout(onClose, 2000);
@@ -884,6 +902,17 @@ function InviteTenantModal({
                    <div className="space-y-4">
                      <Input label="אימייל השוכר" value={email} onChange={setEmail} placeholder="tenant@example.com" type="email" />
                      <Input label="מספר טלפון" value={phone} onChange={setPhone} placeholder="05x-xxxxxxx" />
+                     <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-blue-200">
+                       <input
+                         type="checkbox"
+                         checked={landlordCreditSkipApproved}
+                         onChange={(event) => setLandlordCreditSkipApproved(event.target.checked)}
+                         className="mt-1 h-5 w-5 rounded-lg border-2 border-slate-300 text-blue-600 focus:ring-blue-600"
+                       />
+                       <span className="text-xs font-bold leading-6 text-slate-600">
+                         אני מאשר לדייר לדלג על בדיקת נתוני אשראי אם יידרש לכך בתהליך ההרשמה.
+                       </span>
+                     </label>
                    </div>
                    <button 
                      onClick={handleSend}
@@ -904,8 +933,8 @@ function InviteTenantModal({
                     המערכת תסנכרן את נתוני המשכיר והשוכר באופן אוטומטי לאחר סיום הסריקה ואימות ה-KYC של השוכר.
                   </p>
                   <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-full self-start inline-flex border border-indigo-100">
-                     <div className="h-2 w-2 rounded-full bg-amber-500 animate-pulse"></div>
-                     <span className="text-[10px] font-black text-indigo-900">ממתין לסריקת דייר...</span>
+                     <div className={cn("h-2 w-2 rounded-full", tenant ? "bg-blue-500" : "bg-amber-500 animate-pulse")}></div>
+                     <span className="text-[10px] font-black text-indigo-900">{processStatus}</span>
                   </div>
                 </div>
               </div>

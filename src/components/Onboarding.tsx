@@ -149,7 +149,6 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
     submitKyc,
     approveKyc,
     requestEligibilityCheck,
-    resolveEligibilityCheck,
     skipEligibilityCheck,
     saveOnboardingAgreement,
     saveBankAuthorization,
@@ -167,7 +166,16 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
   );
   const eligibilityCheck = useMemo(
     () => db.eligibilityChecks.find((check) => check.tenantId === user.id) ?? null,
-    [db.eligibilityChecks, user.id],
+    [db, user.id],
+  );
+  const activeInvite = useMemo(
+    () =>
+      db.onboardingInvites.find(
+        (invite) =>
+          invite.propertyId === activeContract?.propertyId &&
+          invite.tenantEmail.toLowerCase() === user.email.toLowerCase(),
+      ) ?? null,
+    [activeContract?.propertyId, db, user.email],
   );
   const [currentStep, setCurrentStep] = useState(() => getInitialStep(user));
   const [draft, setDraft] = useState<OnboardingDraft>(() =>
@@ -181,6 +189,7 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
   const hasValidOptionalPhone = phoneDigits.length === 0 || phoneDigits.length >= 9;
   const hasRequiredIdentity = draft.idPhotoUploaded && draft.selfieUploaded && hasValidOptionalIdentity && hasValidOptionalPhone;
   const isCreditApproved = user.bdiStatus === "green";
+  const landlordCreditSkipApproved = draft.landlordCreditSkipApproved || Boolean(activeInvite?.landlordCreditSkipApproved);
   const hasRequiredDocuments = draft.clausesApproved;
   const hasRequiredBankDetails =
     Boolean(draft.bankId) &&
@@ -209,8 +218,8 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
     if (currentStep === 1) return "שמור פרטי דירה והמשך";
     if (currentStep === 2) {
        if (isCreditApproved) return "המשך להקמת הרשאה";
-       if (eligibilityCheck?.status === "pending") return "אישור בדיקת זכאות והמשך";
-       return "אישור בדיקת זכאות והמשך";
+       if (eligibilityCheck?.status === "pending") return "ממתין לאישור משכיר";
+       return "שלח בקשה לבדיקת זכאות";
     }
     if (currentStep === 3) return "אישור הרשאה לחיוב";
     if (currentStep === 4) return "חתימה וסיום חוזה";
@@ -221,7 +230,7 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
     isProcessing ||
     (currentStep === 0 && user.kycStatus !== "approved" && !hasRequiredIdentity) ||
     (currentStep === 1 && (!hasRequiredDocuments || draft.rentAmount <= 0)) ||
-    (currentStep === 2 && !draft.creditConsent && !isCreditApproved) ||
+    (currentStep === 2 && (!draft.creditConsent || eligibilityCheck?.status === "pending") && !isCreditApproved) ||
     (currentStep === 3 && !hasRequiredBankDetails) ||
     (currentStep === 4 && (!canSign || !hasRequiredSignature));
 
@@ -262,8 +271,6 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
           return;
         }
         requestEligibilityCheck(user.id, activeContract?.landlordId);
-        resolveEligibilityCheck(user.id, true);
-        setCurrentStep(3);
         return;
       }
 
@@ -289,7 +296,7 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
   };
 
   const handleSkipCredit = () => {
-    if (isProcessing || isCreditApproved || !draft.landlordCreditSkipApproved) return;
+    if (isCreditApproved || !landlordCreditSkipApproved) return;
     persistAgreement();
     skipEligibilityCheck(user.id, activeContract?.landlordId);
     setCurrentStep(3);
@@ -366,6 +373,7 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
                 property={activeProperty}
                 eligibilityStatus={eligibilityCheck?.status}
                 draft={draft}
+                landlordCreditSkipApproved={landlordCreditSkipApproved}
                 monthlyPayment={monthlyPayment}
                 canSign={canSign}
                 onDraftChange={setDraft}
@@ -412,6 +420,7 @@ function StepContent({
   property,
   eligibilityStatus,
   draft,
+  landlordCreditSkipApproved,
   monthlyPayment,
   canSign,
   onDraftChange,
@@ -423,6 +432,7 @@ function StepContent({
   property: Property | null;
   eligibilityStatus?: "pending" | "approved" | "rejected";
   draft: OnboardingDraft;
+  landlordCreditSkipApproved: boolean;
   monthlyPayment: number;
   canSign: boolean;
   onDraftChange: DraftChangeHandler;
@@ -454,6 +464,7 @@ function StepContent({
           user={user}
           eligibilityStatus={eligibilityStatus}
           draft={draft}
+          landlordCreditSkipApproved={landlordCreditSkipApproved}
           onDraftChange={onDraftChange}
           onSkipCredit={onSkipCredit}
         />
@@ -993,12 +1004,14 @@ function CreditCheckStep({
   user,
   eligibilityStatus,
   draft,
+  landlordCreditSkipApproved,
   onDraftChange,
   onSkipCredit,
 }: {
   user: User;
   eligibilityStatus?: "pending" | "approved" | "rejected";
   draft: OnboardingDraft;
+  landlordCreditSkipApproved: boolean;
   onDraftChange: DraftChangeHandler;
   onSkipCredit: () => void;
 }) {
@@ -1025,7 +1038,7 @@ function CreditCheckStep({
             </div>
           </div>
 
-          {!approved && !rejected && (
+          {!approved && !rejected && !isPending && (
              <div className="space-y-6">
                 <label className="flex cursor-pointer items-start gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-5 transition-all hover:bg-white hover:border-blue-200 md:p-6">
                   <input
@@ -1065,46 +1078,28 @@ function CreditCheckStep({
                     <p className="mt-1 text-sm font-bold">דילוג על בדיקת נתוני אשראי אפשרי רק לאחר אישור המשכיר.</p>
                 </div>
               </InfoPanel>
-              <label className="flex cursor-pointer items-start gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-5 transition hover:bg-white">
-                <input
-                  type="checkbox"
-                  checked={draft.landlordCreditSkipApproved}
-                  onChange={(event) =>
-                    onDraftChange((currentDraft) => ({
-                      ...currentDraft,
-                      landlordCreditSkipApproved: event.target.checked,
-                    }))
-                  }
-                  className="mt-1 h-5 w-5 rounded-lg border-2 border-slate-300 text-blue-600 focus:ring-blue-600"
-                />
-                <span className="text-sm font-bold leading-7 text-slate-600">
-                  התקבל אישור מפורש מבעל הדירה לדלג על בדיקת נתוני אשראי.
-                </span>
-              </label>
-              {!draft.landlordCreditSkipApproved && (
-                <a
-                  href="https://www.creditdata.org.il/"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex w-full items-center justify-center rounded-2xl border border-blue-100 bg-blue-50 px-4 py-4 text-xs font-black text-blue-700 transition hover:bg-blue-100"
-                >
-                  מעבר לאישור בדיקת נתוני אשראי
-                </a>
-              )}
-              <button
-                disabled={!draft.landlordCreditSkipApproved}
-                onClick={onSkipCredit}
-                className="w-full rounded-2xl border border-slate-200 py-4 text-xs font-black uppercase tracking-widest text-slate-500 transition-all hover:text-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-300"
-              >
-                דילוג באישור משכיר
-              </button>
+              <CreditSkipStatus
+                approved={landlordCreditSkipApproved}
+                onSkipCredit={onSkipCredit}
+              />
             </div>
           )}
 
           {isPending && !approved && !rejected && (
-             <div className="mt-6 flex items-center gap-4 p-6 bg-blue-50 rounded-2xl border border-blue-100 animate-pulse">
-                <div className="h-4 w-4 rounded-full bg-blue-500" />
-                <p className="text-sm font-black text-blue-900">מעבד נתוני אשראי... אנא המתן</p>
+             <div className="mt-6 space-y-4">
+                <div className="flex items-center gap-4 rounded-2xl border border-blue-100 bg-blue-50 p-6">
+                  <div className="h-4 w-4 rounded-full bg-blue-500 animate-pulse" />
+                  <div>
+                    <p className="text-sm font-black text-blue-900">בקשת הזכאות נשלחה</p>
+                    <p className="mt-1 text-xs font-bold leading-6 text-blue-700">
+                      ממתין לאישור המשכיר או לאישור דרך מערכת נתוני אשראי.
+                    </p>
+                  </div>
+                </div>
+                <CreditSkipStatus
+                  approved={landlordCreditSkipApproved}
+                  onSkipCredit={onSkipCredit}
+                />
              </div>
           )}
         </div>
@@ -1130,6 +1125,44 @@ function CreditCheckStep({
            </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function CreditSkipStatus({
+  approved,
+  onSkipCredit,
+}: {
+  approved: boolean;
+  onSkipCredit: () => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className={cn(
+        "rounded-2xl border p-4 text-sm font-bold leading-7",
+        approved ? "border-emerald-100 bg-emerald-50 text-emerald-700" : "border-amber-100 bg-amber-50 text-amber-700",
+      )}>
+        {approved
+          ? "בעל הדירה אישר מראש דילוג על בדיקת נתוני אשראי. ניתן להמשיך להרשאת החיוב."
+          : "בעל הדירה עדיין לא אישר דילוג על בדיקת נתוני אשראי."}
+      </div>
+      {!approved && (
+                <a
+                  href="https://www.creditdata.org.il/"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex w-full items-center justify-center rounded-2xl border border-blue-100 bg-blue-50 px-4 py-4 text-xs font-black text-blue-700 transition hover:bg-blue-100"
+                >
+                  מעבר לאישור בדיקת נתוני אשראי
+                </a>
+      )}
+      <button
+        disabled={!approved}
+        onClick={onSkipCredit}
+        className="w-full rounded-2xl border border-slate-200 py-4 text-xs font-black uppercase tracking-widest text-slate-500 transition-all hover:text-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-300"
+      >
+        דילוג באישור משכיר
+      </button>
     </div>
   );
 }

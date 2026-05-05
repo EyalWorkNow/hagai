@@ -100,6 +100,7 @@ type InviteTenantPayload = {
   tenantEmail: string;
   tenantPhone?: string;
   contractVisibilityStep?: 1 | 2 | 4;
+  landlordCreditSkipApproved?: boolean;
 };
 
 type CreateUtilityChargePayload = {
@@ -970,6 +971,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         sentAt: nowIso(),
         status: "sent",
         contractVisibilityStep: payload.contractVisibilityStep ?? 2,
+        landlordCreditSkipApproved: Boolean(payload.landlordCreditSkipApproved),
       });
     });
   };
