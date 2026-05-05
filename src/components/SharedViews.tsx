@@ -254,7 +254,7 @@ export function PaymentsManagement({ user }: { user: User }) {
   }, [payments, utilityCharges]);
 
   const handleExport = () => {
-    alert("דוח גבייה והיסטוריית תשלומים מוכן לייצוא מה־proxy DB.");
+    // Export functionality
   };
 
   return (
@@ -455,11 +455,7 @@ export function PaymentsManagement({ user }: { user: User }) {
                               )}
 
                             <button
-                              onClick={() =>
-                                alert(
-                                  `אסמכתא עבור ${payment.id} מוכנה לצפייה ב־JSON DB.`,
-                                )
-                              }
+                              onClick={() => {}}
                               className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-700 transition-all hover:bg-slate-50"
                             >
                               פתח פירוט
@@ -692,13 +688,7 @@ export function PropertyCondition({ user }: { user: User }) {
                     </div>
 
                     <button
-                      onClick={() =>
-                        alert(
-                          document.url
-                            ? `המסמך זמין בנתיב ${document.url}`
-                            : "המסמך קיים ב־JSON DB ויופיע להורדה לאחר העלאה.",
-                        )
-                      }
+                      onClick={() => {}}
                       className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-black text-slate-700 transition-all hover:bg-slate-50"
                     >
                       <Download size={15} />

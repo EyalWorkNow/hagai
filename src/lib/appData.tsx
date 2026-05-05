@@ -154,6 +154,7 @@ type AppDataContextValue = {
   inviteTenant: (landlordId: string, payload: InviteTenantPayload) => void;
   setTenantCreditSkipApproval: (landlordId: string, payload: CreditSkipApprovalPayload) => void;
   createContract: (landlordId: string, payload: CreateContractPayload) => void;
+  deleteContract: (contractId: string) => void;
   signContract: (contractId: string, signerId: string) => void;
   createManualPayment: (actor: User, payload: CreatePaymentPayload) => void;
   updatePaymentStatus: (paymentId: string, status: Payment["status"]) => void;
@@ -1210,6 +1211,12 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const deleteContract = (contractId: string) => {
+    applyDbUpdate((nextDb) => {
+      nextDb.contracts = nextDb.contracts.filter(c => c.id !== contractId);
+    });
+  };
+
   const signContract = (contractId: string, signerId: string) => {
     applyDbUpdate((nextDb) => {
       const contract = nextDb.contracts.find((item) => item.id === contractId);
@@ -1525,6 +1532,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         inviteTenant,
         setTenantCreditSkipApproval,
         createContract,
+        deleteContract,
         signContract,
         createManualPayment,
         updatePaymentStatus,

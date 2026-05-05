@@ -11,7 +11,10 @@ import {
   Lock,
   Calendar,
   X,
-  Plus
+  Plus,
+  MoreVertical,
+  Trash,
+  Edit3
 } from "lucide-react";
 import { User, Contract, Property, UtilityPaymentMode } from "../types";
 import { cn } from "../lib/utils";
@@ -22,7 +25,7 @@ import { formatCurrencyCompact } from "../lib/analytics";
  * ContractsManagement Component
  */
 export default function ContractsManagement({ user }: { user: User }) {
-  const { db, signContract, createContract } = useAppData();
+  const { db, signContract, createContract, deleteContract } = useAppData();
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   const contracts = useMemo(() => db.contracts.filter((contract) => {
@@ -139,7 +142,12 @@ export default function ContractsManagement({ user }: { user: User }) {
                   </thead>
                   <tbody className="divide-y divide-slate-50">
                     {contracts.map(contract => (
-                      <ContractRow key={contract.id} contract={contract} userRole={user.role} />
+                      <ContractRow 
+                        key={contract.id} 
+                        contract={contract} 
+                        userRole={user.role} 
+                        onDelete={() => deleteContract(contract.id)}
+                      />
                     ))}
                   </tbody>
                 </table>
@@ -469,7 +477,8 @@ function Input({ label, value, onChange, placeholder, type = "text" }: any) {
   );
 }
 
-function ContractRow({ contract, userRole }: { contract: Contract, userRole: string }) {
+function ContractRow({ contract, userRole, onDelete }: { contract: Contract, userRole: string, onDelete: () => void }) {
+  const [showMenu, setShowMenu] = useState(false);
   const statusConfig: any = {
     active: { color: "bg-emerald-50 text-emerald-600 border-emerald-100", label: "בתוקף" },
     waiting_signature: { color: "bg-amber-50 text-amber-600 border-amber-200 shadow-sm", label: "ממתין לחתימה" },
@@ -511,10 +520,48 @@ function ContractRow({ contract, userRole }: { contract: Contract, userRole: str
         </span>
       </td>
       <td className="px-4 py-4 text-left sm:px-6 sm:py-5 md:px-8 md:py-6">
-        <div className="flex items-center justify-end gap-3">
-          <button className="h-10 w-10 flex items-center justify-center rounded-xl text-slate-400 bg-white border border-slate-200 hover:text-blue-600 hover:bg-blue-50 transition-all hover:border-blue-200 shadow-sm">
-            <Download size={18} />
+        <div className="flex items-center justify-end gap-3 relative">
+          <button 
+            onClick={() => setShowMenu(!showMenu)}
+            className="h-10 w-10 flex items-center justify-center rounded-xl text-slate-400 bg-white border border-slate-200 hover:text-blue-600 hover:bg-blue-50 transition-all hover:border-blue-200 shadow-sm"
+          >
+            <MoreVertical size={18} />
           </button>
+          
+          {showMenu && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)}></div>
+              <div className="absolute top-12 left-0 z-50 w-40 rounded-2xl bg-white p-2 shadow-xl border border-slate-100 flex flex-col gap-1 text-right">
+                <button 
+                  onClick={() => { setShowMenu(false); }}
+                  className="flex items-center gap-3 w-full rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+                >
+                  <Download size={16} />
+                  <span>להוריד</span>
+                </button>
+                <button 
+                  onClick={() => { setShowMenu(false); }}
+                  className="flex items-center gap-3 w-full rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+                >
+                  <Edit3 size={16} />
+                  <span>לערוך</span>
+                </button>
+                <div className="h-px w-full bg-slate-100 my-1"></div>
+                <button 
+                  onClick={() => { 
+                    setShowMenu(false); 
+                    if (window.confirm("האם אתה בטוח שברצונך למחוק חוזה זה? פעולה זו בלתי הפיכה.")) {
+                      onDelete();
+                    }
+                  }}
+                  className="flex items-center gap-3 w-full rounded-xl px-4 py-2.5 text-sm font-bold text-rose-600 hover:bg-rose-50 transition-colors"
+                >
+                  <Trash size={16} />
+                  <span>למחוק</span>
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </td>
     </tr>

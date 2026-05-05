@@ -40,7 +40,7 @@ import { InfoTooltip } from "./SharedViews";
  * Optimized for the Hebrew rental-management spec: Alerts, Summary, Non-paying alerts, and Property lists.
  */
 export default function LandlordDashboard({ user }: { user: User }) {
-  const { db, addProperty, inviteTenant, setTenantCreditSkipApproval, resetDatabase } = useAppData();
+  const { db, addProperty, inviteTenant, setTenantCreditSkipApproval, completeOnboarding, resetDatabase } = useAppData();
   const [activeTab, setActiveTab] = useState<"overview" | "properties" | "proofs" | "maintenance">("overview");
   const properties = useMemo(() => db.properties.filter((property) => property.landlordId === user.id), [db.properties, user.id]);
   const payments = useMemo(() => [...db.payments]
@@ -384,9 +384,7 @@ export default function LandlordDashboard({ user }: { user: User }) {
                    </div>
                    
                    <button 
-                     onClick={() => {
-                       alert("מפיק דוח רווח והפסד שנתי... הקובץ יישלח למייל שלך בסיום העיבוד.");
-                     }}
+                     onClick={() => {}}
                      className="w-full mt-10 py-5 bg-white text-slate-950 font-black rounded-3xl shadow-2xl hover:scale-[1.02] active:scale-95 transition-all text-[15px] italic font-display"
                    >
                       הפק דוח רווח והפסד
@@ -507,6 +505,7 @@ export default function LandlordDashboard({ user }: { user: User }) {
               landlordCreditSkipApproved: payload.landlordCreditSkipApproved,
             })
           }
+          onCompleteOnboarding={completeOnboarding}
           onClose={() => setShowInviteTenant(false)}
         />
       )}
@@ -833,6 +832,7 @@ function InviteTenantModal({
   invites,
   onCreditSkipApproval,
   onInvite,
+  onCompleteOnboarding,
   onClose,
 }: {
   property: Property;
@@ -841,6 +841,7 @@ function InviteTenantModal({
   invites: OnboardingInvite[];
   onCreditSkipApproval: (payload: { email?: string; approved: boolean }) => void;
   onInvite: (payload: { email: string; phone?: string; landlordCreditSkipApproved: boolean }) => void;
+  onCompleteOnboarding: (tenantId: string) => void;
   onClose: () => void;
 }) {
   const propertyContract =
@@ -897,7 +898,18 @@ function InviteTenantModal({
           <div className="h-20 w-20 bg-slate-50 text-slate-900 rounded-[28px] flex items-center justify-center mb-8 shadow-inner">
              <QrCode size={40} />
           </div>
-        {!isSent ? (
+        {tenant?.onboardingComplete ? (
+          <div className="py-12 flex flex-col items-center justify-center space-y-5 animate-in zoom-in-95 duration-500 text-center">
+             <div className="h-20 w-20 bg-emerald-500 text-white rounded-[24px] flex items-center justify-center shadow-xl shadow-emerald-500/20">
+                <CheckCircle2 size={40} />
+             </div>
+             <p className="text-3xl font-black text-slate-900 tracking-tighter italic font-display mt-4">תהליך ההצטרפות הושלם!</p>
+             <p className="text-sm text-slate-500 font-bold leading-relaxed max-w-md">הדייר מקושר לנכס באופן פעיל, כל המסמכים נחתמו וההרשאה לחיוב נקלטה במערכת.</p>
+             <button onClick={onClose} className="mt-8 px-8 py-4 bg-slate-900 text-white rounded-2xl font-black hover:bg-black transition-all shadow-md active:scale-95">
+                חזור לדאשבורד
+             </button>
+          </div>
+        ) : !isSent ? (
           <>
             <h2 className="text-3xl md:text-4xl font-black text-slate-900 mb-4 tracking-tighter italic font-display">הוספת דייר לנכס</h2>
             <p className="text-slate-500 text-base font-bold italic mb-10">{property.address}</p>
@@ -977,18 +989,69 @@ function InviteTenantModal({
                 </div>
 
                 <div className="rounded-[28px] bg-indigo-50/50 p-6 border border-indigo-100/50">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="h-10 w-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shrink-0">
-                      <ShieldCheck size={20} />
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shrink-0">
+                        <ShieldCheck size={20} />
+                      </div>
+                      <p className="text-sm font-black text-indigo-950">סטטוס חיבור</p>
                     </div>
-                    <p className="text-sm font-black text-indigo-950">סטטוס חיבור</p>
+                    {tenant && (
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-100 rounded-full border border-emerald-200">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
+                        <span className="text-[9px] font-black text-emerald-700 uppercase tracking-widest">Live Sync</span>
+                      </div>
+                    )}
                   </div>
-                  <p className="text-xs font-bold text-indigo-700/80 leading-relaxed mb-4">
-                    המערכת תסנכרן את נתוני המשכיר והשוכר באופן אוטומטי לאחר סיום הסריקה ואימות ה-KYC של השוכר.
-                  </p>
-                  <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-full self-start inline-flex border border-indigo-100">
-                     <div className={cn("h-2 w-2 rounded-full", tenant ? "bg-blue-500" : "bg-amber-500 animate-pulse")}></div>
-                     <span className="text-[10px] font-black text-indigo-900">{processStatus}</span>
+                  
+                  {tenant ? (
+                    <div className="mb-4 p-4 bg-white rounded-2xl border border-indigo-100 flex items-center justify-between shadow-sm">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 bg-blue-100 text-blue-700 rounded-xl flex items-center justify-center font-black text-sm">
+                          {tenant.name.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="text-sm font-black text-slate-900 leading-none">{tenant.name}</p>
+                          <p className="text-[11px] font-semibold text-slate-500 mt-1">{tenant.email}</p>
+                        </div>
+                      </div>
+                      {!tenant.onboardingComplete && (
+                        <button
+                          onClick={() => {
+                            if (window.confirm('האם אתה בטוח שברצונך לסיים את התהליך ידנית עבור דייר זה?')) {
+                              onCompleteOnboarding(tenant.id);
+                            }
+                          }}
+                          className="px-4 py-2 bg-slate-900 text-white rounded-xl text-[11px] font-black hover:bg-black transition-colors shadow-sm"
+                        >
+                          סגור תהליך
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-xs font-bold text-indigo-700/80 leading-relaxed mb-4">
+                      המערכת תסנכרן את נתוני המשכיר והשוכר באופן אוטומטי לאחר סיום הסריקה ואימות ה-KYC של השוכר.
+                    </p>
+                  )}
+
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-full self-start inline-flex border border-indigo-100">
+                       <div className={cn("h-2 w-2 rounded-full", tenant ? "bg-blue-500 animate-pulse" : "bg-amber-500 animate-pulse")}></div>
+                       <span className="text-[10px] font-black text-indigo-900">{processStatus}</span>
+                    </div>
+                    
+                    <button
+                      onClick={() => handleCreditSkipChange(!landlordCreditSkipApproved)}
+                      className={cn(
+                        "mt-2 w-full py-3 rounded-xl font-black text-[11px] transition-all flex items-center justify-center gap-2 border",
+                        landlordCreditSkipApproved 
+                          ? "bg-emerald-500 text-white border-emerald-600 shadow-sm" 
+                          : "bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50 shadow-sm"
+                      )}
+                    >
+                      <ShieldCheck size={14} />
+                      {landlordCreditSkipApproved ? "בדיקת אשראי - דילוג אושר בהצלחה" : "אישור דילוג על בדיקת נתוני אשראי"}
+                    </button>
                   </div>
                 </div>
               </div>

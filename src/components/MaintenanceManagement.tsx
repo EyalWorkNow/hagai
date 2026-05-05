@@ -146,9 +146,7 @@ export default function MaintenanceManagement({ user }: { user: User }) {
               בדיקת תקינות מערכות המים לפני עונת הגשמים חוסכת עד 40% מעלות התיקונים המפתיעים במהלך השנה.
             </p>
             <button 
-              onClick={() => {
-                alert("צ'ק-ליסט תחזוקה מונעת יורד כעת למכשירך. נא עקוב אחר ההוראות לשמירה על ערך הנכס.");
-              }}
+              onClick={() => {}}
               className="w-full py-4 bg-white text-slate-950 font-black rounded-2xl text-xs hover:scale-[1.02] active:scale-95 transition-all shadow-2xl relative z-10 uppercase tracking-widest flex items-center justify-center gap-3"
             >
               <span>הורד צ'ק-ליסט תקופתי</span>
@@ -248,7 +246,6 @@ function ServiceCallCard({ call, userRole, onUpdate }: { call: ServiceCall, user
                <button 
                   onClick={() => {
                     onUpdate({ status: "in_progress", vendorId: "vendor_1" });
-                    alert("בעל המקצוע הוקצה לקריאה. הוא ייצור קשר עם השוכר לתיאום הגעה.");
                   }}
                   className="flex-1 md:flex-none px-6 py-3 bg-blue-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-sleek-blue hover:bg-blue-700 transition-all"
                >
@@ -259,7 +256,6 @@ function ServiceCallCard({ call, userRole, onUpdate }: { call: ServiceCall, user
               <button
                 onClick={() => {
                   onUpdate({ status: "open", vendorId: undefined, assignedVendor: undefined });
-                  alert("הקצאת בעל המקצוע בוטלה והקריאה חזרה להמתנה לאישור.");
                 }}
                 className="flex-1 md:flex-none px-6 py-3 bg-white text-slate-900 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-slate-200 hover:border-slate-900 transition-all"
               >
