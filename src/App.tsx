@@ -1,13 +1,13 @@
 import { useState, useEffect, useMemo, ReactNode } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { 
-  Home, 
-  Users, 
-  CreditCard, 
-  FileText, 
-  Wrench, 
-  MessageSquare, 
-  ShieldCheck, 
+import {
+  Home,
+  Users,
+  CreditCard,
+  FileText,
+  Wrench,
+  MessageSquare,
+  ShieldCheck,
   LogOut,
   Bell,
   Search,
@@ -26,7 +26,9 @@ import {
   MapPin,
   TrendingUp,
   CheckCircle2,
+  ScanLine,
 } from "lucide-react";
+import { BarcodeScanner } from "./components/BarcodeScanner";
 
 // Local Component Imports
 import TenantDashboard from "./components/TenantDashboard";
@@ -524,9 +526,11 @@ function MessageUser({ name, collapsed, online, onClick }: { name: string, colla
 export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
   const { db, login, register, clearSiteAccess } = useAppData();
   const [isRegister, setIsRegister] = useState(Boolean(propertyId));
+  const [activePropertyId, setActivePropertyId] = useState<string | undefined>(propertyId);
   const [showRoleSelection, setShowRoleSelection] = useState(false);
   const [showPropertyBoard, setShowPropertyBoard] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+  const [showQrScanner, setShowQrScanner] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -538,16 +542,47 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
     password: string;
   } | null>(null);
 
+  useEffect(() => {
+    setActivePropertyId(propertyId);
+    setIsRegister(Boolean(propertyId));
+  }, [propertyId]);
+
+  const handleQrScan = (value: string) => {
+    setShowQrScanner(false);
+    try {
+      const url = new URL(value);
+      const scannedPropertyId = url.searchParams.get("propertyId");
+      if (scannedPropertyId) {
+        const propertyExists = db.properties.some((property) => property.id === scannedPropertyId);
+        if (!propertyExists) {
+          setError("קוד ה-QR תקין, אבל הנכס לא נמצא במערכת המקומית.");
+          return;
+        }
+        setActivePropertyId(scannedPropertyId);
+        setIsRegister(true);
+        setError(null);
+        window.history.replaceState(
+          {},
+          document.title,
+          `${window.location.pathname}?propertyId=${encodeURIComponent(scannedPropertyId)}`,
+        );
+        return;
+      }
+    } catch {}
+    // If not a URL with propertyId, just show the value as an error hint
+    setError("קוד ה-QR שנסרק אינו מכיל מזהה נכס תקין. נסה שוב.");
+  };
+
   // When coming from a QR invite (propertyId present), skip role selection — always register as tenant
   if (showRoleSelection && pendingDraft) {
-    if (propertyId) {
+    if (activePropertyId) {
       // Auto-register as tenant immediately
       register({
         name: pendingDraft.name,
         email: pendingDraft.email,
         password: pendingDraft.password,
         role: "tenant",
-        propertyId,
+        propertyId: activePropertyId,
       });
       return null;
     }
@@ -559,7 +594,7 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
             email: pendingDraft.email,
             password: pendingDraft.password,
             role,
-            propertyId: role === "tenant" ? propertyId : undefined,
+            propertyId: role === "tenant" ? activePropertyId : undefined,
           });
         }}
       />
@@ -577,14 +612,14 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
         if (!email.trim()) throw new Error("נא להזין כתובת דוא\"ל");
         if (!password.trim()) throw new Error("נא להזין סיסמה");
 
-        if (propertyId) {
+        if (activePropertyId) {
           // QR invite flow — register directly as tenant, no role selection
           register({
             name: name.trim(),
             email: email.trim().toLowerCase(),
             password,
             role: "tenant",
-            propertyId,
+            propertyId: activePropertyId,
           });
         } else {
           // Normal flow — show role selection
@@ -596,7 +631,7 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
           setShowRoleSelection(true);
         }
       } else {
-        login(email, password, propertyId);
+        login(email, password, activePropertyId);
       }
     } catch (err: any) {
       console.error(err);
@@ -621,7 +656,7 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
     
     setName(usernameMap[demoEmail] || demoEmail.split('@')[0]);
     setError(null);
-    login(demoEmail, "123123", propertyId);
+    login(demoEmail, "123123", activePropertyId);
   };
 
   const handleGoogleStyleLogin = () => {
@@ -663,33 +698,33 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
         alt="Modern Architecture" 
       />
 
-      {propertyId ? (
+      {activePropertyId ? (
         /* Focused Join Property UI */
-        <div className="relative z-10 w-full max-w-4xl px-4 py-10 md:py-20 flex flex-col items-center">
-          <div className="w-full bg-white/95 backdrop-blur-3xl rounded-[40px] p-8 md:p-16 shadow-[0_50px_100px_rgba(0,0,0,0.4)] border border-white/40 animate-in zoom-in-95 fade-in duration-700">
+        <div className="relative z-10 flex w-full max-w-4xl flex-col items-center px-0 py-6 sm:px-4 sm:py-10 md:py-20">
+          <div className="w-full animate-in zoom-in-95 fade-in rounded-[28px] border border-white/40 bg-white/95 p-5 shadow-[0_50px_100px_rgba(0,0,0,0.4)] backdrop-blur-3xl duration-700 sm:rounded-[36px] sm:p-8 md:rounded-[40px] md:p-16">
              
-             <div className="flex flex-col md:flex-row items-center gap-10 mb-12">
-                <div className="h-32 w-32 md:h-40 md:w-40 bg-slate-900 rounded-[40px] flex items-center justify-center border-4 border-white shadow-2xl shrink-0">
-                   <img src={hagaiLogo} alt="Logo" className="h-20 md:h-24 w-auto object-contain scale-110" />
+             <div className="mb-8 flex flex-col items-center gap-6 md:mb-12 md:flex-row md:gap-10">
+                <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-[28px] border-4 border-white bg-slate-900 shadow-2xl sm:h-32 sm:w-32 sm:rounded-[36px] md:h-40 md:w-40 md:rounded-[40px]">
+                   <img src={hagaiLogo} alt="Logo" className="h-16 w-auto scale-110 object-contain sm:h-20 md:h-24" />
                 </div>
                 <div className="text-center md:text-right">
                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600/10 text-blue-600 rounded-full mb-4">
                       <div className="h-2 w-2 rounded-full bg-blue-600 animate-pulse" />
                       <span className="text-[11px] font-black uppercase tracking-widest">הזמנה להצטרפות לנכס</span>
                    </div>
-                   <h1 className="text-4xl md:text-6xl font-black text-slate-900 tracking-tighter italic font-display leading-[1.1] mb-4">
-                      הצטרפות לדירה ב-{db.properties.find(p => p.id === propertyId)?.address || "נכס חדש במערכת"}
+                   <h1 className="mb-4 text-3xl font-black leading-[1.12] tracking-tight text-slate-900 sm:text-4xl md:text-6xl md:tracking-tighter italic font-display">
+                      הצטרפות לדירה ב-{db.properties.find(p => p.id === activePropertyId)?.address || "נכס חדש במערכת"}
                    </h1>
-                   <p className="text-lg font-bold text-slate-500 leading-relaxed">
+                   <p className="text-sm font-bold leading-7 text-slate-500 sm:text-base md:text-lg md:leading-relaxed">
                       הוזמנת על ידי המשכיר להתחיל את תהליך השכירות הדיגיטלי ב-{BRAND_NAME}. <br className="hidden md:block" />
                       וודאות מוחלטת, ביטחון מלא, וללא צ'קים פיזיים.
                    </p>
                 </div>
              </div>
 
-             <div className="h-px w-full bg-slate-100 mb-12" />
+             <div className="mb-8 h-px w-full bg-slate-100 md:mb-12" />
 
-             <div className="grid md:grid-cols-[1fr_0.8fr] gap-12 items-start">
+             <div className="grid items-start gap-8 md:grid-cols-[1fr_0.8fr] md:gap-12">
                 {/* Form Side */}
                 <div className="space-y-8">
                    <div className="flex items-center gap-4">
@@ -817,94 +852,110 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
                  </span>
               </div>
 
-              <div className="mt-8 md:mt-10">
-                 <button 
+              <div className="mt-8 md:mt-10 flex flex-col sm:flex-row items-center gap-3">
+                 <button
                     onClick={() => setShowPropertyBoard(true)}
-                    className="flex w-full max-w-[280px] items-center justify-center gap-3 rounded-[24px] bg-white px-8 py-5 text-lg font-black text-slate-900 shadow-[0_20px_40px_rgba(0,0,0,0.3)] transition-all hover:bg-blue-600 hover:text-white active:scale-95 md:w-auto md:max-w-none md:px-12 md:text-xl md:hover:scale-105"
+                    className="flex w-full max-w-[280px] items-center justify-center gap-3 rounded-[24px] bg-white px-8 py-5 text-lg font-black text-slate-900 shadow-[0_20px_40px_rgba(0,0,0,0.3)] transition-all hover:bg-blue-600 hover:text-white active:scale-95 sm:w-auto sm:max-w-none sm:px-12 sm:text-xl sm:hover:scale-105"
                  >
                     <span>שוק דירות</span>
                     <Home size={24} />
+                 </button>
+                 <button
+                    onClick={() => setShowQrScanner(true)}
+                    className="flex w-full max-w-[280px] items-center justify-center gap-3 rounded-[24px] bg-white/20 backdrop-blur-md px-8 py-5 text-base font-black text-white border border-white/30 shadow-[0_10px_30px_rgba(0,0,0,0.2)] transition-all hover:bg-white/30 active:scale-95 sm:w-auto sm:max-w-none sm:px-10"
+                 >
+                    <ScanLine size={22} />
+                    <span>סרוק QR להצטרפות</span>
                  </button>
               </div>
            </div>
         </div>
       )}
 
-      {/* 5. Combined Login & Stats Command Bar (Only shown if NOT in focused join flow) */}
-      {!propertyId && (
-        <div className="relative z-30 flex w-full max-w-full flex-col items-center gap-4 px-0 pb-8 md:fixed md:bottom-8 md:left-1/2 md:max-w-7xl md:-translate-x-1/2 md:gap-6 md:px-4 md:pb-0">
+      {/* QR Scanner Modal */}
+      {showQrScanner && (
+        <BarcodeScanner
+          title="סריקת קוד הזמנה"
+          description="סרוק את קוד ה-QR שהמשכיר שלח לך"
+          onScan={handleQrScan}
+          onClose={() => setShowQrScanner(false)}
+        />
+      )}
 
-         
+      {/* 5. Combined Login & Stats Command Bar (Only shown if NOT in focused join flow) */}
+      {!activePropertyId && (
+        <div className="relative z-30 flex w-full max-w-full flex-col items-center gap-3 px-2 pb-6 sm:px-4 sm:pb-8 md:fixed md:bottom-8 md:left-1/2 md:max-w-7xl md:-translate-x-1/2 md:gap-6 md:px-4 md:pb-0">
+
          {/* Unified "Command Bar" for Login + Stats (Darkened Glass) */}
-         <div className="bg-white/90 backdrop-blur-3xl rounded-[32px] md:rounded-[48px] p-5 md:p-10 border border-white/40 shadow-[0_40px_100px_rgba(0,0,0,0.5)] w-full flex flex-col gap-5 md:gap-10">
-            
-            {/* Stats Group */}
-            <div className="grid w-full grid-cols-2 gap-3 sm:flex sm:items-center sm:justify-center sm:gap-10 md:gap-24">
-               <div className="rounded-[24px] bg-slate-50/80 p-4 text-center sm:bg-transparent sm:p-0">
-                  <p className="text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1 md:mb-2">דירות מנוהלות</p>
-                  <p className="text-4xl md:text-6xl font-black text-slate-900 tabular-nums italic font-display leading-none">{managedPropertiesCount}</p>
+         <div className="bg-white/92 backdrop-blur-3xl rounded-[28px] md:rounded-[48px] p-4 sm:p-6 md:p-10 border border-white/40 shadow-[0_40px_100px_rgba(0,0,0,0.5)] w-full flex flex-col gap-4 sm:gap-5 md:gap-10">
+
+            {/* Stats Group - compact on mobile */}
+            <div className="flex items-center justify-center gap-6 sm:gap-10 md:gap-24">
+               <div className="text-center">
+                  <p className="text-[9px] sm:text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1 md:mb-2">דירות מנוהלות</p>
+                  <p className="text-3xl sm:text-4xl md:text-6xl font-black text-slate-900 tabular-nums italic font-display leading-none">{managedPropertiesCount}</p>
                </div>
-               <div className="hidden sm:block h-16 w-px bg-slate-200" />
-               <div className="rounded-[24px] bg-slate-50/80 p-4 text-center sm:bg-transparent sm:p-0">
-                  <p className="text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1 md:mb-2">שיעור הצלחה</p>
-                  <p className="text-4xl md:text-6xl font-black text-blue-600 tabular-nums italic font-display leading-none">{successRate}</p>
+               <div className="h-10 w-px bg-slate-200" />
+               <div className="text-center">
+                  <p className="text-[9px] sm:text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1 md:mb-2">שיעור הצלחה</p>
+                  <p className="text-3xl sm:text-4xl md:text-6xl font-black text-blue-600 tabular-nums italic font-display leading-none">{successRate}</p>
                </div>
             </div>
 
             <div className="h-px w-full bg-slate-100" />
 
             {/* Compact Login Form */}
-            <form onSubmit={handleSubmit} className="flex flex-col md:flex-row items-center gap-3 md:gap-4">
-               <div className="w-full flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <AuthInputCompact 
-                     icon={<UserIcon size={18} />} 
-                     value={name} 
-                     onChange={setName} 
-                     placeholder="שם מלא" 
+            <form onSubmit={handleSubmit} className="flex flex-col gap-3 md:flex-row md:gap-4">
+               <div className="w-full flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
+                  <AuthInputCompact
+                     icon={<UserIcon size={16} />}
+                     value={name}
+                     onChange={setName}
+                     placeholder="שם מלא"
                      name="name"
                   />
-                  <AuthInputCompact 
-                     icon={<Lock size={18} />} 
-                     value={password} 
-                     onChange={setPassword} 
-                     placeholder="סיסמה" 
-                     type="password" 
+                  <AuthInputCompact
+                     icon={<Lock size={16} />}
+                     value={password}
+                     onChange={setPassword}
+                     placeholder="סיסמה"
+                     type="password"
                      name="password"
                   />
-                  <AuthInputCompact 
-                     icon={<Mail size={18} />} 
-                     value={email} 
-                     onChange={setEmail} 
-                     placeholder="דוא״ל" 
-                     type="email" 
+                  <AuthInputCompact
+                     icon={<Mail size={16} />}
+                     value={email}
+                     onChange={setEmail}
+                     placeholder="דוא״ל"
+                     type="email"
                      name="email"
                   />
                </div>
-               <button 
+               <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full md:w-auto h-14 md:h-16 px-8 md:px-12 bg-slate-950 text-white rounded-[22px] md:rounded-[24px] font-black text-sm md:text-base tracking-widest hover:bg-blue-600 transition-all active:scale-[0.95] disabled:bg-slate-400 shrink-0 shadow-2xl"
+                  className="w-full md:w-auto h-12 sm:h-14 md:h-16 px-6 sm:px-8 md:px-12 bg-slate-950 text-white rounded-[18px] md:rounded-[24px] font-black text-sm md:text-base tracking-widest hover:bg-blue-600 transition-all active:scale-[0.95] disabled:bg-slate-400 shrink-0 shadow-2xl"
                >
                   {isLoading ? "מעבד..." : "כניסה למערכת"}
                </button>
             </form>
 
             {error && (
-               <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-red-500 text-white px-6 py-2 rounded-full text-[10px] font-black shadow-xl animate-in slide-in-from-bottom-2">
+               <div className="p-3 bg-red-50 border border-red-100 rounded-2xl text-red-600 text-xs font-bold text-center">
                   {error}
                </div>
             )}
          </div>
 
-         {/* Quick Access Navbar - Hidden on very small screens or made scrollable */}
-         <div className="grid w-full grid-cols-4 gap-1 rounded-[28px] border border-white/50 bg-white/95 px-3 py-2.5 shadow-2xl backdrop-blur-2xl opacity-95 transition-all duration-500 hover:opacity-100 md:flex md:w-auto md:max-w-full md:items-center md:gap-3 md:overflow-x-auto md:rounded-full md:px-6 md:scale-90 md:hover:scale-100">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2 hidden sm:block">דמו:</p>
+         {/* Quick Demo Access - scrollable row */}
+         <div className="flex w-full items-center gap-1 overflow-x-auto no-scrollbar rounded-[24px] border border-white/50 bg-white/95 px-3 py-2 shadow-2xl backdrop-blur-2xl md:w-auto md:rounded-full md:px-5 md:scale-90 md:hover:scale-100 md:transition-transform">
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2 shrink-0">דמו:</p>
             <QuickAccessBtn icon={<ShieldCheck size={14} />} label="אדמין" onClick={() => handleDemoLogin("admin@admin.com")} />
-            <div className="h-3 w-px bg-slate-200"></div>
+            <div className="h-4 w-px bg-slate-200 shrink-0"></div>
             <QuickAccessBtn icon={<Home size={14} />} label="משכיר" onClick={() => handleDemoLogin("landlord@landlord.com")} />
-            <div className="h-3 w-px bg-slate-200"></div>
+            <div className="h-4 w-px bg-slate-200 shrink-0"></div>
             <QuickAccessBtn icon={<UserIcon size={14} />} label="דייר" onClick={() => handleDemoLogin("tenant@tenant.com")} />
-            <div className="h-3 w-px bg-slate-200"></div>
+            <div className="h-4 w-px bg-slate-200 shrink-0"></div>
             <QuickAccessBtn icon={<UserPlus size={14} />} label="מועמד" onClick={() => handleDemoLogin("noa@example.com")} />
          </div>
         </div>
@@ -1195,23 +1246,23 @@ function PropertyDetailsPopup({ property: p, onClose }: { property: Property, on
    };
 
    return (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8">
-         <motion.div 
+      <div className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center p-0 sm:p-4 md:p-8">
+         <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
             className="absolute inset-0 bg-slate-950/90 backdrop-blur-2xl"
          />
-         <motion.div 
-            initial={{ scale: 0.9, opacity: 0, y: 40 }}
+         <motion.div
+            initial={{ scale: 0.95, opacity: 0, y: 60 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.9, opacity: 0, y: 40 }}
-            className="relative w-full max-w-7xl bg-white rounded-[56px] shadow-[0_50px_100px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col lg:flex-row h-full max-h-[90vh] lg:max-h-[850px]"
+            exit={{ scale: 0.95, opacity: 0, y: 60 }}
+            className="relative flex max-h-[95dvh] w-full max-w-7xl flex-col overflow-hidden rounded-t-[32px] bg-white shadow-[0_50px_100px_rgba(0,0,0,0.5)] sm:max-h-[90vh] sm:rounded-[40px] lg:max-h-[850px] lg:flex-row lg:rounded-[56px]"
             dir="rtl"
          >
             {/* Pinterest Style Layout: Left Side (Interactive Gallery) */}
-            <div className="w-full lg:w-3/5 relative bg-slate-100 overflow-hidden group select-none">
+            <div className="group relative h-[34vh] min-h-[230px] w-full select-none overflow-hidden bg-slate-100 sm:h-[42vh] lg:h-auto lg:min-h-0 lg:w-3/5">
                <AnimatePresence mode="wait">
                   <motion.img 
                      key={activeImageIndex}
@@ -1226,7 +1277,7 @@ function PropertyDetailsPopup({ property: p, onClose }: { property: Property, on
                </AnimatePresence>
                
                {/* Gallery Controls */}
-               <div className="absolute inset-x-0 bottom-10 flex justify-center gap-3 z-20">
+               <div className="absolute inset-x-0 bottom-5 z-20 flex justify-center gap-2 sm:bottom-10 sm:gap-3">
                   {images.map((_, idx) => (
                      <button 
                         key={idx}
@@ -1239,32 +1290,34 @@ function PropertyDetailsPopup({ property: p, onClose }: { property: Property, on
                   ))}
                </div>
 
-               <div className="absolute inset-y-0 left-0 right-0 flex items-center justify-between px-8 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+               <div className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center justify-between px-3 opacity-100 transition-opacity sm:px-6 lg:opacity-0 lg:group-hover:opacity-100">
                   <button 
                      onClick={prevImage}
-                     className="h-16 w-16 bg-white/20 backdrop-blur-xl rounded-full flex items-center justify-center text-white hover:bg-white hover:text-slate-900 transition-all border border-white/30 pointer-events-auto shadow-2xl"
+                     className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full border border-white/30 bg-white/20 text-white shadow-2xl backdrop-blur-xl transition-all hover:bg-white hover:text-slate-900 sm:h-14 sm:w-14 lg:h-16 lg:w-16"
                   >
-                     <ChevronRight size={32} />
+                     <ChevronRight size={24} className="sm:hidden" />
+                     <ChevronRight size={32} className="hidden sm:block" />
                   </button>
                   <button 
                      onClick={nextImage}
-                     className="h-16 w-16 bg-white/20 backdrop-blur-xl rounded-full flex items-center justify-center text-white hover:bg-white hover:text-slate-900 transition-all border border-white/30 pointer-events-auto shadow-2xl"
+                     className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full border border-white/30 bg-white/20 text-white shadow-2xl backdrop-blur-xl transition-all hover:bg-white hover:text-slate-900 sm:h-14 sm:w-14 lg:h-16 lg:w-16"
                   >
-                     <ChevronLeft size={32} />
+                     <ChevronLeft size={24} className="sm:hidden" />
+                     <ChevronLeft size={32} className="hidden sm:block" />
                   </button>
                </div>
 
                <button 
                   onClick={onClose}
-                  className="absolute top-8 right-8 h-12 w-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center text-white hover:bg-white hover:text-slate-900 transition-all border border-white/30 z-20 lg:hidden"
+                  className="absolute right-4 top-4 z-20 flex h-11 w-11 items-center justify-center rounded-2xl border border-white/30 bg-white/20 text-white backdrop-blur-md transition-all hover:bg-white hover:text-slate-900 sm:right-8 sm:top-8 sm:h-12 sm:w-12 lg:hidden"
                >
                   <X size={24} />
                </button>
             </div>
 
             {/* Right Side (Detailed Content) */}
-            <div className="w-full lg:w-2/5 p-10 md:p-14 overflow-y-auto no-scrollbar flex flex-col bg-white border-r border-slate-50">
-               <div className="flex justify-between items-center mb-10 shrink-0">
+            <div className="flex w-full flex-col overflow-y-auto border-r border-slate-50 bg-white p-5 sm:p-8 md:p-10 lg:w-2/5 lg:p-14 no-scrollbar">
+               <div className="mb-6 flex shrink-0 items-center justify-between sm:mb-10">
                   <button onClick={onClose} className="h-14 w-14 bg-slate-50 rounded-2xl hidden lg:flex items-center justify-center text-slate-400 hover:bg-slate-900 hover:text-white transition-all shadow-sm border border-slate-100">
                      <X size={24} />
                   </button>
@@ -1274,8 +1327,8 @@ function PropertyDetailsPopup({ property: p, onClose }: { property: Property, on
                   </div>
                </div>
 
-               <div className="mb-10">
-                  <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-3 leading-tight font-display italic italic-black">{p.address}</h1>
+               <div className="mb-8 sm:mb-10">
+                  <h1 className="mb-3 text-3xl font-black leading-tight tracking-tight text-slate-900 sm:text-4xl font-display italic italic-black">{p.address}</h1>
                   <div className="flex items-center gap-2">
                      <div className="h-5 w-5 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center">
                         <MapPin size={12} />
@@ -1284,13 +1337,13 @@ function PropertyDetailsPopup({ property: p, onClose }: { property: Property, on
                   </div>
                </div>
 
-               <div className="grid grid-cols-3 gap-5 mb-12">
+               <div className="mb-8 grid grid-cols-3 gap-3 sm:mb-12 sm:gap-5">
                   <PropertyMetric label="חדרים" value={p.rooms || 3} />
                   <PropertyMetric label="קומה" value={p.floor || "2/3"} />
                   <PropertyMetric label="מ״ר" value={p.sizeSqm || 87} />
                </div>
 
-               <div className="mb-12">
+               <div className="mb-8 sm:mb-12">
                   <div className="flex items-center gap-3 mb-6">
                      <div className="h-1 w-10 bg-blue-600 rounded-full" />
                      <h4 className="text-base font-black text-slate-900 uppercase tracking-widest">תיאור הנכס</h4>
@@ -1300,12 +1353,12 @@ function PropertyDetailsPopup({ property: p, onClose }: { property: Property, on
                   </p>
                </div>
 
-               <div className="mb-12 space-y-5">
+               <div className="mb-8 space-y-5 sm:mb-12">
                   <div className="flex items-center gap-3 mb-6">
                      <div className="h-1 w-10 bg-slate-200 rounded-full" />
                      <h4 className="text-base font-black text-slate-900 uppercase tracking-widest">מפרט טכני</h4>
                   </div>
-                  <div className="grid grid-cols-2 gap-y-5 gap-x-10">
+                  <div className="grid grid-cols-1 gap-y-4 sm:grid-cols-2 sm:gap-x-10 sm:gap-y-5">
                      <DetailRow label="סוג העסקה" value="מכירה" />
                      <DetailRow label="מצב הנכס" value={p.condition === "renovated" ? "משופץ" : "חדש"} />
                      <DetailRow label="מ״ר בנוי" value={`${p.builtSqm || 87} מ״ר`} />
@@ -1316,7 +1369,7 @@ function PropertyDetailsPopup({ property: p, onClose }: { property: Property, on
                   </div>
                </div>
 
-               <div className="mt-auto pt-10 border-t border-slate-100 flex flex-col gap-8 shrink-0">
+               <div className="mt-auto flex shrink-0 flex-col gap-6 border-t border-slate-100 pt-7 sm:gap-8 sm:pt-10">
                   <div className="flex justify-between items-center">
                      <div className="text-right">
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-1">מחיר סופי מבוקש</p>
@@ -1340,9 +1393,9 @@ function PropertyDetailsPopup({ property: p, onClose }: { property: Property, on
 
 function PropertyMetric({ label, value }: { label: string, value: string | number }) {
    return (
-      <div className="p-6 rounded-[32px] bg-slate-50 border border-slate-100/50 text-center group hover:bg-white hover:shadow-xl transition-all duration-500">
+      <div className="rounded-[22px] border border-slate-100/50 bg-slate-50 p-3 text-center transition-all duration-500 group hover:bg-white hover:shadow-xl sm:rounded-[32px] sm:p-6">
          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 group-hover:text-blue-500 transition-colors">{label}</p>
-         <p className="text-2xl font-black text-slate-900 font-display italic">{value}</p>
+         <p className="text-xl font-black text-slate-900 sm:text-2xl font-display italic">{value}</p>
       </div>
    );
 }

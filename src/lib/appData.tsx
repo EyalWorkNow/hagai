@@ -340,6 +340,12 @@ function todayIso() {
   return nowIso().slice(0, 10);
 }
 
+function oneYearFromTodayIso() {
+  const endDate = new Date();
+  endDate.setFullYear(endDate.getFullYear() + 1);
+  return endDate.toISOString().slice(0, 10);
+}
+
 function calculateMonthlyPayment(
   rentAmount: number,
   buildingCommitteeAmount: number,
@@ -509,8 +515,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
                 arnonaAmount: property.costs?.arnona ?? 0,
                 utilityPaymentMode: "separate",
                 monthlyPaymentAmount: property.rent,
+                startDate: todayIso(),
+                endDate: oneYearFromTodayIso(),
                 status: "waiting_kyc",
-                guaranteeType: "bank_guarantee",
+                guaranteeType: "bank",
                 createdAt: nowIso(),
                 templateId: "template_standard",
               });
@@ -586,8 +594,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
             arnonaAmount: property.costs?.arnona ?? 0,
             utilityPaymentMode: "separate",
             monthlyPaymentAmount: property.rent,
+            startDate: todayIso(),
+            endDate: oneYearFromTodayIso(),
             status: "waiting_kyc",
-            guaranteeType: "bank_guarantee",
+            guaranteeType: "bank",
             createdAt: nowIso(),
             templateId: "template_standard",
           });
@@ -632,8 +642,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
             arnonaAmount: property.costs?.arnona ?? 0,
             utilityPaymentMode: "separate",
             monthlyPaymentAmount: property.rent,
+            startDate: todayIso(),
+            endDate: oneYearFromTodayIso(),
             status: "waiting_kyc",
-            guaranteeType: "bank_guarantee",
+            guaranteeType: "bank",
             createdAt: nowIso(),
             templateId: "template_standard",
           });

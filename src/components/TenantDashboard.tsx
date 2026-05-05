@@ -198,8 +198,8 @@ export default function TenantDashboard({
             </div>
           )}
 
-          <div className="grid gap-5 xl:grid-cols-12 xl:items-start md:gap-8">
-            <div className="space-y-5 xl:col-span-8 md:space-y-8">
+          <div className="grid gap-5 lg:grid-cols-12 lg:items-start md:gap-8">
+            <div className="space-y-5 lg:col-span-8 md:space-y-8">
               <HeroCard hero={viewModel.hero} onAction={handleAction} />
 
               <QuickActionsGrid
@@ -213,7 +213,7 @@ export default function TenantDashboard({
                   onOpenOnboarding={() => handleAction("openOnboarding")}
                 />
               ) : (
-                <div className="grid gap-5 lg:grid-cols-2 md:gap-8">
+                <div className="grid gap-5 md:grid-cols-2 md:gap-8">
                   <RecentPaymentsCard payments={viewModel.paymentHistory} />
                   <RecentActivityCard
                     serviceCalls={viewModel.serviceHighlights}
@@ -223,7 +223,7 @@ export default function TenantDashboard({
               )}
             </div>
 
-            <div className="space-y-5 xl:col-span-4 md:space-y-8">
+            <div className="space-y-5 lg:col-span-4 md:space-y-8">
               <TenantJoinProcessCard
                 user={user}
                 contract={contracts[0] ?? null}
@@ -287,20 +287,20 @@ function DashboardHeader({
   ];
 
   return (
-    <div className="dashboard-card p-5 md:p-8 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-5 md:gap-10 bg-slate-950 text-white relative overflow-hidden">
+    <div className="dashboard-card p-5 md:p-8 flex flex-col gap-5 bg-slate-950 text-white relative overflow-hidden">
       <div className="absolute top-[-50%] left-[-10%] w-96 h-96 bg-blue-600/30 rounded-full blur-[100px] pointer-events-none" />
       
-      <div className="flex items-center gap-4 min-w-0 relative z-10 w-full xl:w-auto shrink-0 xl:border-l xl:border-white/10 xl:pl-10 md:gap-5">
+      <div className="flex items-center gap-4 min-w-0 relative z-10 md:gap-5">
         <div className="h-14 w-14 shrink-0 rounded-[22px] bg-blue-600 text-white flex items-center justify-center text-xl font-black shadow-xl shadow-blue-900/50 md:h-16 md:w-16 md:rounded-[24px] md:text-2xl">
           {user.name.charAt(0)}
         </div>
-        <div className="min-w-0">
-          <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl md:text-3xl font-black tracking-tight">
               שלום, {user.name.split(" ")[0]}
             </h1>
             <span className={cn(
-              "shrink-0 rounded-full px-3 py-1 text-[10px] font-black tracking-wide hidden sm:block",
+              "shrink-0 rounded-full px-3 py-1 text-[10px] font-black tracking-wide",
               tone === "success" ? "bg-emerald-500/20 text-emerald-300" :
               tone === "warning" ? "bg-amber-500/20 text-amber-300" :
               tone === "critical" ? "bg-rose-500/20 text-rose-300" :
@@ -309,18 +309,18 @@ function DashboardHeader({
               {statusLabel}
             </span>
           </div>
-          <div className="mt-2 flex items-center gap-2 text-slate-400 min-w-0">
-            <ShieldCheck size={16} className="text-blue-500 shrink-0" />
+          <div className="mt-1.5 flex items-center gap-2 text-slate-400 min-w-0">
+            <ShieldCheck size={14} className="text-blue-500 shrink-0" />
             <span className="text-sm font-semibold truncate">{address}</span>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 w-full grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 relative z-10">
+      <div className="relative z-10 grid grid-cols-2 gap-3 sm:grid-cols-4">
          {rows.map((row) => (
-           <div key={row.label} className="flex flex-col items-start bg-white/5 shadow-inner shadow-white/5 rounded-2xl p-4 md:p-5 border border-white/10 w-full hover:bg-white/10 transition-colors">
-             <p className="text-xs font-black text-slate-400 drop-shadow-sm">{row.label}</p>
-             <p className="mt-1.5 text-lg font-black text-white tabular-nums drop-shadow-md md:text-xl">₪{row.value.toLocaleString()}</p>
+           <div key={row.label} className="flex flex-col items-start bg-white/5 shadow-inner shadow-white/5 rounded-2xl p-3 border border-white/10 hover:bg-white/10 transition-colors sm:p-4">
+             <p className="text-[10px] font-black text-slate-400 drop-shadow-sm whitespace-nowrap">{row.label}</p>
+             <p className="mt-1.5 text-base font-black text-white tabular-nums drop-shadow-md sm:text-lg">₪{row.value.toLocaleString()}</p>
            </div>
          ))}
       </div>
@@ -346,7 +346,7 @@ function HeroCard({
     >
       <div className={cn("absolute inset-y-0 left-0 w-1/3 blur-3xl opacity-60", palette.glow)} />
 
-      <div className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between md:gap-8">
+      <div className="relative z-10 flex flex-col gap-5 md:flex-row md:items-start md:justify-between md:gap-8">
         <div className="space-y-4 md:space-y-5">
           <div className="flex items-center gap-3 md:gap-4">
             <div className={cn("h-14 w-14 shrink-0 rounded-full flex items-center justify-center text-white shadow-xl md:h-16 md:w-16", palette.icon)}>
@@ -385,7 +385,7 @@ function HeroCard({
           </div>
         </div>
 
-        <div className="w-full max-w-sm shrink-0 rounded-[24px] bg-white/75 p-5 border border-white/70 shadow-xl shadow-slate-900/5 md:rounded-[28px] md:p-6">
+        <div className="w-full shrink-0 rounded-[24px] bg-white/75 p-5 border border-white/70 shadow-xl shadow-slate-900/5 md:max-w-sm md:rounded-[28px] md:p-6">
           <p className="text-xs font-black text-slate-400">{hero.amountLabel}</p>
           <p className="mt-3 text-3xl font-black text-slate-900 tracking-tight tabular-nums md:text-4xl">
             {hero.amountValue}
@@ -519,31 +519,33 @@ function TenantJoinProcessCard({
   const tenantConnected = Boolean(contract?.tenantQrScannedAt);
   const landlordConnected = Boolean(contract?.landlordQrScannedAt);
   const bothConnected = tenantConnected && landlordConnected;
+  const origin = typeof window === "undefined" ? "" : window.location.origin;
+  const tenantQrLink = `${origin}/?tenantId=${user.id}`;
+  const propertyInviteLink = contract?.propertyId ? `${origin}/?propertyId=${contract.propertyId}` : origin;
 
   return (
     <section className="dashboard-card overflow-hidden p-5 md:p-7">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h3 className="text-xl font-black text-slate-900">חיבור לתהליך</h3>
+          <h3 className="text-xl font-black text-slate-900">חיבור QR לתהליך</h3>
           <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
-            ה-QR המוצג כאן מיועד לשוכר בלבד. ה-QR של המשכיר מופיע רק בעמוד המשכיר או במסך התהליך המשותף.
+            קוד הדייר משמש לאימות ההדדי מול המשכיר. קישור הנכס זמין להעתקה אם צריך לפתוח שוב את תהליך ההצטרפות.
           </p>
           <button 
             onClick={() => {
-              const link = window.location.origin + "/?propertyId=" + (contract?.propertyId || "");
-              navigator.clipboard.writeText(link);
+              navigator.clipboard.writeText(propertyInviteLink);
               alert("הקישור הועתק ללוח!");
             }}
             className="mt-3 flex items-center gap-2 text-xs font-black text-blue-600 hover:text-blue-700 transition-colors"
           >
             <Link2 size={14} />
-            <span>העתק קישור להצטרפות</span>
+            <span>העתק קישור נכס</span>
           </button>
         </div>
         <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[18px] bg-white p-1 md:h-16 md:w-16 md:rounded-[20px] shadow-sm">
           <img 
-            src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(window.location.origin + "/?propertyId=" + (contract?.propertyId || ""))}`}
-            alt="Process QR"
+            src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(tenantQrLink)}`}
+            alt="קוד QR של הדייר"
             className="h-full w-full object-contain"
           />
         </div>

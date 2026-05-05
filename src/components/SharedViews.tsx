@@ -921,7 +921,7 @@ export function ChatUI({ user }: { user: User }) {
 
   return (
     <div
-      className="grid min-h-[calc(100vh-220px)] gap-0 overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-2xl lg:grid-cols-[320px_minmax(0,1fr)]"
+      className="grid min-h-[500px] gap-0 overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-2xl lg:grid-cols-[320px_minmax(0,1fr)] lg:min-h-[calc(100vh-220px)]"
       dir="rtl"
     >
       <aside className="border-b border-slate-100 bg-slate-50/50 lg:border-b-0 lg:border-l lg:border-slate-100">

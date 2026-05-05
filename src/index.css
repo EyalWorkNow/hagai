@@ -42,6 +42,8 @@
     text-align: right;
     -webkit-text-size-adjust: 100%;
     overscroll-behavior-x: none;
+    /* Improve touch scrolling on iOS */
+    -webkit-overflow-scrolling: touch;
   }
 
   input,
@@ -50,6 +52,8 @@
     direction: rtl;
     text-align: right;
     font: inherit;
+    /* Prevent iOS auto-zoom on input focus (must be >= 16px) */
+    font-size: max(16px, 1em);
   }
 
   img {
@@ -59,6 +63,11 @@
 
   table {
     min-width: 100%;
+  }
+
+  /* Smooth scrolling */
+  * {
+    scroll-behavior: smooth;
   }
 }
 

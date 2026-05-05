@@ -21,7 +21,9 @@ import {
   UploadCloud,
   UserCheck,
   MapPin,
+  ScanLine,
 } from "lucide-react";
+import { BarcodeScanner } from "./BarcodeScanner";
 import { cn } from "../lib/utils";
 import { Contract, Property, User, UtilityPaymentMode } from "../types";
 import { useAppData } from "../lib/appData";
@@ -282,20 +284,30 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
       </div>
 
       <div className="w-full max-w-5xl overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-2xl md:rounded-[40px]">
-        <div className="grid grid-cols-2 gap-2 border-b border-slate-100 bg-slate-50/60 p-2 sm:grid-cols-3 md:grid-cols-6 md:p-4">
-          {STEPS.map((step, index) => (
-            <StepIndicator
-              key={step.id}
-              step={step}
-              index={index}
-              currentStep={currentStep}
-              onNavigate={(target: number) => {
-                if (target <= currentStep) {
-                  setCurrentStep(target);
-                }
-              }}
+        {/* Step indicators: scrollable on mobile, grid on larger screens */}
+        <div className="border-b border-slate-100 bg-slate-50/60">
+          <div className="flex overflow-x-auto no-scrollbar gap-2 p-2 md:grid md:grid-cols-6 md:p-4">
+            {STEPS.map((step, index) => (
+              <StepIndicator
+                key={step.id}
+                step={step}
+                index={index}
+                currentStep={currentStep}
+                onNavigate={(target: number) => {
+                  if (target <= currentStep) {
+                    setCurrentStep(target);
+                  }
+                }}
+              />
+            ))}
+          </div>
+          {/* Mobile progress bar */}
+          <div className="md:hidden h-1 bg-slate-100">
+            <div
+              className="h-full bg-slate-900 transition-all duration-500 rounded-full"
+              style={{ width: `${((currentStep + 1) / STEPS.length) * 100}%` }}
             />
-          ))}
+          </div>
         </div>
 
         <div className="min-h-[420px] p-4 sm:p-6 md:min-h-[460px] md:p-10">
@@ -444,6 +456,40 @@ function IdentitySetupStep({
   onDraftChange: (nextDraft: OnboardingDraft) => void;
 }) {
   const contractAddress = contract?.propertyAddress ?? "הנכס המשויך לתהליך";
+  const [showScanner, setShowScanner] = useState<"tenant" | "landlord" | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
+
+  const kycApproved = user.kycStatus === "approved";
+
+  const handleScan = (target: "tenant" | "landlord", value: string) => {
+    setShowScanner(null);
+
+    try {
+      const url = new URL(value);
+      const scannedPropertyId = url.searchParams.get("propertyId");
+      if (
+        target === "landlord" &&
+        scannedPropertyId &&
+        contract?.propertyId &&
+        scannedPropertyId !== contract.propertyId
+      ) {
+        setScanError("הקוד שנסרק שייך לנכס אחר. יש לסרוק את קוד ה-QR של המשכיר עבור הדירה הזו.");
+        return;
+      }
+    } catch {
+      // Manual fallback can be a raw code instead of a URL.
+    }
+
+    setScanError(null);
+    onDraftChange({
+      ...draft,
+      tenantQrScanned: target === "tenant" ? true : draft.tenantQrScanned,
+      landlordQrScanned: target === "landlord" ? true : draft.landlordQrScanned,
+    });
+  };
+
+  // Tenant's own QR encodes their user ID so landlord can scan it
+  const tenantQrUrl = `${window.location.origin}/?tenantId=${user.id}`;
 
   return (
     <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-700 md:space-y-8">
@@ -456,7 +502,7 @@ function IdentitySetupStep({
         {/* Profile Card */}
         <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-2xl relative overflow-hidden group md:rounded-[40px] md:p-10">
           <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 blur-3xl rounded-full -translate-y-1/2 translate-x-1/2"></div>
-          
+
           <div className="flex flex-col items-center gap-5 relative z-10 md:flex-row md:gap-8">
             <div className="h-20 w-20 rounded-[28px] bg-slate-900 text-white flex items-center justify-center text-2xl font-black shadow-xl shadow-slate-900/20 group-hover:scale-105 transition-transform md:h-24 md:w-24 md:rounded-[32px] md:text-3xl">
               {user.name.charAt(0)}
@@ -479,16 +525,16 @@ function IdentitySetupStep({
              <div className="grid gap-4 md:grid-cols-2 md:gap-8">
                 <div className="space-y-2">
                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest mr-2">מספר תעודת זהות</label>
-                   <input 
-                    type="text" 
+                   <input
+                    type="text"
                     placeholder="הזן 9 ספרות"
                     className="w-full bg-slate-50 border-2 border-transparent rounded-2xl p-4 text-sm font-bold focus:bg-white focus:border-slate-900 transition-all outline-none md:p-5"
                    />
                 </div>
                 <div className="space-y-2">
                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest mr-2">מספר טלפון נייד</label>
-                   <input 
-                    type="tel" 
+                   <input
+                    type="tel"
                     value={user.phone}
                     readOnly
                     className="w-full bg-slate-50 border-2 border-transparent rounded-2xl p-4 text-sm font-bold text-slate-400 cursor-not-allowed outline-none md:p-5"
@@ -507,28 +553,166 @@ function IdentitySetupStep({
            <h4 className="text-xl font-black text-slate-900 leading-tight italic">{contractAddress}</h4>
            <div className="mt-6 w-full h-px bg-blue-100 md:mt-8"></div>
            <div className="mt-6 flex items-center gap-3 bg-white px-5 py-3 rounded-full border border-blue-100 md:mt-8 md:px-6">
-              <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div>
-              <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest">ממתין לאימות זהות</span>
+              <div className={cn("h-2 w-2 rounded-full animate-pulse", kycApproved ? "bg-emerald-500" : "bg-amber-400")}></div>
+              <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest">
+                {kycApproved ? "KYC אושר" : "ממתין לאימות זהות"}
+              </span>
            </div>
         </div>
       </div>
 
+      {/* KYC Upload Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <UploadCard
           label="צילום תעודת זהות"
           icon={<Camera size={24} />}
           sub="וודא שהפרטים ברורים וללא השתקפות"
-          complete={user.kycStatus === "approved"}
+          complete={kycApproved}
         />
         <UploadCard
           label="צילום סלפי וידאו"
           icon={<Camera size={24} />}
           sub="זיהוי פנים למניעת זיוף זהות"
-          complete={user.kycStatus === "approved"}
+          complete={kycApproved}
         />
       </div>
 
-      <InfoPanel tone={user.kycStatus === "approved" ? "success" : "info"}>
+      {/* QR Scanning Section - only shown when KYC is approved */}
+      {kycApproved && (
+        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-slate-100" />
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">אישור הדדי בין הצדדים</p>
+            <div className="h-px flex-1 bg-slate-100" />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            {/* Tenant QR - show your own QR for landlord to scan */}
+            <div className={cn(
+              "rounded-[24px] border-2 p-5 flex flex-col items-center gap-4 text-center transition-all",
+              draft.tenantQrScanned
+                ? "border-emerald-200 bg-emerald-50"
+                : "border-slate-200 bg-white"
+            )}>
+              <div className="flex items-center gap-2 self-stretch justify-center">
+                <QrCode size={18} className={draft.tenantQrScanned ? "text-emerald-600" : "text-slate-600"} />
+                <p className="text-sm font-black text-slate-900">הקוד שלי</p>
+              </div>
+              <p className="text-[11px] font-bold text-slate-500 leading-5">
+                הצג קוד זה למשכיר לסריקה
+              </p>
+              {/* QR Code Image */}
+              <div className={cn(
+                "w-32 h-32 rounded-2xl overflow-hidden border-2 shadow-sm flex items-center justify-center bg-white",
+                draft.tenantQrScanned ? "border-emerald-300" : "border-slate-200"
+              )}>
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(tenantQrUrl)}`}
+                  alt="קוד QR שלי"
+                  className="w-full h-full object-contain"
+                />
+              </div>
+              {draft.tenantQrScanned ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-full text-[11px] font-black">
+                  <CheckCircle2 size={13} />
+                  נסרק ואושר
+                </span>
+              ) : (
+                <button
+                  onClick={() => onDraftChange({ ...draft, tenantQrScanned: true })}
+                  className="w-full py-2.5 rounded-2xl bg-slate-900 text-white text-[11px] font-black hover:bg-black transition-all active:scale-95"
+                >
+                  סמן כנסרק על ידי המשכיר
+                </button>
+              )}
+            </div>
+
+            {/* Landlord QR - scan landlord's QR with camera */}
+            <div className={cn(
+              "rounded-[24px] border-2 p-5 flex flex-col items-center gap-4 text-center transition-all",
+              draft.landlordQrScanned
+                ? "border-emerald-200 bg-emerald-50"
+                : "border-blue-100 bg-blue-50/50"
+            )}>
+              <div className="flex items-center gap-2 self-stretch justify-center">
+                <ScanLine size={18} className={draft.landlordQrScanned ? "text-emerald-600" : "text-blue-600"} />
+                <p className="text-sm font-black text-slate-900">סרוק קוד המשכיר</p>
+              </div>
+              <p className="text-[11px] font-bold text-slate-500 leading-5">
+                סרוק את קוד ה-QR שהמשכיר מציג לך
+              </p>
+              <div className={cn(
+                "w-32 h-32 rounded-2xl border-2 flex items-center justify-center transition-all",
+                draft.landlordQrScanned
+                  ? "border-emerald-300 bg-emerald-50"
+                  : "border-dashed border-blue-200 bg-white"
+              )}>
+                {draft.landlordQrScanned ? (
+                  <CheckCircle2 size={40} className="text-emerald-500" />
+                ) : (
+                  <QrCode size={40} className="text-blue-300" />
+                )}
+              </div>
+              {draft.landlordQrScanned ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-full text-[11px] font-black">
+                  <CheckCircle2 size={13} />
+                  קוד המשכיר נסרק
+                </span>
+              ) : (
+                <div className="grid w-full gap-2">
+                  <button
+                    onClick={() => setShowScanner("landlord")}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 py-2.5 text-[11px] font-black text-white transition-all hover:bg-blue-700 active:scale-95"
+                  >
+                    <Camera size={14} />
+                    פתח מצלמה לסריקה
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setScanError(null);
+                      onDraftChange({ ...draft, landlordQrScanned: true });
+                    }}
+                    className="w-full rounded-2xl border border-blue-100 bg-white py-2.5 text-[11px] font-black text-blue-700 transition-all hover:border-blue-200 hover:bg-blue-50 active:scale-95"
+                  >
+                    סימון ידני ללא מצלמה
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {scanError && (
+            <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-start gap-3">
+              <AlertCircle size={16} className="text-rose-600 mt-0.5 shrink-0" />
+              <p className="text-xs font-bold text-rose-700">{scanError}</p>
+            </div>
+          )}
+
+          {!draft.tenantQrScanned || !draft.landlordQrScanned ? (
+            <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl flex items-start gap-3">
+              <AlertCircle size={16} className="text-amber-600 mt-0.5 shrink-0" />
+              <p className="text-xs font-bold text-amber-700">
+                {!draft.tenantQrScanned && !draft.landlordQrScanned
+                  ? "יש לאשר את שני הקודים כדי להמשיך לשלב הבא."
+                  : !draft.tenantQrScanned
+                    ? "יש לאשר שהמשכיר סרק את הקוד שלך."
+                    : "יש לסרוק את קוד ה-QR של המשכיר."}
+              </p>
+            </div>
+          ) : (
+            <InfoPanel tone="success">
+              <CheckCircle2 size={22} />
+              <div>
+                <h3>אישור הדדי הושלם</h3>
+                <p>שני הצדדים אישרו את הזהות. ניתן להמשיך לפרטי הדירה.</p>
+              </div>
+            </InfoPanel>
+          )}
+        </div>
+      )}
+
+      <InfoPanel tone={kycApproved ? "success" : "info"}>
         <ShieldCheck size={22} />
         <div>
           <h3>אבטחת מידע</h3>
@@ -537,6 +721,16 @@ function IdentitySetupStep({
           </p>
         </div>
       </InfoPanel>
+
+      {/* Camera QR Scanner Modal */}
+      {showScanner && (
+        <BarcodeScanner
+          title="סריקת קוד המשכיר"
+          description="כוון את המצלמה לקוד ה-QR של המשכיר"
+          onScan={(value) => handleScan(showScanner, value)}
+          onClose={() => setShowScanner(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1261,25 +1455,25 @@ function StepIndicator({
       type="button"
       onClick={() => canNavigate && onNavigate(index)}
       className={cn(
-        "min-w-0 rounded-2xl border p-3 text-right transition-all",
+        "shrink-0 min-w-[120px] rounded-2xl border p-3 text-right transition-all md:min-w-0",
         isActive
           ? "border-slate-900 bg-white text-slate-900 shadow-sm"
           : "border-slate-200 bg-slate-100/70 text-slate-400",
         canNavigate ? "cursor-pointer hover:border-slate-900" : "cursor-default",
       )}
     >
-      <div className="flex items-center gap-2 sm:gap-3">
+      <div className="flex items-center gap-2">
         <div
           className={cn(
-            "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all sm:h-10 sm:w-10",
+            "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-all",
             isActive ? "bg-slate-900 text-white" : "bg-white text-slate-300",
           )}
         >
-          {isCompleted ? <CheckCircle2 size={20} /> : step.icon}
+          {isCompleted ? <CheckCircle2 size={16} /> : step.icon}
         </div>
         <div className="min-w-0">
-          <p className="truncate text-[10px] font-black text-slate-400">שלב {index + 1}</p>
-          <p className="text-[12px] font-black leading-5 sm:truncate">{step.title}</p>
+          <p className="text-[9px] font-black text-slate-400">שלב {index + 1}</p>
+          <p className="truncate text-[11px] font-black leading-4">{step.title}</p>
         </div>
       </div>
     </button>
