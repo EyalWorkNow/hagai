@@ -1,4 +1,4 @@
-import { ChangeEvent, ReactNode, useMemo, useState } from "react";
+import { ChangeEvent, HTMLAttributes, ReactNode, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   AlertCircle,
@@ -47,6 +47,10 @@ type StepMeta = {
 type OnboardingDraft = {
   tenantQrScanned: boolean;
   landlordQrScanned: boolean;
+  identityNumber: string;
+  phoneNumber: string;
+  idPhotoUploaded: boolean;
+  selfieUploaded: boolean;
   contractDocumentUploaded: boolean;
   clausesApproved: boolean;
   rentAmount: number;
@@ -54,6 +58,13 @@ type OnboardingDraft = {
   arnonaAmount: number;
   utilityPaymentMode: UtilityPaymentMode;
   creditConsent: boolean;
+  bankId: string;
+  branchNumber: string;
+  accountNumber: string;
+  accountHolderName: string;
+  bankConsent: boolean;
+  signatureName: string;
+  signatureAccepted: boolean;
 };
 
 const STEPS: StepMeta[] = [
@@ -102,10 +113,14 @@ function findTenantProperty(properties: Property[], contract: Contract | null, u
   );
 }
 
-function buildInitialDraft(contract: Contract | null, property: Property | null): OnboardingDraft {
+function buildInitialDraft(contract: Contract | null, property: Property | null, user?: User): OnboardingDraft {
   return {
     tenantQrScanned: Boolean(contract?.tenantQrScannedAt),
     landlordQrScanned: Boolean(contract?.landlordQrScannedAt),
+    identityNumber: "",
+    phoneNumber: user?.phone ?? "",
+    idPhotoUploaded: false,
+    selfieUploaded: false,
     contractDocumentUploaded: Boolean(contract?.contractUploadedAt || contract?.documentUrl),
     clausesApproved: Boolean(contract?.contractClausesApprovedAt),
     rentAmount: contract?.rentAmount ?? property?.rent ?? 0,
@@ -114,6 +129,13 @@ function buildInitialDraft(contract: Contract | null, property: Property | null)
     arnonaAmount: contract?.arnonaAmount ?? property?.costs?.arnona ?? 0,
     utilityPaymentMode: contract?.utilityPaymentMode ?? "separate",
     creditConsent: false,
+    bankId: "",
+    branchNumber: "",
+    accountNumber: "",
+    accountHolderName: "",
+    bankConsent: false,
+    signatureName: "",
+    signatureAccepted: false,
   };
 }
 
@@ -145,13 +167,23 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
   );
   const [currentStep, setCurrentStep] = useState(() => getInitialStep(user));
   const [draft, setDraft] = useState<OnboardingDraft>(() =>
-    buildInitialDraft(activeContract, activeProperty),
+    buildInitialDraft(activeContract, activeProperty, user),
   );
   const [isProcessing, setIsProcessing] = useState(false);
 
+  const identityDigits = draft.identityNumber.replace(/\D/g, "");
+  const phoneDigits = draft.phoneNumber.replace(/\D/g, "");
+  const hasRequiredIdentity = identityDigits.length === 9 && phoneDigits.length >= 9 && draft.idPhotoUploaded && draft.selfieUploaded;
   const isCreditApproved = user.bdiStatus === "green";
   const hasRequiredQr = draft.tenantQrScanned && draft.landlordQrScanned;
   const hasRequiredDocuments = draft.contractDocumentUploaded && draft.clausesApproved;
+  const hasRequiredBankDetails =
+    Boolean(draft.bankId) &&
+    /^\d{2,4}$/.test(draft.branchNumber) &&
+    /^\d{5,12}$/.test(draft.accountNumber) &&
+    draft.accountHolderName.trim().length >= 2 &&
+    draft.bankConsent;
+  const hasRequiredSignature = draft.signatureAccepted && draft.signatureName.trim().length >= 2;
   const monthlyPayment = calculateMonthlyPayment(draft);
   const canSign = Boolean(activeContract && isCreditApproved);
 
@@ -162,27 +194,29 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
   const getButtonText = () => {
     if (isProcessing) return "...";
     if (currentStep === 0) {
-      if (user.kycStatus === "pending") return "שלח לאימות זהות";
-      if (user.kycStatus === "submitted") return "אשר KYC והמשך";
+      if (user.kycStatus === "pending") return "אימות זהות והמשך ל-QR";
+      if (user.kycStatus === "submitted") return "השלם אימות והמשך";
       return "המשך לפרטי הדירה";
     }
     if (currentStep === 1) return "שמור פרטי דירה והמשך";
     if (currentStep === 2) {
        if (isCreditApproved) return "המשך להקמת הרשאה";
-       if (eligibilityCheck?.status === "pending") return "אשר חיווי חיובי";
-       return "התחל בדיקת זכאות אשראי";
+       if (eligibilityCheck?.status === "pending") return "אישור בדיקת זכאות והמשך";
+       return "אישור בדיקת זכאות והמשך";
     }
-    if (currentStep === 3) return "הקמת הרשאה לחיוב";
-    if (currentStep === 4) return "חתימה דיגיטלית מאובטחת";
+    if (currentStep === 3) return "אישור הרשאה לחיוב";
+    if (currentStep === 4) return "חתימה וסיום חוזה";
     return "התחל להשתמש במערכת";
   };
 
   const isPrimaryDisabled =
     isProcessing ||
+    (currentStep === 0 && user.kycStatus !== "approved" && !hasRequiredIdentity) ||
     (currentStep === 0 && user.kycStatus === "approved" && !hasRequiredQr) ||
     (currentStep === 1 && (!hasRequiredDocuments || draft.rentAmount <= 0)) ||
     (currentStep === 2 && !draft.creditConsent && !isCreditApproved) ||
-    (currentStep === 4 && !canSign);
+    (currentStep === 3 && !hasRequiredBankDetails) ||
+    (currentStep === 4 && (!canSign || !hasRequiredSignature));
 
   const handleNext = async () => {
     if (isPrimaryDisabled) return;
@@ -192,6 +226,7 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
       if (currentStep === 0) {
         if (user.kycStatus === "pending") {
           submitKyc(user.id);
+          approveKyc(user.id);
           return;
         }
         if (user.kycStatus === "submitted") {
@@ -219,12 +254,9 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
           setCurrentStep(3);
           return;
         }
-        if (eligibilityCheck?.status === "pending") {
-          resolveEligibilityCheck(user.id, true);
-          setCurrentStep(3);
-          return;
-        }
         requestEligibilityCheck(user.id, activeContract?.landlordId);
+        resolveEligibilityCheck(user.id, true);
+        setCurrentStep(3);
         return;
       }
 
@@ -253,7 +285,7 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
     if (isProcessing || isCreditApproved) return;
     persistAgreement();
     skipEligibilityCheck(user.id, activeContract?.landlordId);
-    setCurrentStep(4);
+    setCurrentStep(3);
   };
 
   const handleBack = () => {
@@ -435,6 +467,7 @@ function StepContent({
           monthlyPayment={monthlyPayment}
           canSign={canSign}
           user={user}
+          onDraftChange={onDraftChange}
         />
       );
     case 5:
@@ -527,17 +560,35 @@ function IdentitySetupStep({
                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest mr-2">מספר תעודת זהות</label>
                    <input
                     type="text"
+                    inputMode="numeric"
+                    value={draft.identityNumber}
+                    onChange={(event) =>
+                      onDraftChange({
+                        ...draft,
+                        identityNumber: event.target.value.replace(/\D/g, "").slice(0, 9),
+                      })
+                    }
                     placeholder="הזן 9 ספרות"
                     className="w-full bg-slate-50 border-2 border-transparent rounded-2xl p-4 text-sm font-bold focus:bg-white focus:border-slate-900 transition-all outline-none md:p-5"
                    />
+                   {draft.identityNumber && draft.identityNumber.length !== 9 && (
+                    <p className="text-[11px] font-black text-amber-600">מספר תעודת זהות חייב להכיל 9 ספרות.</p>
+                   )}
                 </div>
                 <div className="space-y-2">
                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest mr-2">מספר טלפון נייד</label>
                    <input
                     type="tel"
-                    value={user.phone}
-                    readOnly
-                    className="w-full bg-slate-50 border-2 border-transparent rounded-2xl p-4 text-sm font-bold text-slate-400 cursor-not-allowed outline-none md:p-5"
+                    inputMode="tel"
+                    value={draft.phoneNumber}
+                    onChange={(event) =>
+                      onDraftChange({
+                        ...draft,
+                        phoneNumber: event.target.value.replace(/[^\d-]/g, "").slice(0, 12),
+                      })
+                    }
+                    placeholder="050-0000000"
+                    className="w-full bg-slate-50 border-2 border-transparent rounded-2xl p-4 text-sm font-bold focus:bg-white focus:border-slate-900 transition-all outline-none md:p-5"
                    />
                 </div>
              </div>
@@ -567,15 +618,23 @@ function IdentitySetupStep({
           label="צילום תעודת זהות"
           icon={<Camera size={24} />}
           sub="וודא שהפרטים ברורים וללא השתקפות"
-          complete={kycApproved}
+          complete={kycApproved || draft.idPhotoUploaded}
+          onUpload={() => onDraftChange({ ...draft, idPhotoUploaded: true })}
         />
         <UploadCard
           label="צילום סלפי וידאו"
           icon={<Camera size={24} />}
           sub="זיהוי פנים למניעת זיוף זהות"
-          complete={kycApproved}
+          complete={kycApproved || draft.selfieUploaded}
+          onUpload={() => onDraftChange({ ...draft, selfieUploaded: true })}
         />
       </div>
+
+      {!kycApproved && (
+        <div className="rounded-[24px] border border-blue-100 bg-blue-50 p-4 text-sm font-bold leading-7 text-blue-800">
+          מלא 9 ספרות תעודת זהות, טלפון, ושני צילומים. לאחר הלחיצה על הכפתור התחתון האימות יאושר בסביבת הדמו ותיפתח התאמת ה-QR.
+        </div>
+      )}
 
       {/* QR Scanning Section - only shown when KYC is approved */}
       {kycApproved && (
@@ -813,8 +872,7 @@ function PropertyStep({
         </div>
 
         <div className="space-y-5">
-          <label
-            htmlFor="lease-contract-upload"
+          <div
             className={cn(
               "group flex min-h-[220px] cursor-pointer flex-col items-center justify-center rounded-[28px] border-2 border-dashed p-6 text-center transition-all",
               draft.contractDocumentUploaded
@@ -836,7 +894,22 @@ function PropertyStep({
             <p className="mt-2 max-w-xs text-sm font-bold leading-6 text-slate-500">
               קובץ PDF, Word או צילום חתום. לאחר העלאה המסמך נשמר כטיוטת חוזה פעילה.
             </p>
-          </label>
+            <div className="mt-5 flex flex-wrap justify-center gap-3">
+              <label
+                htmlFor="lease-contract-upload"
+                className="rounded-2xl bg-slate-900 px-5 py-2.5 text-[11px] font-black text-white shadow-sm transition hover:bg-slate-700"
+              >
+                בחירת קובץ חוזה
+              </label>
+              <button
+                type="button"
+                onClick={() => onDraftChange({ ...draft, contractDocumentUploaded: true })}
+                className="rounded-2xl bg-white px-5 py-2.5 text-[11px] font-black text-slate-700 shadow-sm transition hover:bg-slate-900 hover:text-white"
+              >
+                סימון חוזה כנקלט
+              </button>
+            </div>
+          </div>
 
           <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
             <div className="mb-6 flex items-center gap-3">
@@ -914,8 +987,8 @@ function BankAuthorizationStep({
   draft,
   onDraftChange
 }: {
-  draft: any;
-  onDraftChange: (nextDraft: any) => void;
+  draft: OnboardingDraft;
+  onDraftChange: (nextDraft: OnboardingDraft) => void;
 }) {
   const ISRAELI_BANKS = [
     { id: "leumi", name: 'בנק לאומי', code: "10" },
@@ -977,6 +1050,58 @@ function BankAuthorizationStep({
                 ))}
               </div>
             </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <TextField
+                label="מספר סניף"
+                value={draft.branchNumber}
+                inputMode="numeric"
+                placeholder="123"
+                onChange={(branchNumber) =>
+                  onDraftChange({
+                    ...draft,
+                    branchNumber: branchNumber.replace(/\D/g, "").slice(0, 4),
+                  })
+                }
+              />
+              <TextField
+                label="מספר חשבון"
+                value={draft.accountNumber}
+                inputMode="numeric"
+                placeholder="12345678"
+                onChange={(accountNumber) =>
+                  onDraftChange({
+                    ...draft,
+                    accountNumber: accountNumber.replace(/\D/g, "").slice(0, 12),
+                  })
+                }
+              />
+            </div>
+
+            <TextField
+              label="שם בעל החשבון"
+              value={draft.accountHolderName}
+              placeholder="שם כפי שמופיע בבנק"
+              onChange={(accountHolderName) => onDraftChange({ ...draft, accountHolderName })}
+            />
+
+            <label className="flex cursor-pointer items-start gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-5 transition hover:bg-white">
+              <input
+                type="checkbox"
+                checked={draft.bankConsent}
+                onChange={(event) => onDraftChange({ ...draft, bankConsent: event.target.checked })}
+                className="mt-1 h-5 w-5 rounded-lg border-2 border-slate-300 text-blue-600 focus:ring-blue-600"
+              />
+              <span className="text-sm font-bold leading-7 text-slate-600">
+                אני מאשר/ת הקמת הרשאה לחיוב חשבון עבור תשלומי השכירות והחיובים הנלווים לפי ההסכם.
+              </span>
+            </label>
+
+            {(!selectedBank || !draft.branchNumber || !draft.accountNumber || !draft.accountHolderName || !draft.bankConsent) && (
+              <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4 text-xs font-black leading-6 text-amber-700">
+                יש לבחור בנק, להזין סניף, חשבון, שם בעל חשבון ולאשר את ההרשאה כדי להמשיך.
+              </div>
+            )}
           </div>
 
           <div className="mt-8 rounded-[24px] border border-slate-200 bg-slate-50 p-6">
@@ -1147,6 +1272,7 @@ function SignatureStep({
   monthlyPayment,
   canSign,
   user,
+  onDraftChange,
 }: {
   contract: Contract | null;
   property: Property | null;
@@ -1154,6 +1280,7 @@ function SignatureStep({
   monthlyPayment: number;
   canSign: boolean;
   user: User;
+  onDraftChange: (nextDraft: OnboardingDraft) => void;
 }) {
   const approved = user.bdiStatus === "green";
   const rejected = user.bdiStatus === "red";
@@ -1234,8 +1361,41 @@ function SignatureStep({
             <p className="text-xs font-bold text-slate-400">החתימה תינעל לאחר לחיצה על כפתור ההמשך.</p>
           </div>
         </div>
-        <div className="flex h-44 w-full items-center justify-center rounded-[28px] border-2 border-dashed border-slate-200 bg-slate-50 text-sm font-black text-slate-300">
-          חתימה דיגיטלית
+        <div className="rounded-[28px] border-2 border-dashed border-slate-200 bg-slate-50 p-5">
+          <label className="mb-3 block text-[11px] font-black text-slate-400">
+            שם לחתימה דיגיטלית
+          </label>
+          <input
+            type="text"
+            value={draft.signatureName}
+            onChange={(event) => {
+              const signatureName = event.target.value;
+              onDraftChange({
+                ...draft,
+                signatureName,
+                signatureAccepted: signatureName.trim().length >= 2 ? draft.signatureAccepted : false,
+              });
+            }}
+            placeholder={user.name}
+            className="h-14 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black outline-none transition placeholder:text-slate-300 focus:border-slate-900 focus:ring-4 focus:ring-slate-900/5"
+          />
+          <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl bg-white p-4">
+            <input
+              type="checkbox"
+              checked={draft.signatureAccepted}
+              disabled={draft.signatureName.trim().length < 2}
+              onChange={(event) => onDraftChange({ ...draft, signatureAccepted: event.target.checked })}
+              className="mt-1 h-5 w-5 rounded-lg border-2 border-slate-300 text-blue-600 focus:ring-blue-600 disabled:opacity-40"
+            />
+            <span className="text-sm font-bold leading-7 text-slate-600">
+              אני מאשר/ת שזו חתימתי הדיגיטלית על חוזה השכירות, שטר החוב והרשאת החיוב.
+            </span>
+          </label>
+          {draft.signatureAccepted && (
+            <div className="mt-5 flex h-32 items-center justify-center rounded-[24px] bg-white text-3xl font-black italic text-slate-900 shadow-inner font-display">
+              {draft.signatureName}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -1562,19 +1722,33 @@ function UploadCard({
   icon,
   sub,
   complete,
+  onUpload,
 }: {
   label: string;
   icon: ReactNode;
   sub?: string;
   complete?: boolean;
+  onUpload?: () => void;
 }) {
+  const Wrapper = onUpload ? "label" : "div";
   return (
-    <div
+    <Wrapper
       className={cn(
         "relative flex min-h-[168px] flex-col items-center justify-center rounded-[24px] border-2 border-dashed p-5 text-center transition-all sm:aspect-video sm:min-h-0 sm:rounded-[28px] sm:p-6",
+        onUpload && "cursor-pointer hover:border-slate-900 hover:bg-white",
         complete ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50/50",
       )}
     >
+      {onUpload && (
+        <input
+          type="file"
+          accept="image/*,video/*,.pdf"
+          className="sr-only"
+          onChange={(event) => {
+            if (event.target.files?.length) onUpload();
+          }}
+        />
+      )}
       {complete && (
         <div className="absolute left-6 top-6 flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-white shadow-lg">
           <CheckCircle2 size={16} />
@@ -1585,7 +1759,12 @@ function UploadCard({
       </div>
       <span className="text-[16px] font-black text-slate-900 sm:text-[17px]">{label}</span>
       {sub && <span className="mt-2 text-[11px] font-bold tracking-[0.1em] text-slate-400">{sub}</span>}
-    </div>
+      {onUpload && (
+        <span className="mt-3 rounded-full bg-white px-3 py-1 text-[10px] font-black text-slate-500 shadow-sm">
+          {complete ? "קובץ נקלט" : "בחר קובץ"}
+        </span>
+      )}
+    </Wrapper>
   );
 }
 
@@ -1613,6 +1792,34 @@ function NumericField({
           className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 pr-11 pl-4 text-sm font-black tabular-nums outline-none transition focus:border-slate-900 focus:bg-white focus:ring-4 focus:ring-slate-900/5"
         />
       </div>
+    </div>
+  );
+}
+
+function TextField({
+  label,
+  value,
+  placeholder,
+  inputMode,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  placeholder?: string;
+  inputMode?: HTMLAttributes<HTMLInputElement>["inputMode"];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <label className="mr-2 block text-[11px] font-black text-slate-400">{label}</label>
+      <input
+        type="text"
+        inputMode={inputMode}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-black outline-none transition placeholder:text-slate-300 focus:border-slate-900 focus:bg-white focus:ring-4 focus:ring-slate-900/5"
+      />
     </div>
   );
 }

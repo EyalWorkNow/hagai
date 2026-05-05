@@ -140,8 +140,19 @@ export default function App() {
     return <LoadingScreen />;
   }
 
+  const urlPropertyId = new URLSearchParams(window.location.search).get("propertyId") || undefined;
+
+  // Public tenant invite: scanning a QR should not require the internal site-access gate.
+  if (!siteAccessSession && !user && urlPropertyId) {
+    return (
+      <div className="min-h-screen w-full overflow-x-hidden bg-slate-50 flex flex-col">
+        <WelcomeScreen propertyId={urlPropertyId} />
+      </div>
+    );
+  }
+
   // 2. Site Access Gate
-  if (!siteAccessSession) {
+  if (!siteAccessSession && user?.role !== "tenant") {
     return (
       <div className="min-h-screen w-full overflow-x-hidden bg-slate-50 flex flex-col">
         <SiteAccessScreen />
@@ -151,12 +162,9 @@ export default function App() {
 
   // 3. Login / Welcome Screen
   if (!user) {
-    const urlParams = new URLSearchParams(window.location.search);
-    const propertyId = urlParams.get("propertyId") || undefined;
-
     return (
       <div className="min-h-screen w-full overflow-x-hidden bg-slate-50 flex flex-col">
-        <WelcomeScreen propertyId={propertyId} />
+        <WelcomeScreen propertyId={urlPropertyId} />
       </div>
     );
   }
