@@ -1,4 +1,4 @@
-import { ChangeEvent, HTMLAttributes, ReactNode, useMemo, useState } from "react";
+import { ChangeEvent, HTMLAttributes, InputHTMLAttributes, ReactNode, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   AlertCircle,
@@ -609,6 +609,8 @@ function IdentitySetupStep({
           icon={<Camera size={24} />}
           sub="זיהוי פנים למניעת זיוף זהות"
           complete={kycApproved || draft.selfieUploaded}
+          accept="video/*"
+          capture="user"
           onUpload={() => onDraftChange((currentDraft) => ({ ...currentDraft, selfieUploaded: true }))}
         />
       </div>
@@ -1573,12 +1575,16 @@ function UploadCard({
   icon,
   sub,
   complete,
+  accept = "image/*,video/*,.pdf",
+  capture,
   onUpload,
 }: {
   label: string;
   icon: ReactNode;
   sub?: string;
   complete?: boolean;
+  accept?: string;
+  capture?: InputHTMLAttributes<HTMLInputElement>["capture"];
   onUpload?: () => void;
 }) {
   const Wrapper = onUpload ? "label" : "div";
@@ -1593,7 +1599,8 @@ function UploadCard({
       {onUpload && (
         <input
           type="file"
-          accept="image/*,video/*,.pdf"
+          accept={accept}
+          capture={capture}
           className="sr-only"
           onChange={(event) => {
             if (event.target.files?.length) onUpload();

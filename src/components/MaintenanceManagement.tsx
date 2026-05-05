@@ -58,9 +58,9 @@ export default function MaintenanceManagement({ user }: { user: User }) {
           <p className="text-slate-500 text-xs font-black mt-1 uppercase tracking-widest leading-none">ניהול תקלות • Marketplace בעלי מקצוע • בקרה ואיכות</p>
         </div>
         {user.role === "tenant" && (
-          <button 
+          <button
             onClick={() => setShowNewCallForm(true)}
-            className="flex items-center gap-3 rounded-2xl bg-slate-900 px-8 py-4 text-xs font-black text-white shadow-sleek-lg hover:bg-slate-800 transition-all active:scale-95 uppercase tracking-widest"
+            className="flex w-full sm:w-auto items-center justify-center gap-3 rounded-2xl bg-slate-900 px-8 py-4 text-xs font-black text-white shadow-sleek-lg hover:bg-slate-800 transition-all active:scale-95 uppercase tracking-widest"
           >
             <Camera size={20} />
             <span>דווח על תקלה (צלם ושלח)</span>
@@ -195,8 +195,8 @@ function ServiceCallCard({ call, userRole, onUpdate }: { call: ServiceCall, user
   const currentCategory = categories[call.category] || categories.general;
 
   return (
-    <div className="group p-8 rounded-3xl border border-slate-100 bg-white hover:border-blue-200 hover:shadow-xl transition-all animate-in slide-in-from-bottom-4 duration-500">
-      <div className="flex flex-col md:flex-row items-start justify-between gap-8">
+    <div className="group p-5 sm:p-8 rounded-3xl border border-slate-100 bg-white hover:border-blue-200 hover:shadow-xl transition-all animate-in slide-in-from-bottom-4 duration-500">
+      <div className="flex flex-col md:flex-row items-start justify-between gap-5 sm:gap-8">
         <div className="flex items-start gap-6">
           <div className={cn("h-16 w-16 rounded-2xl flex items-center justify-center border shadow-sm transition-transform group-hover:scale-110 group-hover:rotate-3", currentCategory.color)}>
             {currentCategory.icon}

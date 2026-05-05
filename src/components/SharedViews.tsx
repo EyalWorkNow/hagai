@@ -924,7 +924,7 @@ export function ChatUI({ user }: { user: User }) {
       className="grid min-h-[500px] gap-0 overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-2xl lg:grid-cols-[320px_minmax(0,1fr)] lg:min-h-[calc(100vh-220px)]"
       dir="rtl"
     >
-      <aside className="border-b border-slate-100 bg-slate-50/50 lg:border-b-0 lg:border-l lg:border-slate-100">
+      <aside className="max-h-[220px] overflow-y-auto border-b border-slate-100 bg-slate-50/50 lg:max-h-none lg:overflow-visible lg:border-b-0 lg:border-l lg:border-slate-100">
         <div className="border-b border-slate-100 p-6">
           <h1 className="text-2xl font-black text-slate-900">הודעות ותיאום</h1>
           <p className="mt-2 text-sm font-semibold text-slate-500">

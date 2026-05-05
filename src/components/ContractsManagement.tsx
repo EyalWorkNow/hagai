@@ -110,7 +110,7 @@ export default function ContractsManagement({ user }: { user: User }) {
         )}
       </div>
 
-      <div className="grid gap-6 md:gap-8 lg:gap-10 xl:grid-cols-[1.1fr_0.9fr]">
+      <div className="grid gap-6 md:gap-8 lg:gap-10 lg:grid-cols-[1.1fr_0.9fr]">
         
         {/* 2. MAIN LIST - Contracts & Insurance */}
         <div className="space-y-10">
