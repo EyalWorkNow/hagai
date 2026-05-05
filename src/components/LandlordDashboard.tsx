@@ -1,4 +1,4 @@
-import { useState, useMemo, ReactNode } from "react";
+import { useEffect, useState, useMemo, ReactNode } from "react";
 import { 
   Home, 
   Users, 
@@ -40,7 +40,7 @@ import { InfoTooltip } from "./SharedViews";
  * Optimized for the Hebrew rental-management spec: Alerts, Summary, Non-paying alerts, and Property lists.
  */
 export default function LandlordDashboard({ user }: { user: User }) {
-  const { db, addProperty, inviteTenant, resetDatabase } = useAppData();
+  const { db, addProperty, inviteTenant, setTenantCreditSkipApproval, resetDatabase } = useAppData();
   const [activeTab, setActiveTab] = useState<"overview" | "properties" | "proofs" | "maintenance">("overview");
   const properties = useMemo(() => db.properties.filter((property) => property.landlordId === user.id), [db.properties, user.id]);
   const payments = useMemo(() => [...db.payments]
@@ -491,6 +491,13 @@ export default function LandlordDashboard({ user }: { user: User }) {
           contracts={contracts}
           users={db.users}
           invites={db.onboardingInvites}
+          onCreditSkipApproval={(payload) =>
+            setTenantCreditSkipApproval(user.id, {
+              propertyId: selectedProperty.id,
+              tenantEmail: payload.email,
+              approved: payload.approved,
+            })
+          }
           onInvite={(payload) =>
             inviteTenant(user.id, {
               propertyId: selectedProperty.id,
@@ -824,6 +831,7 @@ function InviteTenantModal({
   contracts,
   users,
   invites,
+  onCreditSkipApproval,
   onInvite,
   onClose,
 }: {
@@ -831,13 +839,13 @@ function InviteTenantModal({
   contracts: Contract[];
   users: User[];
   invites: OnboardingInvite[];
+  onCreditSkipApproval: (payload: { email?: string; approved: boolean }) => void;
   onInvite: (payload: { email: string; phone?: string; landlordCreditSkipApproved: boolean }) => void;
   onClose: () => void;
 }) {
   const propertyContract =
-    contracts.find(
-      (contract) => contract.propertyId === property.id && contract.tenantId === property.tenantId,
-    ) ?? contracts.find((contract) => contract.propertyId === property.id);
+    contracts.find((contract) => contract.propertyId === property.id && contract.status !== "expired") ??
+    contracts.find((contract) => contract.propertyId === property.id);
   const tenant = propertyContract?.tenantId
     ? users.find((candidate) => candidate.id === propertyContract.tenantId)
     : null;
@@ -855,6 +863,20 @@ function InviteTenantModal({
   );
   const [isSent, setIsSent] = useState(false);
   const processStatus = getTenantOnboardingStatus(tenant);
+  const activeTenantEmail = tenant?.email ?? email.trim().toLowerCase();
+
+  useEffect(() => {
+    setEmail(tenant?.email ?? existingInvite?.tenantEmail ?? "");
+    setPhone(tenant?.phone ?? existingInvite?.tenantPhone ?? "");
+    setLandlordCreditSkipApproved(Boolean(existingInvite?.landlordCreditSkipApproved));
+  }, [existingInvite?.landlordCreditSkipApproved, existingInvite?.tenantEmail, existingInvite?.tenantPhone, tenant?.email, tenant?.phone]);
+
+  const handleCreditSkipChange = (approved: boolean) => {
+    setLandlordCreditSkipApproved(approved);
+    if (activeTenantEmail) {
+      onCreditSkipApproval({ email: activeTenantEmail, approved });
+    }
+  };
 
   const handleSend = () => {
     if (!email.trim()) return;
@@ -938,7 +960,7 @@ function InviteTenantModal({
                        <input
                          type="checkbox"
                          checked={landlordCreditSkipApproved}
-                         onChange={(event) => setLandlordCreditSkipApproved(event.target.checked)}
+                         onChange={(event) => handleCreditSkipChange(event.target.checked)}
                          className="mt-1 h-5 w-5 rounded-lg border-2 border-slate-300 text-blue-600 focus:ring-blue-600"
                        />
                        <span className="text-xs font-bold leading-6 text-slate-600">

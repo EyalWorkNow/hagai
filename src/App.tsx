@@ -70,7 +70,7 @@ type AppNavItem = {
  * גרים פה Main Application
  */
 export default function App() {
-  const { db, currentUser: user, siteAccessSession, isReady, logout, linkProperty } = useAppData();
+  const { db, currentUser: user, siteAccessSession, isReady, logout } = useAppData();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -118,22 +118,15 @@ export default function App() {
     document.body.scrollTop = 0;
   }, [activeTab, siteAccessSession, showOnboardingFlow, user?.id]);
 
-  // Handle propertyId from URL for already logged-in users
+  // A tenant invite QR is a public entry point. Do not reuse the last local session
+  // from the same mobile browser, otherwise the QR opens the previous account.
   useEffect(() => {
-    if (user && user.role === "tenant" && isReady) {
-      const urlParams = new URLSearchParams(window.location.search);
-      const propertyId = urlParams.get("propertyId");
-      if (propertyId) {
-        const hasProperty = db.properties.some(p => p.tenantId === user.id);
-        if (!hasProperty) {
-          linkProperty(user.id, propertyId);
-          setShowOnboardingFlow(true);
-          // Clear URL parameter without refreshing
-          window.history.replaceState({}, document.title, window.location.pathname);
-        }
-      }
+    const propertyId = new URLSearchParams(window.location.search).get("propertyId");
+    if (isReady && propertyId && user && !(user.role === "tenant" && needsOnboarding)) {
+      logout();
+      setShowOnboardingFlow(false);
     }
-  }, [user, isReady, db.properties, linkProperty]);
+  }, [isReady, logout, needsOnboarding, user]);
 
   // 1. Initial Loading Screen
   if (!isReady) {
@@ -592,6 +585,7 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
         role: "tenant",
         propertyId: activePropertyId,
       });
+      window.history.replaceState({}, document.title, window.location.pathname);
       return null;
     }
     return (
@@ -629,6 +623,7 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
             role: "tenant",
             propertyId: activePropertyId,
           });
+          window.history.replaceState({}, document.title, window.location.pathname);
         } else {
           // Normal flow — show role selection
           setPendingDraft({
@@ -640,6 +635,9 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
         }
       } else {
         login(email, password, activePropertyId);
+        if (activePropertyId) {
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
       }
     } catch (err: any) {
       console.error(err);

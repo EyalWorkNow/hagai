@@ -1,4 +1,4 @@
-import { ReactNode, createContext, useContext, useEffect, useState } from "react";
+import { ReactNode, createContext, useContext, useEffect, useRef, useState } from "react";
 import {
   ChatMessage,
   Contract,
@@ -103,6 +103,12 @@ type InviteTenantPayload = {
   landlordCreditSkipApproved?: boolean;
 };
 
+type CreditSkipApprovalPayload = {
+  propertyId: string;
+  tenantEmail?: string;
+  approved: boolean;
+};
+
 type CreateUtilityChargePayload = {
   propertyId: string;
   label: string;
@@ -146,6 +152,7 @@ type AppDataContextValue = {
   completeOnboarding: (userId: string) => void;
   addProperty: (landlordId: string, payload: AddPropertyPayload) => void;
   inviteTenant: (landlordId: string, payload: InviteTenantPayload) => void;
+  setTenantCreditSkipApproval: (landlordId: string, payload: CreditSkipApprovalPayload) => void;
   createContract: (landlordId: string, payload: CreateContractPayload) => void;
   signContract: (contractId: string, signerId: string) => void;
   createManualPayment: (actor: User, payload: CreatePaymentPayload) => void;
@@ -298,6 +305,29 @@ function persistValue<T>(key: string, value: T) {
   }
 }
 
+function loadSessionValue(): SessionState {
+  if (typeof window === "undefined") return { userId: null };
+
+  try {
+    const raw = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
+    window.localStorage.removeItem(SESSION_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as SessionState) : { userId: null };
+  } catch {
+    return { userId: null };
+  }
+}
+
+function persistSessionValue(session: SessionState) {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+    window.localStorage.removeItem(SESSION_STORAGE_KEY);
+  } catch {
+    // Session persistence is non-critical. A reload can safely return to login.
+  }
+}
+
 function buildPersistableDbSnapshot(db: RentflowDb): RentflowDb {
   return {
     ...db,
@@ -320,6 +350,53 @@ function findOnboardingContract(db: RentflowDb, userId: string) {
     db.contracts.find((contract) => contract.tenantId === userId) ??
     null
   );
+}
+
+function upsertOnboardingInvite(
+  db: RentflowDb,
+  payload: {
+    landlordId?: string;
+    propertyId: string;
+    tenantEmail: string;
+    tenantPhone?: string;
+    status?: "sent" | "opened" | "completed";
+    contractVisibilityStep?: 1 | 2 | 4;
+    landlordCreditSkipApproved?: boolean;
+  },
+) {
+  const normalizedEmail = payload.tenantEmail.trim().toLowerCase();
+  const existing = db.onboardingInvites.find(
+    (invite) =>
+      invite.propertyId === payload.propertyId &&
+      invite.tenantEmail.toLowerCase() === normalizedEmail,
+  );
+
+  if (existing) {
+    existing.tenantEmail = normalizedEmail;
+    existing.tenantPhone = payload.tenantPhone ?? existing.tenantPhone;
+    existing.status = payload.status ?? existing.status;
+    existing.contractVisibilityStep =
+      payload.contractVisibilityStep ?? existing.contractVisibilityStep;
+    if (payload.landlordCreditSkipApproved !== undefined) {
+      existing.landlordCreditSkipApproved = payload.landlordCreditSkipApproved;
+    }
+    return existing;
+  }
+
+  const invite = {
+    id: buildId("invite"),
+    landlordId: payload.landlordId ?? findProperty(db, payload.propertyId)?.landlordId ?? "",
+    tenantEmail: normalizedEmail,
+    tenantPhone: payload.tenantPhone,
+    propertyId: payload.propertyId,
+    sentAt: nowIso(),
+    status: payload.status ?? "sent",
+    contractVisibilityStep: payload.contractVisibilityStep ?? 2,
+    landlordCreditSkipApproved: Boolean(payload.landlordCreditSkipApproved),
+  };
+
+  db.onboardingInvites.unshift(invite);
+  return invite;
 }
 
 function upsertNotification(
@@ -401,9 +478,7 @@ function pushMessage(db: RentflowDb, message: ChatMessage) {
 
 export function AppDataProvider({ children }: { children: ReactNode }) {
   const [db, setDb] = useState<RentflowDb>(EMPTY_DB);
-  const [session, setSession] = useState<SessionState>(() =>
-    loadStoredValue<SessionState>(SESSION_STORAGE_KEY, { userId: null }),
-  );
+  const [session, setSession] = useState<SessionState>(() => loadSessionValue());
   const [siteAccessSession, setSiteAccessSession] = useState<SiteAccessSession | null>(() =>
     loadStoredValue<SiteAccessSession | null>(SITE_ACCESS_SESSION_STORAGE_KEY, null),
   );
@@ -411,6 +486,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     loadStoredValue<SiteAccessActivationMap>(SITE_ACCESS_ACTIVATIONS_STORAGE_KEY, {}),
   );
   const [isReady, setIsReady] = useState(false);
+  const lastPersistedDbRef = useRef<string | null>(null);
 
   // Async DB initialization — avoids blocking the main thread on first render.
   // We REMOVE any stale snapshot before loading so an old EMPTY_DB save never
@@ -427,6 +503,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     }
 
     loadDbStateAsync().then((loadedDb) => {
+      lastPersistedDbRef.current = JSON.stringify(buildPersistableDbSnapshot(loadedDb));
       setDb(loadedDb);
       setIsReady(true);
     });
@@ -435,13 +512,42 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   // Only persist AFTER the real DB is loaded (isReady gate prevents saving EMPTY_DB)
   useEffect(() => {
     if (isReady && db !== EMPTY_DB) {
+      const nextSnapshot = JSON.stringify(buildPersistableDbSnapshot(db));
+      lastPersistedDbRef.current = nextSnapshot;
       persistValue(DB_STORAGE_KEY, buildPersistableDbSnapshot(db));
     }
   }, [db, isReady]);
 
   useEffect(() => {
-    persistValue(SESSION_STORAGE_KEY, session);
+    persistSessionValue(session);
   }, [session]);
+
+  useEffect(() => {
+    if (!isReady) return;
+
+    const syncDbFromStorage = () => {
+      try {
+        const raw = window.localStorage.getItem(DB_STORAGE_KEY);
+        if (!raw || raw === lastPersistedDbRef.current) return;
+        lastPersistedDbRef.current = raw;
+        setDb(normalizeDb(JSON.parse(raw) as RentflowDb));
+      } catch {
+        // Ignore malformed external writes and keep the current in-memory state.
+      }
+    };
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === DB_STORAGE_KEY) syncDbFromStorage();
+    };
+
+    window.addEventListener("storage", handleStorage);
+    const intervalId = window.setInterval(syncDbFromStorage, 1500);
+
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      window.clearInterval(intervalId);
+    };
+  }, [isReady]);
 
   useEffect(() => {
     persistValue(SITE_ACCESS_SESSION_STORAGE_KEY, siteAccessSession);
@@ -580,6 +686,13 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         if (property) {
           property.tenantId = userId;
           property.status = "occupied";
+          upsertOnboardingInvite(nextDb, {
+            landlordId: property.landlordId,
+            propertyId: property.id,
+            tenantEmail: normalizedEmail,
+            status: "opened",
+            contractVisibilityStep: 2,
+          });
 
           // Create onboarding contract
           const contractId = buildId("contract");
@@ -626,6 +739,14 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       if (property && !property.tenantId) {
         property.tenantId = user.id;
         property.status = "occupied";
+        upsertOnboardingInvite(nextDb, {
+          landlordId: property.landlordId,
+          propertyId: property.id,
+          tenantEmail: user.email,
+          tenantPhone: user.phone,
+          status: "opened",
+          contractVisibilityStep: 2,
+        });
         
         // Ensure contract exists
         let contract = findOnboardingContract(nextDb, user.id);
@@ -962,16 +1083,45 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       const property = findProperty(nextDb, payload.propertyId);
       if (!property) return;
 
-      nextDb.onboardingInvites.unshift({
-        id: buildId("invite"),
+      upsertOnboardingInvite(nextDb, {
         landlordId,
         tenantEmail: payload.tenantEmail,
         tenantPhone: payload.tenantPhone,
         propertyId: payload.propertyId,
-        sentAt: nowIso(),
         status: "sent",
         contractVisibilityStep: payload.contractVisibilityStep ?? 2,
         landlordCreditSkipApproved: Boolean(payload.landlordCreditSkipApproved),
+      });
+    });
+  };
+
+  const setTenantCreditSkipApproval = (
+    landlordId: string,
+    payload: CreditSkipApprovalPayload,
+  ) => {
+    applyDbUpdate((nextDb) => {
+      const property = findProperty(nextDb, payload.propertyId);
+      if (!property) return;
+
+      const tenant =
+        (property.tenantId ? findUser(nextDb, property.tenantId) : null) ??
+        nextDb.users.find(
+          (candidate) =>
+            payload.tenantEmail &&
+            candidate.email.toLowerCase() === payload.tenantEmail.toLowerCase(),
+        ) ??
+        null;
+      const tenantEmail = (payload.tenantEmail || tenant?.email || "").trim().toLowerCase();
+      if (!tenantEmail) return;
+
+      upsertOnboardingInvite(nextDb, {
+        landlordId,
+        propertyId: property.id,
+        tenantEmail,
+        tenantPhone: tenant?.phone,
+        status: tenant ? "opened" : "sent",
+        contractVisibilityStep: 2,
+        landlordCreditSkipApproved: payload.approved,
       });
     });
   };
@@ -1373,6 +1523,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         completeOnboarding,
         addProperty,
         inviteTenant,
+        setTenantCreditSkipApproval,
         createContract,
         signContract,
         createManualPayment,
