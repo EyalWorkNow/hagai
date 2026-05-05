@@ -700,7 +700,12 @@ function IdentitySetupStep({
                 </span>
               ) : (
                 <button
-                  onClick={() => onDraftChange({ ...draft, tenantQrScanned: true })}
+                  onClick={() =>
+                    onDraftChange((currentDraft) => ({
+                      ...currentDraft,
+                      tenantQrScanned: true,
+                    }))
+                  }
                   className="w-full py-2.5 rounded-2xl bg-slate-900 text-white text-[11px] font-black hover:bg-black transition-all active:scale-95"
                 >
                   סמן כנסרק על ידי המשכיר
@@ -752,7 +757,10 @@ function IdentitySetupStep({
                     type="button"
                     onClick={() => {
                       setScanError(null);
-                      onDraftChange({ ...draft, landlordQrScanned: true });
+                      onDraftChange((currentDraft) => ({
+                        ...currentDraft,
+                        landlordQrScanned: true,
+                      }));
                     }}
                     className="w-full rounded-2xl border border-blue-100 bg-white py-2.5 text-[11px] font-black text-blue-700 transition-all hover:border-blue-200 hover:bg-blue-50 active:scale-95"
                   >
@@ -830,7 +838,10 @@ function PropertyStep({
   onDraftChange: DraftChangeHandler;
 }) {
   const handleUpload = (event: ChangeEvent<HTMLInputElement>) => {
-    onDraftChange({ ...draft, contractDocumentUploaded: Boolean(event.target.files?.length) });
+    onDraftChange((currentDraft) => ({
+      ...currentDraft,
+      contractDocumentUploaded: Boolean(event.target.files?.length),
+    }));
   };
 
   return (
@@ -859,21 +870,25 @@ function PropertyStep({
               label="גובה שכר הדירה"
               value={draft.rentAmount}
               icon={<CreditCard size={18} />}
-              onChange={(rentAmount) => onDraftChange({ ...draft, rentAmount })}
+              onChange={(rentAmount) =>
+                onDraftChange((currentDraft) => ({ ...currentDraft, rentAmount }))
+              }
             />
             <NumericField
               label="עלויות ועד בית"
               value={draft.buildingCommitteeAmount}
               icon={<Landmark size={18} />}
               onChange={(buildingCommitteeAmount) =>
-                onDraftChange({ ...draft, buildingCommitteeAmount })
+                onDraftChange((currentDraft) => ({ ...currentDraft, buildingCommitteeAmount }))
               }
             />
             <NumericField
               label="עלויות ארנונה"
               value={draft.arnonaAmount}
               icon={<FileText size={18} />}
-              onChange={(arnonaAmount) => onDraftChange({ ...draft, arnonaAmount })}
+              onChange={(arnonaAmount) =>
+                onDraftChange((currentDraft) => ({ ...currentDraft, arnonaAmount }))
+              }
             />
           </div>
 
@@ -882,13 +897,23 @@ function PropertyStep({
               title="תשלום משולב"
               description="ועד הבית והארנונה מתווספים לתשלום החודשי הכולל."
               checked={draft.utilityPaymentMode === "combined"}
-              onChange={() => onDraftChange({ ...draft, utilityPaymentMode: "combined" })}
+              onChange={() =>
+                onDraftChange((currentDraft) => ({
+                  ...currentDraft,
+                  utilityPaymentMode: "combined",
+                }))
+              }
             />
             <PaymentModeCheck
               title="תשלום נפרד"
               description="השוכר מתחייב לשלם ישירות לרשויות או לוועד."
               checked={draft.utilityPaymentMode === "separate"}
-              onChange={() => onDraftChange({ ...draft, utilityPaymentMode: "separate" })}
+              onChange={() =>
+                onDraftChange((currentDraft) => ({
+                  ...currentDraft,
+                  utilityPaymentMode: "separate",
+                }))
+              }
             />
           </div>
         </div>
@@ -925,7 +950,12 @@ function PropertyStep({
               </label>
               <button
                 type="button"
-                onClick={() => onDraftChange({ ...draft, contractDocumentUploaded: true })}
+                onClick={() =>
+                  onDraftChange((currentDraft) => ({
+                    ...currentDraft,
+                    contractDocumentUploaded: true,
+                  }))
+                }
                 className="rounded-2xl bg-white px-5 py-2.5 text-[11px] font-black text-slate-700 shadow-sm transition hover:bg-slate-900 hover:text-white"
               >
                 סימון חוזה כנקלט
@@ -950,7 +980,10 @@ function PropertyStep({
                 checked={draft.clausesApproved}
                 disabled={!draft.contractDocumentUploaded}
                 onChange={(event) =>
-                  onDraftChange({ ...draft, clausesApproved: event.target.checked })
+                  onDraftChange((currentDraft) => ({
+                    ...currentDraft,
+                    clausesApproved: event.target.checked,
+                  }))
                 }
                 className="mt-1 h-5 w-5 rounded-lg border-2 border-slate-300 text-slate-900 focus:ring-slate-900 disabled:opacity-40"
               />
@@ -1053,7 +1086,12 @@ function BankAuthorizationStep({
                 {ISRAELI_BANKS.map((bank) => (
                   <button
                     key={bank.id}
-                    onClick={() => onDraftChange({ ...draft, bankId: bank.id })}
+                    onClick={() =>
+                      onDraftChange((currentDraft) => ({
+                        ...currentDraft,
+                        bankId: bank.id,
+                      }))
+                    }
                     className={cn(
                       "flex flex-col items-center justify-center gap-3 rounded-2xl border p-4 transition-all",
                       selectedBank === bank.id
@@ -1080,10 +1118,10 @@ function BankAuthorizationStep({
                 inputMode="numeric"
                 placeholder="123"
                 onChange={(branchNumber) =>
-                  onDraftChange({
-                    ...draft,
+                  onDraftChange((currentDraft) => ({
+                    ...currentDraft,
                     branchNumber: branchNumber.replace(/\D/g, "").slice(0, 4),
-                  })
+                  }))
                 }
               />
               <TextField
@@ -1092,10 +1130,10 @@ function BankAuthorizationStep({
                 inputMode="numeric"
                 placeholder="12345678"
                 onChange={(accountNumber) =>
-                  onDraftChange({
-                    ...draft,
+                  onDraftChange((currentDraft) => ({
+                    ...currentDraft,
                     accountNumber: accountNumber.replace(/\D/g, "").slice(0, 12),
-                  })
+                  }))
                 }
               />
             </div>
@@ -1104,14 +1142,21 @@ function BankAuthorizationStep({
               label="שם בעל החשבון"
               value={draft.accountHolderName}
               placeholder="שם כפי שמופיע בבנק"
-              onChange={(accountHolderName) => onDraftChange({ ...draft, accountHolderName })}
+              onChange={(accountHolderName) =>
+                onDraftChange((currentDraft) => ({ ...currentDraft, accountHolderName }))
+              }
             />
 
             <label className="flex cursor-pointer items-start gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-5 transition hover:bg-white">
               <input
                 type="checkbox"
                 checked={draft.bankConsent}
-                onChange={(event) => onDraftChange({ ...draft, bankConsent: event.target.checked })}
+                onChange={(event) =>
+                  onDraftChange((currentDraft) => ({
+                    ...currentDraft,
+                    bankConsent: event.target.checked,
+                  }))
+                }
                 className="mt-1 h-5 w-5 rounded-lg border-2 border-slate-300 text-blue-600 focus:ring-blue-600"
               />
               <span className="text-sm font-bold leading-7 text-slate-600">
@@ -1215,7 +1260,12 @@ function CreditCheckStep({
                   <input
                     type="checkbox"
                     checked={draft.creditConsent}
-                    onChange={(e) => onDraftChange({ ...draft, creditConsent: e.target.checked })}
+                    onChange={(event) =>
+                      onDraftChange((currentDraft) => ({
+                        ...currentDraft,
+                        creditConsent: event.target.checked,
+                      }))
+                    }
                     className="mt-1 h-6 w-6 rounded-lg border-2 border-slate-300 text-blue-600 focus:ring-blue-600"
                   />
                   <div className="text-sm font-bold leading-7 text-slate-600">
@@ -1392,11 +1442,11 @@ function SignatureStep({
             value={draft.signatureName}
             onChange={(event) => {
               const signatureName = event.target.value;
-              onDraftChange({
-                ...draft,
+              onDraftChange((currentDraft) => ({
+                ...currentDraft,
                 signatureName,
-                signatureAccepted: signatureName.trim().length >= 2 ? draft.signatureAccepted : false,
-              });
+                signatureAccepted: signatureName.trim().length >= 2 ? currentDraft.signatureAccepted : false,
+              }));
             }}
             placeholder={user.name}
             className="h-14 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black outline-none transition placeholder:text-slate-300 focus:border-slate-900 focus:ring-4 focus:ring-slate-900/5"
@@ -1406,7 +1456,12 @@ function SignatureStep({
               type="checkbox"
               checked={draft.signatureAccepted}
               disabled={draft.signatureName.trim().length < 2}
-              onChange={(event) => onDraftChange({ ...draft, signatureAccepted: event.target.checked })}
+              onChange={(event) =>
+                onDraftChange((currentDraft) => ({
+                  ...currentDraft,
+                  signatureAccepted: event.target.checked,
+                }))
+              }
               className="mt-1 h-5 w-5 rounded-lg border-2 border-slate-300 text-blue-600 focus:ring-blue-600 disabled:opacity-40"
             />
             <span className="text-sm font-bold leading-7 text-slate-600">
