@@ -25,6 +25,15 @@ import { cn } from "../lib/utils";
 import { Contract, Property, User, UtilityPaymentMode } from "../types";
 import { useAppData } from "../lib/appData";
 import { BRAND_NAME, BRAND_SLOGAN } from "../lib/brand";
+import bankFibiLogo from "../image/banks/בנק בינלאומי לוגו.jpeg";
+import bankHapoalimLogo from "../image/banks/בנק הפועלים לוגו.jpg";
+import bankOneZeroLogo from "../image/banks/בנק וואן זירו לוגו.png";
+import bankYahavLogo from "../image/banks/בנק יהב לוגו.png";
+import bankJerusalemLogo from "../image/banks/בנק ירושליים לוגו.jpg";
+import bankLeumiLogo from "../image/banks/בנק לאומי לוגו.png";
+import bankMizrahiLogo from "../image/banks/בנק מזרחי לוגו.jpeg";
+import bankMassadLogo from "../image/banks/בנק מסד לוגו.jpg";
+import bankMercantileLogo from "../image/banks/בנק מרכנתיל לוגו.webp";
 import hagaiLogo from "../image/HAGAI_LOGO.png";
 
 interface OnboardingProps {
@@ -856,16 +865,16 @@ function BankAuthorizationStep({
   onDraftChange: DraftChangeHandler;
 }) {
   const ISRAELI_BANKS = [
-    { id: "leumi", name: 'בנק לאומי', code: "10" },
-    { id: "hapoalim", name: 'בנק הפועלים', code: "12" },
-    { id: "mizrahi", name: 'מזרחי טפחות', code: "20" },
-    { id: "discount", name: 'בנק דיסקונט', code: "11" },
-    { id: "fibi", name: 'הבנק הבינלאומי', code: "31" },
-    { id: "yahav", name: 'בנק יהב', code: "4" },
-    { id: "onezero", name: 'וואן זירו', code: "18" },
-    { id: "mercantile", name: 'מרכנתיל דיסקונט', code: "17" },
-    { id: "massad", name: 'בנק מסד', code: "46" },
-    { id: "jerusalem", name: 'בנק ירושלים', code: "54" },
+    { id: "leumi", name: "בנק לאומי", code: "10", logo: bankLeumiLogo },
+    { id: "hapoalim", name: "בנק הפועלים", code: "12", logo: bankHapoalimLogo },
+    { id: "mizrahi", name: "מזרחי טפחות", code: "20", logo: bankMizrahiLogo },
+    { id: "discount", name: "בנק דיסקונט", code: "11", logo: null },
+    { id: "fibi", name: "הבנק הבינלאומי", code: "31", logo: bankFibiLogo },
+    { id: "yahav", name: "בנק יהב", code: "4", logo: bankYahavLogo },
+    { id: "onezero", name: "וואן זירו", code: "18", logo: bankOneZeroLogo },
+    { id: "mercantile", name: "מרכנתיל דיסקונט", code: "17", logo: bankMercantileLogo },
+    { id: "massad", name: "בנק מסד", code: "46", logo: bankMassadLogo },
+    { id: "jerusalem", name: "בנק ירושלים", code: "54", logo: bankJerusalemLogo },
   ];
 
   const selectedBank = draft.bankId;
@@ -910,10 +919,18 @@ function BankAuthorizationStep({
                     )}
                   >
                     <div className={cn(
-                      "h-10 w-10 rounded-xl flex items-center justify-center shadow-sm",
-                      selectedBank === bank.id ? "bg-white/20" : "bg-white"
+                      "flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl border shadow-sm",
+                      selectedBank === bank.id ? "border-white/20 bg-white" : "border-slate-100 bg-white"
                     )}>
-                      <Building2 size={20} className={selectedBank === bank.id ? "text-white" : "text-slate-400"} />
+                      {bank.logo ? (
+                        <img
+                          src={bank.logo}
+                          alt=""
+                          className="h-full w-full object-contain p-1.5"
+                        />
+                      ) : (
+                        <Building2 size={20} className={selectedBank === bank.id ? "text-slate-900" : "text-slate-400"} />
+                      )}
                     </div>
                     <span className="text-xs font-black text-center">{bank.name}</span>
                   </button>
