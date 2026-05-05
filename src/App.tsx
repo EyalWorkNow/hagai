@@ -895,7 +895,7 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
         <div className="relative z-30 flex w-full max-w-full flex-col items-center gap-3 px-2 pb-6 sm:px-4 sm:pb-8 md:fixed md:bottom-8 md:left-1/2 md:max-w-7xl md:-translate-x-1/2 md:gap-6 md:px-4 md:pb-0">
 
          {/* Unified "Command Bar" for Login + Stats (Darkened Glass) */}
-         <div className="bg-white/92 backdrop-blur-3xl rounded-[28px] md:rounded-[48px] p-4 sm:p-6 md:p-10 border border-white/40 shadow-[0_40px_100px_rgba(0,0,0,0.5)] w-full flex flex-col gap-4 sm:gap-5 md:gap-10">
+         <div className="bg-white/85 backdrop-blur-3xl rounded-[28px] md:rounded-[48px] p-4 sm:p-6 md:p-10 border border-white/40 shadow-[0_40px_100px_rgba(0,0,0,0.5)] w-full flex flex-col gap-4 sm:gap-5 md:gap-10">
 
             {/* Stats Group - compact on mobile */}
             <div className="flex items-center justify-center gap-6 sm:gap-10 md:gap-24">
