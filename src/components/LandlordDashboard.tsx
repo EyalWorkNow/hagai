@@ -844,19 +844,26 @@ function InviteTenantModal({
   onCompleteOnboarding: (tenantId: string) => void;
   onClose: () => void;
 }) {
-  const propertyContract =
-    contracts.find((contract) => contract.propertyId === property.id && contract.status !== "expired") ??
-    contracts.find((contract) => contract.propertyId === property.id);
-  const tenant = propertyContract?.tenantId
-    ? users.find((candidate) => candidate.id === propertyContract.tenantId)
+  const propertyContracts = contracts.filter((contract) => contract.propertyId === property.id);
+  const onboardingContract = propertyContracts.find((contract) => {
+    if (contract.status === "active" || contract.status === "expired") return false;
+    const candidate = users.find((user) => user.id === contract.tenantId);
+    return Boolean(candidate && !candidate.onboardingComplete);
+  });
+  const tenant = onboardingContract
+    ? users.find((candidate) => candidate.id === onboardingContract.tenantId) ?? null
+    : null;
+  const currentTenant = property.tenantId
+    ? users.find((candidate) => candidate.id === property.tenantId) ?? null
     : null;
   const existingInvite =
-    invites.find(
-      (invite) =>
-        invite.propertyId === property.id &&
-        tenant?.email &&
-        invite.tenantEmail.toLowerCase() === tenant.email.toLowerCase(),
-    ) ?? invites.find((invite) => invite.propertyId === property.id);
+    (tenant
+      ? invites.find(
+          (invite) =>
+            invite.propertyId === property.id &&
+            invite.tenantEmail.toLowerCase() === tenant.email.toLowerCase(),
+        )
+      : invites.find((invite) => invite.propertyId === property.id && invite.status !== "completed")) ?? null;
   const [phone, setPhone] = useState(tenant?.phone ?? existingInvite?.tenantPhone ?? "");
   const [email, setEmail] = useState(tenant?.email ?? existingInvite?.tenantEmail ?? "");
   const [landlordCreditSkipApproved, setLandlordCreditSkipApproved] = useState(
@@ -898,18 +905,7 @@ function InviteTenantModal({
           <div className="h-20 w-20 bg-slate-50 text-slate-900 rounded-[28px] flex items-center justify-center mb-8 shadow-inner">
              <QrCode size={40} />
           </div>
-        {tenant?.onboardingComplete ? (
-          <div className="py-12 flex flex-col items-center justify-center space-y-5 animate-in zoom-in-95 duration-500 text-center">
-             <div className="h-20 w-20 bg-emerald-500 text-white rounded-[24px] flex items-center justify-center shadow-xl shadow-emerald-500/20">
-                <CheckCircle2 size={40} />
-             </div>
-             <p className="text-3xl font-black text-slate-900 tracking-tighter italic font-display mt-4">תהליך ההצטרפות הושלם!</p>
-             <p className="text-sm text-slate-500 font-bold leading-relaxed max-w-md">הדייר מקושר לנכס באופן פעיל, כל המסמכים נחתמו וההרשאה לחיוב נקלטה במערכת.</p>
-             <button onClick={onClose} className="mt-8 px-8 py-4 bg-slate-900 text-white rounded-2xl font-black hover:bg-black transition-all shadow-md active:scale-95">
-                חזור לדאשבורד
-             </button>
-          </div>
-        ) : !isSent ? (
+        {!isSent ? (
           <>
             <h2 className="text-3xl md:text-4xl font-black text-slate-900 mb-4 tracking-tighter italic font-display">הוספת דייר לנכס</h2>
             <p className="text-slate-500 text-base font-bold italic mb-10">{property.address}</p>
@@ -1003,6 +999,14 @@ function InviteTenantModal({
                       </div>
                     )}
                   </div>
+
+                  {currentTenant?.onboardingComplete && !tenant && (
+                    <div className="mb-4 rounded-2xl border border-emerald-100 bg-white p-4 text-right shadow-sm">
+                      <p className="text-[10px] font-black tracking-[0.12em] text-emerald-600">דייר נוכחי</p>
+                      <p className="mt-2 text-sm font-black text-slate-900">{currentTenant.name}</p>
+                      <p className="mt-1 text-[11px] font-semibold text-slate-500">{currentTenant.email}</p>
+                    </div>
+                  )}
                   
                   {tenant ? (
                     <div className="mb-4 p-4 bg-white rounded-2xl border border-indigo-100 flex items-center justify-between shadow-sm">
