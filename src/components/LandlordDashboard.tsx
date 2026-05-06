@@ -1097,6 +1097,7 @@ function InviteTenantModal({
   const [isSent, setIsSent] = useState(false);
   const processStatus = onboardingSnapshot.status;
   const activeTenantEmail = onboardingSnapshot.activeTenantEmail ?? email.trim().toLowerCase();
+  const canCloseConnection = Boolean(tenant && !tenant.onboardingComplete);
 
   useEffect(() => {
     setEmail(tenant?.email ?? existingInvite?.tenantEmail ?? "");
@@ -1244,18 +1245,6 @@ function InviteTenantModal({
                           <p className="text-[11px] font-semibold text-slate-500 mt-1">{tenant.email}</p>
                         </div>
                       </div>
-                      {!tenant.onboardingComplete && (
-                        <button
-                          onClick={() => {
-                            if (window.confirm('האם אתה בטוח שברצונך לסיים את התהליך ידנית עבור דייר זה?')) {
-                              onCompleteOnboarding(tenant.id);
-                            }
-                          }}
-                          className="px-4 py-2 bg-slate-900 text-white rounded-xl text-[11px] font-black hover:bg-black transition-colors shadow-sm"
-                        >
-                          סגור תהליך
-                        </button>
-                      )}
                     </div>
                   ) : (
                     <p className="text-xs font-bold text-indigo-700/80 leading-relaxed mb-4">
@@ -1274,6 +1263,24 @@ function InviteTenantModal({
                        <div className={cn("h-2 w-2 rounded-full", tenant ? "bg-blue-500 animate-pulse" : "bg-amber-500 animate-pulse")}></div>
                        <span className="text-[10px] font-black text-indigo-900">{processStatus}</span>
                     </div>
+
+                    <button
+                      onClick={() => {
+                        if (!tenant || tenant.onboardingComplete) return;
+                        if (window.confirm("האם לסגור את הליך החיבור עבור הדייר הנוכחי?")) {
+                          onCompleteOnboarding(tenant.id);
+                        }
+                      }}
+                      disabled={!canCloseConnection}
+                      className={cn(
+                        "w-full rounded-xl border py-3 text-[11px] font-black transition-all",
+                        canCloseConnection
+                          ? "border-slate-900 bg-slate-900 text-white shadow-sm hover:bg-black"
+                          : "cursor-not-allowed border-slate-200 bg-white text-slate-400",
+                      )}
+                    >
+                      {canCloseConnection ? "סגור הליך חיבור" : "סגור הליך - ממתין לדייר פעיל"}
+                    </button>
                     
                     <button
                       onClick={() => handleCreditSkipChange(!landlordCreditSkipApproved)}
