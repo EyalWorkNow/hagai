@@ -707,6 +707,7 @@ function PropertyStep({
               label="גובה שכר הדירה"
               value={draft.rentAmount}
               icon={<CreditCard size={18} />}
+              readOnly={true}
               onChange={(rentAmount) =>
                 onDraftChange((currentDraft) => ({ ...currentDraft, rentAmount }))
               }
@@ -715,6 +716,7 @@ function PropertyStep({
               label="עלויות ועד בית"
               value={draft.buildingCommitteeAmount}
               icon={<Landmark size={18} />}
+              readOnly={true}
               onChange={(buildingCommitteeAmount) =>
                 onDraftChange((currentDraft) => ({ ...currentDraft, buildingCommitteeAmount }))
               }
@@ -723,6 +725,7 @@ function PropertyStep({
               label="עלויות ארנונה"
               value={draft.arnonaAmount}
               icon={<FileText size={18} />}
+              readOnly={true}
               onChange={(arnonaAmount) =>
                 onDraftChange((currentDraft) => ({ ...currentDraft, arnonaAmount }))
               }
@@ -734,6 +737,7 @@ function PropertyStep({
               title="תשלום משולב"
               description="ועד הבית והארנונה מתווספים לתשלום החודשי הכולל."
               checked={draft.utilityPaymentMode === "combined"}
+              disabled={true}
               onChange={() =>
                 onDraftChange((currentDraft) => ({
                   ...currentDraft,
@@ -745,6 +749,7 @@ function PropertyStep({
               title="תשלום נפרד"
               description="השוכר מתחייב לשלם ישירות לרשויות או לוועד."
               checked={draft.utilityPaymentMode === "separate"}
+              disabled={true}
               onChange={() =>
                 onDraftChange((currentDraft) => ({
                   ...currentDraft,
@@ -1720,11 +1725,13 @@ function NumericField({
   value,
   icon,
   onChange,
+  readOnly,
 }: {
   label: string;
   value: number;
   icon: ReactNode;
   onChange: (value: number) => void;
+  readOnly?: boolean;
 }) {
   return (
     <div className="space-y-3">
@@ -1735,8 +1742,12 @@ function NumericField({
           type="number"
           min="0"
           value={value}
-          onChange={(event) => onChange(Number(event.target.value || 0))}
-          className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 pr-11 pl-4 text-sm font-black tabular-nums outline-none transition focus:border-slate-900 focus:bg-white focus:ring-4 focus:ring-slate-900/5"
+          readOnly={readOnly}
+          onChange={(event) => !readOnly && onChange(Number(event.target.value || 0))}
+          className={cn(
+            "h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 pr-11 pl-4 text-sm font-black tabular-nums outline-none transition focus:border-slate-900 focus:bg-white focus:ring-4 focus:ring-slate-900/5",
+            readOnly && "cursor-not-allowed opacity-70 focus:border-slate-200 focus:bg-slate-50 focus:ring-0",
+          )}
         />
       </div>
     </div>
@@ -1776,28 +1787,34 @@ function PaymentModeCheck({
   description,
   checked,
   onChange,
+  disabled,
 }: {
   title: string;
   description: string;
   checked: boolean;
   onChange: () => void;
+  disabled?: boolean;
 }) {
   return (
     <label
       className={cn(
-        "flex cursor-pointer items-start gap-4 rounded-2xl border p-5 transition-all",
-        checked ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-white",
+        "flex items-start gap-4 rounded-2xl border p-5 transition-all",
+        !disabled && "cursor-pointer",
+        checked 
+          ? (disabled ? "border-slate-800 bg-slate-800 text-white opacity-90" : "border-slate-900 bg-slate-900 text-white") 
+          : (disabled ? "border-slate-100 bg-slate-50 text-slate-400 opacity-70" : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-white"),
       )}
     >
       <input
         type="checkbox"
         checked={checked}
-        onChange={onChange}
-        className="mt-1 h-5 w-5 rounded-lg border-2 border-slate-300 text-slate-900 focus:ring-slate-900"
+        onChange={() => !disabled && onChange()}
+        disabled={disabled}
+        className="mt-1 h-5 w-5 rounded-lg border-2 border-slate-300 text-slate-900 focus:ring-slate-900 disabled:opacity-40"
       />
       <span>
-        <span className={cn("block text-sm font-black", checked ? "text-white" : "text-slate-900")}>{title}</span>
-        <span className={cn("mt-1 block text-xs font-bold leading-6", checked ? "text-slate-300" : "text-slate-500")}>{description}</span>
+        <span className={cn("block text-sm font-black", checked ? "text-white" : (disabled ? "text-slate-400" : "text-slate-900"))}>{title}</span>
+        <span className={cn("mt-1 block text-xs font-bold leading-6", checked ? (disabled ? "text-slate-400" : "text-slate-300") : "text-slate-500")}>{description}</span>
       </span>
     </label>
   );
