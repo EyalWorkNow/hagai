@@ -33,12 +33,23 @@ function normalizeDb(rawDb: RentflowDb): RentflowDb {
   db.integrations = db.integrations ?? [];
   db.transactions = db.transactions ?? [];
   db.supportIssues = db.supportIssues ?? [];
+  db.paymentRetries = db.paymentRetries ?? [];
+  db.utilityCharges = db.utilityCharges ?? [];
+  db.transfers = db.transfers ?? [];
+  db.invoices = db.invoices ?? [];
+  db.vendors = db.vendors ?? [];
+  db.documents = db.documents ?? [];
+  db.notifications = db.notifications ?? [];
+  db.eligibilityChecks = db.eligibilityChecks ?? [];
+  db.onboardingInvites = db.onboardingInvites ?? [];
 
   return db;
 }
 
+let runtimeDb = normalizeDb(seedDb as RentflowDb);
+
 function cloneDb(): RentflowDb {
-  return normalizeDb(seedDb as RentflowDb);
+  return normalizeDb(runtimeDb);
 }
 
 function buildApi() {
@@ -54,6 +65,38 @@ function buildApi() {
   router.get("/payments", (_req, res) => res.json(cloneDb().payments));
   router.get("/transactions", (_req, res) => res.json(cloneDb().transactions ?? []));
   router.get("/integrations", (_req, res) => res.json(cloneDb().integrations ?? []));
+
+  router.get("/db", (_req, res) => {
+    res.json(cloneDb());
+  });
+
+  router.put("/db", (req, res) => {
+    const incomingDb = req.body as Partial<RentflowDb>;
+
+    if (
+      !incomingDb ||
+      !Array.isArray(incomingDb.users) ||
+      !Array.isArray(incomingDb.properties) ||
+      !Array.isArray(incomingDb.contracts)
+    ) {
+      res.status(400).json({ error: "Invalid database snapshot" });
+      return;
+    }
+
+    runtimeDb = normalizeDb({
+      ...runtimeDb,
+      ...incomingDb,
+      integrations: runtimeDb.integrations,
+      transactions: runtimeDb.transactions,
+      supportIssues: runtimeDb.supportIssues,
+    } as RentflowDb);
+    res.json(cloneDb());
+  });
+
+  router.post("/db/reset", (_req, res) => {
+    runtimeDb = normalizeDb(seedDb as RentflowDb);
+    res.json(cloneDb());
+  });
 
   router.get("/dashboard/admin", (_req, res) => {
     const db = cloneDb();
@@ -152,14 +195,14 @@ function buildApi() {
 async function startServer() {
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
-  const HOST = process.env.HOST ?? "0.0.0.0";
+  const HOST = "0.0.0.0";
 
-  app.use(express.json());
+  app.use(express.json({ limit: "25mb" }));
   app.use("/api/v1", buildApi());
 
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, host: true },
       appType: "spa",
     });
     app.use(vite.middlewares);

@@ -22,6 +22,8 @@ import {
 
 const DB_STORAGE_KEY = "garim-po-json-db-v1";
 const DB_BROADCAST_CHANNEL = "garim-po-db-sync";
+const DB_API_ENDPOINT = "/api/v1/db";
+const DB_RESET_API_ENDPOINT = "/api/v1/db/reset";
 const SESSION_STORAGE_KEY = "garim-po-session";
 const SITE_ACCESS_SESSION_STORAGE_KEY = "garim-po-site-access-session";
 const SITE_ACCESS_ACTIVATIONS_STORAGE_KEY = "garim-po-site-access-activations";
@@ -110,6 +112,11 @@ type CreditSkipApprovalPayload = {
   approved: boolean;
 };
 
+type CancelTenantOnboardingPayload = {
+  propertyId: string;
+  tenantId: string;
+};
+
 type CreateUtilityChargePayload = {
   propertyId: string;
   label: string;
@@ -151,6 +158,7 @@ type AppDataContextValue = {
   saveBankAuthorization: (userId: string) => void;
   signOnboardingContract: (userId: string) => void;
   completeOnboarding: (userId: string) => void;
+  cancelTenantOnboarding: (landlordId: string, payload: CancelTenantOnboardingPayload) => void;
   addProperty: (landlordId: string, payload: AddPropertyPayload) => string | null;
   inviteTenant: (landlordId: string, payload: InviteTenantPayload) => void;
   setTenantCreditSkipApproval: (landlordId: string, payload: CreditSkipApprovalPayload) => void;
@@ -223,6 +231,42 @@ async function loadSeedDbAsync(): Promise<RentflowDb> {
   return normalizeDb(seedDb as RentflowDb);
 }
 
+async function loadServerDbAsync(): Promise<RentflowDb | null> {
+  try {
+    const response = await fetch(DB_API_ENDPOINT, { cache: "no-store" });
+    if (!response.ok) return null;
+    return normalizeDb((await response.json()) as RentflowDb);
+  } catch {
+    return null;
+  }
+}
+
+async function persistServerDbAsync(db: RentflowDb): Promise<boolean> {
+  try {
+    const response = await fetch(DB_API_ENDPOINT, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(db),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function resetServerDbAsync(): Promise<RentflowDb | null> {
+  try {
+    const response = await fetch(DB_RESET_API_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+    if (!response.ok) return null;
+    return normalizeDb((await response.json()) as RentflowDb);
+  } catch {
+    return null;
+  }
+}
+
 function mergeSeededRecords<T extends { id: string }>(
   seededRecords: T[],
   storedRecords: T[] | undefined,
@@ -247,40 +291,53 @@ function mergeSeededRecords<T extends { id: string }>(
   return mergedRecords;
 }
 
-async function loadDbStateAsync(): Promise<RentflowDb> {
+type LoadedDbState = {
+  db: RentflowDb;
+  source: "server" | "local";
+};
+
+async function loadDbStateAsync(): Promise<LoadedDbState> {
+  const serverDb = await loadServerDbAsync();
+  if (serverDb) {
+    return { db: serverDb, source: "server" };
+  }
+
   const seededDb = await loadSeedDbAsync();
   const storedDb = loadStoredValue<RentflowDb | null>(DB_STORAGE_KEY, null);
 
   if (!storedDb) {
-    return seededDb;
+    return { db: seededDb, source: "local" };
   }
 
-  return normalizeDb({
-    ...seededDb,
-    ...storedDb,
-    properties: mergeSeededRecords(seededDb.properties, storedDb.properties, (seeded, stored) => ({
-      ...seeded,
-      ...stored,
-      costs: stored.costs ?? seeded.costs,
-      insuranceOffered: stored.insuranceOffered ?? seeded.insuranceOffered,
-    })),
-    contracts: mergeSeededRecords(seededDb.contracts, storedDb.contracts, (seeded, stored) => ({
-      ...seeded,
-      ...stored,
-      buildingCommitteeAmount: stored.buildingCommitteeAmount ?? seeded.buildingCommitteeAmount,
-      arnonaAmount: stored.arnonaAmount ?? seeded.arnonaAmount,
-      utilityPaymentMode: stored.utilityPaymentMode ?? seeded.utilityPaymentMode,
-      monthlyPaymentAmount: stored.monthlyPaymentAmount ?? seeded.monthlyPaymentAmount,
-      contractUploadedAt: stored.contractUploadedAt ?? seeded.contractUploadedAt,
-      contractClausesApprovedAt: stored.contractClausesApprovedAt ?? seeded.contractClausesApprovedAt,
-      tenantQrScannedAt: stored.tenantQrScannedAt ?? seeded.tenantQrScannedAt,
-      landlordQrScannedAt: stored.landlordQrScannedAt ?? seeded.landlordQrScannedAt,
-    })),
-    meta: storedDb.meta ?? seededDb.meta,
-    integrations: seededDb.integrations,
-    transactions: seededDb.transactions,
-    supportIssues: seededDb.supportIssues,
-  });
+  return {
+    db: normalizeDb({
+      ...seededDb,
+      ...storedDb,
+      properties: mergeSeededRecords(seededDb.properties, storedDb.properties, (seeded, stored) => ({
+        ...seeded,
+        ...stored,
+        costs: stored.costs ?? seeded.costs,
+        insuranceOffered: stored.insuranceOffered ?? seeded.insuranceOffered,
+      })),
+      contracts: mergeSeededRecords(seededDb.contracts, storedDb.contracts, (seeded, stored) => ({
+        ...seeded,
+        ...stored,
+        buildingCommitteeAmount: stored.buildingCommitteeAmount ?? seeded.buildingCommitteeAmount,
+        arnonaAmount: stored.arnonaAmount ?? seeded.arnonaAmount,
+        utilityPaymentMode: stored.utilityPaymentMode ?? seeded.utilityPaymentMode,
+        monthlyPaymentAmount: stored.monthlyPaymentAmount ?? seeded.monthlyPaymentAmount,
+        contractUploadedAt: stored.contractUploadedAt ?? seeded.contractUploadedAt,
+        contractClausesApprovedAt: stored.contractClausesApprovedAt ?? seeded.contractClausesApprovedAt,
+        tenantQrScannedAt: stored.tenantQrScannedAt ?? seeded.tenantQrScannedAt,
+        landlordQrScannedAt: stored.landlordQrScannedAt ?? seeded.landlordQrScannedAt,
+      })),
+      meta: storedDb.meta ?? seededDb.meta,
+      integrations: seededDb.integrations,
+      transactions: seededDb.transactions,
+      supportIssues: seededDb.supportIssues,
+    }),
+    source: "local",
+  };
 }
 
 function loadStoredValue<T>(key: string, fallback: T): T {
@@ -335,6 +392,10 @@ function buildPersistableDbSnapshot(db: RentflowDb): RentflowDb {
     ...db,
     transactions: [],
   };
+}
+
+function serializePersistableDbSnapshot(db: RentflowDb) {
+  return JSON.stringify(buildPersistableDbSnapshot(db));
 }
 
 
@@ -424,6 +485,7 @@ function startTenantOnboardingForProperty(db: RentflowDb, userId: string, proper
   user.kycStatus = "pending";
   user.bdiStatus = "pending";
   user.bdiReason = undefined;
+  user.statusLabel = undefined;
 
   upsertOnboardingInvite(db, {
     landlordId: property.landlordId,
@@ -582,6 +644,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [isReady, setIsReady] = useState(false);
   const lastPersistedDbRef = useRef<string | null>(null);
   const dbBroadcastChannelRef = useRef<BroadcastChannel | null>(null);
+  const hasServerDbRef = useRef(false);
+  const pendingServerPersistRef = useRef<string | null>(null);
 
   // Async DB initialization — avoids blocking the main thread on first render.
   // We REMOVE any stale snapshot before loading so an old EMPTY_DB save never
@@ -597,9 +661,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       try { window.localStorage.removeItem(DB_STORAGE_KEY); } catch { /* ignore */ }
     }
 
-    loadDbStateAsync().then((loadedDb) => {
-      lastPersistedDbRef.current = JSON.stringify(buildPersistableDbSnapshot(loadedDb));
-      setDb(loadedDb);
+    loadDbStateAsync().then((loadedState) => {
+      hasServerDbRef.current = loadedState.source === "server";
+      lastPersistedDbRef.current = serializePersistableDbSnapshot(loadedState.db);
+      setDb(loadedState.db);
       setIsReady(true);
     });
   }, []);
@@ -607,11 +672,23 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   // Only persist AFTER the real DB is loaded (isReady gate prevents saving EMPTY_DB)
   useEffect(() => {
     if (isReady && db !== EMPTY_DB) {
-      const nextSnapshot = JSON.stringify(buildPersistableDbSnapshot(db));
+      const nextSnapshot = serializePersistableDbSnapshot(db);
       if (nextSnapshot === lastPersistedDbRef.current) return;
       lastPersistedDbRef.current = nextSnapshot;
-      persistValue(DB_STORAGE_KEY, buildPersistableDbSnapshot(db));
+      const persistableDb = buildPersistableDbSnapshot(db);
+      persistValue(DB_STORAGE_KEY, persistableDb);
       dbBroadcastChannelRef.current?.postMessage(nextSnapshot);
+      if (hasServerDbRef.current) {
+        pendingServerPersistRef.current = nextSnapshot;
+        persistServerDbAsync(persistableDb).then((ok) => {
+          if (pendingServerPersistRef.current === nextSnapshot) {
+            pendingServerPersistRef.current = null;
+          }
+          if (!ok) {
+            hasServerDbRef.current = false;
+          }
+        });
+      }
     }
   }, [db, isReady]);
 
@@ -626,7 +703,16 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       try {
         if (!raw || raw === lastPersistedDbRef.current) return;
         lastPersistedDbRef.current = raw;
-        setDb(normalizeDb(JSON.parse(raw) as RentflowDb));
+        const incomingDb = normalizeDb(JSON.parse(raw) as RentflowDb);
+        setDb((currentDb) =>
+          normalizeDb({
+            ...(currentDb ?? EMPTY_DB),
+            ...incomingDb,
+            integrations: incomingDb.integrations.length ? incomingDb.integrations : currentDb.integrations,
+            transactions: incomingDb.transactions.length ? incomingDb.transactions : currentDb.transactions,
+            supportIssues: incomingDb.supportIssues.length ? incomingDb.supportIssues : currentDb.supportIssues,
+          }),
+        );
       } catch {
         // Ignore malformed external writes and keep the current in-memory state.
       }
@@ -634,6 +720,20 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
     const syncDbFromStorage = () => {
       syncDbSnapshot(window.localStorage.getItem(DB_STORAGE_KEY));
+    };
+
+    const syncDbFromServer = async () => {
+      if (!hasServerDbRef.current || pendingServerPersistRef.current) return;
+      const serverDb = await loadServerDbAsync();
+      if (!serverDb) {
+        hasServerDbRef.current = false;
+        return;
+      }
+      const nextSnapshot = serializePersistableDbSnapshot(serverDb);
+      if (nextSnapshot === lastPersistedDbRef.current) return;
+      lastPersistedDbRef.current = nextSnapshot;
+      persistValue(DB_STORAGE_KEY, buildPersistableDbSnapshot(serverDb));
+      setDb(serverDb);
     };
 
     const handleStorage = (event: StorageEvent) => {
@@ -654,7 +754,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     }
 
     window.addEventListener("storage", handleStorage);
-    const intervalId = window.setInterval(syncDbFromStorage, 1500);
+    const intervalId = window.setInterval(() => {
+      syncDbFromStorage();
+      void syncDbFromServer();
+    }, 1500);
 
     return () => {
       window.removeEventListener("storage", handleStorage);
@@ -789,7 +892,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   };
 
   const resetDatabase = () => {
-    loadSeedDbAsync().then((freshDb) => {
+    const loadFreshDb = hasServerDbRef.current
+      ? resetServerDbAsync().then((serverDb) => serverDb ?? loadSeedDbAsync())
+      : loadSeedDbAsync();
+
+    loadFreshDb.then((freshDb) => {
       setDb(freshDb);
       if (session.userId) {
         const nextUser = freshDb.users.find((user) => user.id === session.userId);
@@ -1059,6 +1166,58 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         if (
           invite.tenantEmail.toLowerCase() === user.email.toLowerCase() &&
           (!contract || invite.propertyId === contract.propertyId)
+        ) {
+          invite.status = "completed";
+        }
+      });
+    });
+  };
+
+  const cancelTenantOnboarding = (
+    landlordId: string,
+    payload: CancelTenantOnboardingPayload,
+  ) => {
+    applyDbUpdate((nextDb) => {
+      const property = findProperty(nextDb, payload.propertyId);
+      const tenant = findUser(nextDb, payload.tenantId);
+      if (!property || property.landlordId !== landlordId || !tenant || tenant.role !== "tenant") return;
+
+      const tenantEmail = tenant.email.toLowerCase();
+      const relatedContracts = nextDb.contracts.filter(
+        (contract) =>
+          contract.propertyId === property.id &&
+          contract.tenantId === tenant.id &&
+          contract.status !== "active" &&
+          contract.status !== "expired",
+      );
+
+      relatedContracts.forEach((contract) => {
+        contract.status = "expired";
+        contract.tenantQrScannedAt = undefined;
+        contract.landlordQrScannedAt = undefined;
+        contract.contractUploadedAt = undefined;
+        contract.contractClausesApprovedAt = undefined;
+        contract.signedByTenantAt = undefined;
+        contract.signedByLandlordAt = undefined;
+      });
+
+      if (property.tenantId === tenant.id) {
+        property.tenantId = undefined;
+        property.status = "vacant";
+      }
+
+      tenant.onboardingComplete = false;
+      tenant.onboardingStep = 0;
+      tenant.kycStatus = "pending";
+      tenant.bdiStatus = "pending";
+      tenant.bdiReason = undefined;
+      tenant.statusLabel = "תהליך חיבור בוטל";
+
+      nextDb.onboardingInvites.forEach((invite) => {
+        if (
+          invite.propertyId === property.id &&
+          invite.tenantEmail.toLowerCase() === tenantEmail &&
+          invite.status !== "completed"
         ) {
           invite.status = "completed";
         }
@@ -1571,6 +1730,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         saveBankAuthorization,
         signOnboardingContract,
         completeOnboarding,
+        cancelTenantOnboarding,
         addProperty,
         inviteTenant,
         setTenantCreditSkipApproval,

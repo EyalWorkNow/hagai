@@ -34,13 +34,19 @@ import { Property, Payment, User, Contract, OnboardingInvite } from "../types";
 import { cn } from "../lib/utils";
 import { useAppData } from "../lib/appData";
 import { InfoTooltip } from "./SharedViews";
+import {
+  getTenantOnboardingSnapshot,
+  TENANT_ONBOARDING_STEPS,
+} from "../lib/onboardingStatus";
+import type { TenantOnboardingSnapshot } from "../lib/onboardingStatus";
+import { BRAND_NAME } from "../lib/brand";
 
 /**
  * LandlordDashboard Component
  * Optimized for the Hebrew rental-management spec: Alerts, Summary, Non-paying alerts, and Property lists.
  */
 export default function LandlordDashboard({ user }: { user: User }) {
-  const { db, addProperty, inviteTenant, setTenantCreditSkipApproval, completeOnboarding, resetDatabase } = useAppData();
+  const { db, addProperty, inviteTenant, setTenantCreditSkipApproval, cancelTenantOnboarding, resetDatabase } = useAppData();
   const [activeTab, setActiveTab] = useState<"overview" | "properties" | "proofs" | "maintenance">("overview");
   const properties = useMemo(() => db.properties.filter((property) => property.landlordId === user.id), [db, user.id]);
   const payments = useMemo(() => [...db.payments]
@@ -541,7 +547,12 @@ export default function LandlordDashboard({ user }: { user: User }) {
               landlordCreditSkipApproved: payload.landlordCreditSkipApproved,
             })
           }
-          onCompleteOnboarding={completeOnboarding}
+          onCancelOnboarding={(tenantId) =>
+            cancelTenantOnboarding(user.id, {
+              propertyId: selectedProperty.id,
+              tenantId,
+            })
+          }
           onClose={() => {
             setShowInviteTenant(false);
             setSelectedPropertyId(null);
@@ -911,104 +922,6 @@ function AddPropertyModal({
   );
 }
 
-const TENANT_ONBOARDING_STEPS = [
-  "פתיחת תהליך",
-  "פרטי דירה",
-  "בדיקת זכאות",
-  "הרשאה לחיוב",
-  "חתימה",
-  "סיום",
-];
-
-type TenantOnboardingSnapshot = {
-  tenant: User | null;
-  currentTenant: User | null;
-  contract: Contract | null;
-  invite: OnboardingInvite | null;
-  status: string;
-  stepIndex: number;
-  totalSteps: number;
-  activeTenantEmail?: string;
-  landlordCreditSkipApproved: boolean;
-};
-
-function getTenantOnboardingStatus(tenant: User | null, invite?: OnboardingInvite | null) {
-  if (!tenant && invite) return `הזמנה נשלחה אל ${invite.tenantEmail}`;
-  if (!tenant) return "ממתין לדייר שיסרוק את ההזמנה ויירשם";
-  if (tenant.onboardingComplete) return "הדייר השלים את תהליך ההרשמה";
-
-  const stepIndex = Math.min(
-    Math.max(tenant.onboardingStep ?? 0, 0),
-    TENANT_ONBOARDING_STEPS.length - 1,
-  );
-
-  return `הדייר בשלב ${stepIndex + 1} מתוך ${TENANT_ONBOARDING_STEPS.length}: ${TENANT_ONBOARDING_STEPS[stepIndex]}`;
-}
-
-function getTenantOnboardingSnapshot(
-  property: Property,
-  contracts: Contract[],
-  users: User[],
-  invites: OnboardingInvite[],
-): TenantOnboardingSnapshot {
-  const propertyContracts = contracts.filter((contract) => contract.propertyId === property.id);
-  const currentTenant = property.tenantId
-    ? users.find((candidate) => candidate.id === property.tenantId) ?? null
-    : null;
-  const onboardingContracts = propertyContracts
-    .filter((contract) => contract.status !== "active" && contract.status !== "expired")
-    .sort(
-      (left, right) =>
-        getContractActivityTime(right) - getContractActivityTime(left),
-    );
-  const currentTenantContract =
-    currentTenant && !currentTenant.onboardingComplete
-      ? onboardingContracts.find((contract) => contract.tenantId === currentTenant.id) ?? null
-      : null;
-  const onboardingContract =
-    currentTenantContract ??
-    onboardingContracts.find((contract) => {
-      const candidate = users.find((user) => user.id === contract.tenantId);
-      return Boolean(candidate && !candidate.onboardingComplete);
-    }) ??
-    null;
-  const tenant = onboardingContract
-    ? users.find((candidate) => candidate.id === onboardingContract.tenantId) ?? null
-    : null;
-  const propertyInvites = [...invites]
-    .filter((invite) => invite.propertyId === property.id && invite.status !== "completed")
-    .sort((left, right) => Date.parse(right.sentAt) - Date.parse(left.sentAt));
-  const invite =
-    (tenant
-      ? propertyInvites.find((item) => item.tenantEmail.toLowerCase() === tenant.email.toLowerCase())
-      : propertyInvites.find(
-          (item) => !currentTenant || item.tenantEmail.toLowerCase() !== currentTenant.email.toLowerCase(),
-        )) ?? null;
-  const stepIndex = tenant
-    ? Math.min(Math.max(tenant.onboardingStep ?? 0, 0), TENANT_ONBOARDING_STEPS.length - 1)
-    : 0;
-
-  return {
-    tenant,
-    currentTenant,
-    contract: onboardingContract,
-    invite,
-    status: getTenantOnboardingStatus(tenant, invite),
-    stepIndex,
-    totalSteps: TENANT_ONBOARDING_STEPS.length,
-    activeTenantEmail: tenant?.email ?? invite?.tenantEmail,
-    landlordCreditSkipApproved: Boolean(invite?.landlordCreditSkipApproved),
-  };
-}
-
-function getContractActivityTime(contract: Contract) {
-  return Math.max(
-    Date.parse(contract.tenantQrScannedAt ?? "") || 0,
-    Date.parse(contract.createdAt ?? "") || 0,
-    Date.parse(contract.signedByTenantAt ?? "") || 0,
-  );
-}
-
 function LandlordOnboardingTracker({
   snapshot,
   onCreditSkipApproval,
@@ -1073,7 +986,7 @@ function InviteTenantModal({
   invites,
   onCreditSkipApproval,
   onInvite,
-  onCompleteOnboarding,
+  onCancelOnboarding,
   onClose,
 }: {
   property: Property;
@@ -1082,7 +995,7 @@ function InviteTenantModal({
   invites: OnboardingInvite[];
   onCreditSkipApproval: (payload: { email?: string; approved: boolean }) => void;
   onInvite: (payload: { email: string; phone?: string; landlordCreditSkipApproved: boolean }) => void;
-  onCompleteOnboarding: (tenantId: string) => void;
+  onCancelOnboarding: (tenantId: string) => void;
   onClose: () => void;
 }) {
   const onboardingSnapshot = getTenantOnboardingSnapshot(property, contracts, users, invites);
@@ -1097,7 +1010,8 @@ function InviteTenantModal({
   const [isSent, setIsSent] = useState(false);
   const processStatus = onboardingSnapshot.status;
   const activeTenantEmail = onboardingSnapshot.activeTenantEmail ?? email.trim().toLowerCase();
-  const canCloseConnection = Boolean(tenant && !tenant.onboardingComplete);
+  const canCancelConnection = Boolean(tenant && !tenant.onboardingComplete);
+  const currentStepTitle = tenant ? TENANT_ONBOARDING_STEPS[onboardingSnapshot.stepIndex] : null;
 
   useEffect(() => {
     setEmail(tenant?.email ?? existingInvite?.tenantEmail ?? "");
@@ -1165,7 +1079,7 @@ function InviteTenantModal({
                   <button 
                     onClick={() => {
                       const link = window.location.origin + "/?propertyId=" + property.id;
-                      const message = encodeURIComponent(`היי! מוזמן להתחיל את תהליך ההצטרפות לדירה ב-${property.address} דרך RentFlow בקישור הבא: ${link}`);
+                      const message = encodeURIComponent(`היי! מוזמן להתחיל את תהליך ההצטרפות לדירה ב-${property.address} דרך ${BRAND_NAME} בקישור הבא: ${link}`);
                       window.open(`https://wa.me/${phone.replace(/\D/g, '')}?text=${message}`, '_blank');
                     }}
                     className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-black text-xs shadow-lg hover:bg-emerald-600 active:scale-95 transition-all flex items-center justify-center gap-2"
@@ -1226,29 +1140,41 @@ function InviteTenantModal({
                     )}
                   </div>
 
-                  {currentTenant?.onboardingComplete && !tenant && (
+                  {tenant ? (
+                    <div className="mb-4 rounded-2xl border border-indigo-100 bg-white p-4 text-right shadow-sm">
+                      <p className="text-[10px] font-black tracking-[0.12em] text-indigo-600">דייר נוכחי בתהליך</p>
+                      <div className="mt-3 flex items-center justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className="h-10 w-10 shrink-0 bg-blue-100 text-blue-700 rounded-xl flex items-center justify-center font-black text-sm">
+                          {tenant.name.charAt(0)}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-black text-slate-900 leading-none">{tenant.name}</p>
+                            <p className="mt-1 truncate text-[11px] font-semibold text-slate-500">{tenant.email}</p>
+                            {(tenant.phone || existingInvite?.tenantPhone) && (
+                              <p className="mt-1 text-[11px] font-semibold text-slate-500">
+                                {tenant.phone || existingInvite?.tenantPhone}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <span className="shrink-0 rounded-full bg-indigo-50 px-3 py-1 text-[10px] font-black text-indigo-700">
+                          {currentStepTitle}
+                        </span>
+                      </div>
+                    </div>
+                  ) : currentTenant?.onboardingComplete ? (
                     <div className="mb-4 rounded-2xl border border-emerald-100 bg-white p-4 text-right shadow-sm">
                       <p className="text-[10px] font-black tracking-[0.12em] text-emerald-600">דייר נוכחי</p>
                       <p className="mt-2 text-sm font-black text-slate-900">{currentTenant.name}</p>
                       <p className="mt-1 text-[11px] font-semibold text-slate-500">{currentTenant.email}</p>
-                    </div>
-                  )}
-                  
-                  {tenant ? (
-                    <div className="mb-4 p-4 bg-white rounded-2xl border border-indigo-100 flex items-center justify-between shadow-sm">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 bg-blue-100 text-blue-700 rounded-xl flex items-center justify-center font-black text-sm">
-                          {tenant.name.charAt(0)}
-                        </div>
-                        <div>
-                          <p className="text-sm font-black text-slate-900 leading-none">{tenant.name}</p>
-                          <p className="text-[11px] font-semibold text-slate-500 mt-1">{tenant.email}</p>
-                        </div>
-                      </div>
+                      {currentTenant.phone && (
+                        <p className="mt-1 text-[11px] font-semibold text-slate-500">{currentTenant.phone}</p>
+                      )}
                     </div>
                   ) : (
                     <p className="text-xs font-bold text-indigo-700/80 leading-relaxed mb-4">
-                      המערכת תסנכרן את נתוני המשכיר והשוכר באופן אוטומטי לאחר סיום הסריקה ואימות ה-KYC של השוכר.
+                      המערכת תסנכרן את נתוני המשכיר והשוכר באופן אוטומטי מיד אחרי סריקת ה-QR ויצירת חשבון הדייר.
                     </p>
                   )}
 
@@ -1267,32 +1193,34 @@ function InviteTenantModal({
                     <button
                       onClick={() => {
                         if (!tenant || tenant.onboardingComplete) return;
-                        if (window.confirm("האם לסגור את הליך החיבור עבור הדייר הנוכחי?")) {
-                          onCompleteOnboarding(tenant.id);
+                        if (window.confirm("האם לבטל את תהליך החיבור עבור הדייר הנוכחי?")) {
+                          onCancelOnboarding(tenant.id);
                         }
                       }}
-                      disabled={!canCloseConnection}
+                      disabled={!canCancelConnection}
                       className={cn(
                         "w-full rounded-xl border py-3 text-[11px] font-black transition-all",
-                        canCloseConnection
-                          ? "border-slate-900 bg-slate-900 text-white shadow-sm hover:bg-black"
+                        canCancelConnection
+                          ? "border-rose-200 bg-rose-50 text-rose-700 shadow-sm hover:bg-rose-100"
                           : "cursor-not-allowed border-slate-200 bg-white text-slate-400",
                       )}
                     >
-                      {canCloseConnection ? "סגור הליך חיבור" : "סגור הליך - ממתין לדייר פעיל"}
+                      {canCancelConnection ? "בטל תהליך חיבור" : "ביטול תהליך - ממתין לדייר פעיל"}
                     </button>
                     
                     <button
                       onClick={() => handleCreditSkipChange(!landlordCreditSkipApproved)}
+                      disabled={!activeTenantEmail}
                       className={cn(
                         "mt-2 w-full py-3 rounded-xl font-black text-[11px] transition-all flex items-center justify-center gap-2 border",
                         landlordCreditSkipApproved 
                           ? "bg-emerald-500 text-white border-emerald-600 shadow-sm" 
-                          : "bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50 shadow-sm"
+                          : "bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50 shadow-sm",
+                        !activeTenantEmail && "cursor-not-allowed opacity-50"
                       )}
                     >
                       <ShieldCheck size={14} />
-                      {landlordCreditSkipApproved ? "בדיקת אשראי - דילוג אושר בהצלחה" : "אישור דילוג על בדיקת נתוני אשראי"}
+                      {landlordCreditSkipApproved ? "בטל אישור דילוג על בדיקת נתוני אשראי" : "אישור דילוג על בדיקת נתוני אשראי"}
                     </button>
                   </div>
                 </div>
