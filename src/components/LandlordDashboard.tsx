@@ -42,12 +42,12 @@ import { InfoTooltip } from "./SharedViews";
 export default function LandlordDashboard({ user }: { user: User }) {
   const { db, addProperty, inviteTenant, setTenantCreditSkipApproval, completeOnboarding, resetDatabase } = useAppData();
   const [activeTab, setActiveTab] = useState<"overview" | "properties" | "proofs" | "maintenance">("overview");
-  const properties = useMemo(() => db.properties.filter((property) => property.landlordId === user.id), [db.properties, user.id]);
+  const properties = useMemo(() => db.properties.filter((property) => property.landlordId === user.id), [db, user.id]);
   const payments = useMemo(() => [...db.payments]
     .filter((payment) => payment.landlordId === user.id)
-    .sort((left, right) => Date.parse(right.date) - Date.parse(left.date)), [db.payments, user.id]);
-  const contracts = useMemo(() => db.contracts.filter((contract) => contract.landlordId === user.id), [db.contracts, user.id]);
-  const serviceCalls = useMemo(() => db.serviceCalls.filter((serviceCall) => serviceCall.landlordId === user.id), [db.serviceCalls, user.id]);
+    .sort((left, right) => Date.parse(right.date) - Date.parse(left.date)), [db, user.id]);
+  const contracts = useMemo(() => db.contracts.filter((contract) => contract.landlordId === user.id), [db, user.id]);
+  const serviceCalls = useMemo(() => db.serviceCalls.filter((serviceCall) => serviceCall.landlordId === user.id), [db, user.id]);
   
   // Modal States
   const [showAddProperty, setShowAddProperty] = useState(false);
@@ -75,6 +75,13 @@ export default function LandlordDashboard({ user }: { user: User }) {
     
     return { totalMonthlyIncome, occupiedCount, vacantCount, pendingPaymentsNum, failedPaymentsNum, openServiceCalls, featuredProperty, featuredCosts };
   }, [properties, payments, serviceCalls]);
+  const featuredOnboarding = useMemo(
+    () =>
+      featuredProperty
+        ? getTenantOnboardingSnapshot(featuredProperty, contracts, db.users, db.onboardingInvites)
+        : null,
+    [contracts, db, featuredProperty],
+  );
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 text-right" dir="rtl">
@@ -98,7 +105,7 @@ export default function LandlordDashboard({ user }: { user: User }) {
         </div>
       )}
 
-      <div className="flex overflow-x-auto border-b border-slate-200 sticky top-0 bg-white/50 backdrop-blur-sm z-10 transition-all no-scrollbar">
+      <div className="sticky top-0 z-10 grid grid-cols-2 border-b border-slate-200 bg-white/70 backdrop-blur-sm transition-all sm:flex sm:flex-wrap">
         <TabHeader active={activeTab === "overview"} onClick={() => setActiveTab("overview")} label="מרכז שליטה" />
         <TabHeader active={activeTab === "properties"} onClick={() => setActiveTab("properties")} label="ניהול נכסים" />
         <TabHeader active={activeTab === "proofs"} onClick={() => setActiveTab("proofs")} label="העברות ואסמכתאות" />
@@ -142,6 +149,23 @@ export default function LandlordDashboard({ user }: { user: User }) {
                   <HeroCostPill label="שירותים" value={featuredCosts.utilities} />
                 </div>
               </div>
+              {featuredOnboarding && (featuredOnboarding.tenant || featuredOnboarding.invite) && (
+                <LandlordOnboardingTracker
+                  className="mt-6"
+                  snapshot={featuredOnboarding}
+                  onOpenInvite={() => {
+                    setSelectedProperty(featuredProperty);
+                    setShowInviteTenant(true);
+                  }}
+                  onCreditSkipApproval={(approved) =>
+                    setTenantCreditSkipApproval(user.id, {
+                      propertyId: featuredProperty.id,
+                      tenantEmail: featuredOnboarding.activeTenantEmail,
+                      approved,
+                    })
+                  }
+                />
+              )}
             </div>
           )}
 
@@ -286,8 +310,8 @@ export default function LandlordDashboard({ user }: { user: User }) {
                    <div className="lg:col-span-5">
                       <div className="rounded-[48px] bg-slate-950 text-white p-10 md:p-12 shadow-2xl relative overflow-hidden border border-white/5 h-full group">
                          {/* Dynamic Background Effects */}
-                         <div className="absolute -top-32 -left-32 h-64 w-64 bg-blue-600/20 blur-[120px] rounded-full group-hover:bg-blue-600/30 transition-all duration-1000"></div>
-                         <div className="absolute -bottom-32 -right-32 h-64 w-64 bg-indigo-600/20 blur-[120px] rounded-full group-hover:bg-indigo-600/30 transition-all duration-1000"></div>
+                         <div className="pointer-events-none absolute -top-20 -left-20 h-52 w-52 rounded-full bg-blue-600/20 blur-[100px] transition-all duration-1000 group-hover:bg-blue-600/30"></div>
+                         <div className="pointer-events-none absolute -bottom-20 -right-20 h-52 w-52 rounded-full bg-indigo-600/20 blur-[100px] transition-all duration-1000 group-hover:bg-indigo-600/30"></div>
                          
                          <div className="relative z-10 flex flex-col items-center text-center h-full">
                             <div className="mb-10">
@@ -370,7 +394,7 @@ export default function LandlordDashboard({ user }: { user: User }) {
              </div>
 
              <div className="dashboard-card bg-slate-900 p-12 text-white shadow-2xl relative overflow-hidden group h-full border-0">
-                <div className="absolute top-0 left-0 w-48 h-[500px] bg-blue-500/10 skew-x-[-20deg] translate-x-[-60%] group-hover:bg-blue-500/20 transition-all duration-1000 blur-3xl"></div>
+                <div className="pointer-events-none absolute top-0 left-0 h-full w-28 -translate-x-8 skew-x-[-20deg] bg-blue-500/10 blur-2xl transition-all duration-1000 group-hover:bg-blue-500/20"></div>
                 <div className="relative z-10 space-y-12">
                    <div>
                       <h2 className="text-2xl font-black italic tracking-tighter font-display">סיכום פורטפוליו</h2>
@@ -427,6 +451,7 @@ export default function LandlordDashboard({ user }: { user: User }) {
                         <PropertyRow 
                           key={p.id} 
                           property={p} 
+                          onboarding={getTenantOnboardingSnapshot(p, contracts, db.users, db.onboardingInvites)}
                           onInvite={() => {
                              setSelectedProperty(p);
                              setShowInviteTenant(true);
@@ -522,7 +547,7 @@ function TabHeader({ active, onClick, label }: { active: boolean, onClick: () =>
     <button 
       onClick={onClick}
       className={cn(
-        "px-10 py-8 text-[13px] font-bold transition-all border-b-4 relative tracking-[0.14em]",
+        "relative min-w-0 px-3 py-4 text-[11px] font-bold transition-all border-b-4 sm:flex-1 sm:px-5 md:px-8 md:py-6 md:text-[13px]",
         active ? "border-slate-900 text-slate-900" : "border-transparent text-slate-400 hover:text-slate-900"
       )}
     >
@@ -688,7 +713,17 @@ function StatusPill({ title, value, tone }: { title: string, value: string, tone
   );
 }
 
-function PropertyRow({ property, onInvite }: { property: Property, onInvite: () => void }) {
+function PropertyRow({
+  property,
+  onboarding,
+  onInvite,
+}: {
+  property: Property;
+  onboarding: TenantOnboardingSnapshot;
+  onInvite: () => void;
+}) {
+  const hasActiveOnboarding = Boolean(onboarding.tenant || onboarding.invite);
+
   return (
     <tr className="hover:bg-slate-50/50 transition-colors group">
        <td className="px-6 md:px-10 py-6 min-w-[250px]">
@@ -703,10 +738,31 @@ function PropertyRow({ property, onInvite }: { property: Property, onInvite: () 
           </div>
        </td>
        <td className="px-10 py-6 text-slate-500 text-sm font-bold italic">
-          {property.tenantId ? (
-            <div className="flex items-center gap-2 text-emerald-600">
-               <ShieldCheck size={14} />
-               <span>דייר פעיל</span>
+          {hasActiveOnboarding ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-indigo-600">
+                 <Clock size={14} />
+                 <span className="max-w-[220px] truncate">{onboarding.status}</span>
+              </div>
+              <button
+                onClick={onInvite}
+                className="text-[10px] font-black tracking-[0.12em] text-indigo-700 bg-indigo-50 px-3 py-1 rounded-lg border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all"
+              >
+                פתח מעקב
+              </button>
+            </div>
+          ) : property.tenantId ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-emerald-600">
+                 <ShieldCheck size={14} />
+                 <span>דייר פעיל</span>
+              </div>
+              <button
+                onClick={onInvite}
+                className="text-[10px] font-black tracking-[0.12em] text-blue-600 bg-blue-50 px-3 py-1 rounded-lg border border-blue-100 hover:bg-blue-600 hover:text-white transition-all"
+              >
+                הוסף דייר חדש
+              </button>
             </div>
           ) : (
             <button 
@@ -781,8 +837,8 @@ function AddPropertyModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 text-right" dir="rtl">
-      <div className="w-full max-w-lg rounded-3xl bg-white p-10 shadow-2xl animate-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-3 text-right backdrop-blur-sm sm:p-4" dir="rtl">
+      <div className="max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl animate-in zoom-in-95 duration-200 sm:p-8 md:p-10">
         <h2 className="text-3xl font-black text-slate-900 mb-8 italic tracking-tighter text-right">הוספת נכס חדש לפורטפוליו</h2>
         <div className="space-y-6">
           <Input label="כתובת מלאה" value={formData.address} onChange={(address: string) => setFormData({...formData, address})} placeholder="למשל: רוטשילד 42, תל אביב" />
@@ -813,7 +869,20 @@ const TENANT_ONBOARDING_STEPS = [
   "סיום",
 ];
 
-function getTenantOnboardingStatus(tenant: User | null) {
+type TenantOnboardingSnapshot = {
+  tenant: User | null;
+  currentTenant: User | null;
+  contract: Contract | null;
+  invite: OnboardingInvite | null;
+  status: string;
+  stepIndex: number;
+  totalSteps: number;
+  activeTenantEmail?: string;
+  landlordCreditSkipApproved: boolean;
+};
+
+function getTenantOnboardingStatus(tenant: User | null, invite?: OnboardingInvite | null) {
+  if (!tenant && invite) return `הזמנה נשלחה אל ${invite.tenantEmail}`;
   if (!tenant) return "ממתין לדייר שיסרוק את ההזמנה ויירשם";
   if (tenant.onboardingComplete) return "הדייר השלים את תהליך ההרשמה";
 
@@ -823,6 +892,108 @@ function getTenantOnboardingStatus(tenant: User | null) {
   );
 
   return `הדייר בשלב ${stepIndex + 1} מתוך ${TENANT_ONBOARDING_STEPS.length}: ${TENANT_ONBOARDING_STEPS[stepIndex]}`;
+}
+
+function getTenantOnboardingSnapshot(
+  property: Property,
+  contracts: Contract[],
+  users: User[],
+  invites: OnboardingInvite[],
+): TenantOnboardingSnapshot {
+  const propertyContracts = contracts.filter((contract) => contract.propertyId === property.id);
+  const onboardingContract =
+    propertyContracts.find((contract) => {
+      if (contract.status === "active" || contract.status === "expired") return false;
+      const candidate = users.find((user) => user.id === contract.tenantId);
+      return Boolean(candidate && !candidate.onboardingComplete);
+    }) ?? null;
+  const tenant = onboardingContract
+    ? users.find((candidate) => candidate.id === onboardingContract.tenantId) ?? null
+    : null;
+  const currentTenant = property.tenantId
+    ? users.find((candidate) => candidate.id === property.tenantId) ?? null
+    : null;
+  const propertyInvites = [...invites]
+    .filter((invite) => invite.propertyId === property.id && invite.status !== "completed")
+    .sort((left, right) => Date.parse(right.sentAt) - Date.parse(left.sentAt));
+  const invite =
+    (tenant
+      ? propertyInvites.find((item) => item.tenantEmail.toLowerCase() === tenant.email.toLowerCase())
+      : propertyInvites.find(
+          (item) => !currentTenant || item.tenantEmail.toLowerCase() !== currentTenant.email.toLowerCase(),
+        )) ?? null;
+  const stepIndex = tenant
+    ? Math.min(Math.max(tenant.onboardingStep ?? 0, 0), TENANT_ONBOARDING_STEPS.length - 1)
+    : 0;
+
+  return {
+    tenant,
+    currentTenant,
+    contract: onboardingContract,
+    invite,
+    status: getTenantOnboardingStatus(tenant, invite),
+    stepIndex,
+    totalSteps: TENANT_ONBOARDING_STEPS.length,
+    activeTenantEmail: tenant?.email ?? invite?.tenantEmail,
+    landlordCreditSkipApproved: Boolean(invite?.landlordCreditSkipApproved),
+  };
+}
+
+function LandlordOnboardingTracker({
+  snapshot,
+  onCreditSkipApproval,
+  onOpenInvite,
+  className,
+}: {
+  snapshot: TenantOnboardingSnapshot;
+  onCreditSkipApproval: (approved: boolean) => void;
+  onOpenInvite: () => void;
+  className?: string;
+}) {
+  const progress = Math.round(((snapshot.stepIndex + 1) / snapshot.totalSteps) * 100);
+  const displayName = snapshot.tenant?.name ?? snapshot.invite?.tenantEmail ?? "דייר חדש";
+
+  return (
+    <div className={cn("rounded-[28px] border border-indigo-100 bg-indigo-50/60 p-4 sm:p-5", className)}>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black tracking-[0.14em] text-indigo-500">מעקב הצטרפות פעיל</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <p className="max-w-full truncate text-base font-black text-slate-900">{displayName}</p>
+            <span className="rounded-full bg-white px-3 py-1 text-[10px] font-black text-indigo-700 shadow-sm">
+              {snapshot.status}
+            </span>
+          </div>
+          <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-white shadow-inner">
+            <div className="h-full rounded-full bg-indigo-600 transition-all" style={{ width: `${progress}%` }} />
+          </div>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row lg:shrink-0">
+          <button
+            onClick={() => onCreditSkipApproval(!snapshot.landlordCreditSkipApproved)}
+            disabled={!snapshot.activeTenantEmail}
+            className={cn(
+              "inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[11px] font-black transition-all",
+              snapshot.landlordCreditSkipApproved
+                ? "bg-emerald-500 text-white shadow-sm"
+                : "border border-indigo-200 bg-white text-indigo-700 hover:bg-indigo-50",
+              !snapshot.activeTenantEmail && "cursor-not-allowed opacity-50",
+            )}
+          >
+            <ShieldCheck size={15} />
+            {snapshot.landlordCreditSkipApproved ? "דילוג אשראי מאושר" : "אשר דילוג אשראי"}
+          </button>
+          <button
+            onClick={onOpenInvite}
+            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-[11px] font-black text-white transition-all hover:bg-black"
+          >
+            <QrCode size={15} />
+            פתח הזמנה
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function InviteTenantModal({
@@ -844,34 +1015,18 @@ function InviteTenantModal({
   onCompleteOnboarding: (tenantId: string) => void;
   onClose: () => void;
 }) {
-  const propertyContracts = contracts.filter((contract) => contract.propertyId === property.id);
-  const onboardingContract = propertyContracts.find((contract) => {
-    if (contract.status === "active" || contract.status === "expired") return false;
-    const candidate = users.find((user) => user.id === contract.tenantId);
-    return Boolean(candidate && !candidate.onboardingComplete);
-  });
-  const tenant = onboardingContract
-    ? users.find((candidate) => candidate.id === onboardingContract.tenantId) ?? null
-    : null;
-  const currentTenant = property.tenantId
-    ? users.find((candidate) => candidate.id === property.tenantId) ?? null
-    : null;
-  const existingInvite =
-    (tenant
-      ? invites.find(
-          (invite) =>
-            invite.propertyId === property.id &&
-            invite.tenantEmail.toLowerCase() === tenant.email.toLowerCase(),
-        )
-      : invites.find((invite) => invite.propertyId === property.id && invite.status !== "completed")) ?? null;
+  const onboardingSnapshot = getTenantOnboardingSnapshot(property, contracts, users, invites);
+  const tenant = onboardingSnapshot.tenant;
+  const currentTenant = onboardingSnapshot.currentTenant;
+  const existingInvite = onboardingSnapshot.invite;
   const [phone, setPhone] = useState(tenant?.phone ?? existingInvite?.tenantPhone ?? "");
   const [email, setEmail] = useState(tenant?.email ?? existingInvite?.tenantEmail ?? "");
   const [landlordCreditSkipApproved, setLandlordCreditSkipApproved] = useState(
     Boolean(existingInvite?.landlordCreditSkipApproved),
   );
   const [isSent, setIsSent] = useState(false);
-  const processStatus = getTenantOnboardingStatus(tenant);
-  const activeTenantEmail = tenant?.email ?? email.trim().toLowerCase();
+  const processStatus = onboardingSnapshot.status;
+  const activeTenantEmail = onboardingSnapshot.activeTenantEmail ?? email.trim().toLowerCase();
 
   useEffect(() => {
     setEmail(tenant?.email ?? existingInvite?.tenantEmail ?? "");
@@ -898,8 +1053,8 @@ function InviteTenantModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 text-right" dir="rtl">
-      <div className="w-full max-w-2xl rounded-[40px] bg-white p-8 md:p-12 shadow-[0_30px_100px_rgba(0,0,0,0.2)] animate-in zoom-in-95 duration-300 overflow-hidden relative">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-3 text-right backdrop-blur-md sm:p-4" dir="rtl">
+      <div className="relative max-h-[92dvh] w-full max-w-4xl overflow-y-auto overflow-x-hidden rounded-[28px] bg-white p-5 shadow-[0_30px_100px_rgba(0,0,0,0.2)] animate-in zoom-in-95 duration-300 sm:rounded-[36px] sm:p-8 md:p-10">
         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 blur-[100px] rounded-full -translate-y-1/2 translate-x-1/2"></div>
         <div className="relative z-10 flex flex-col items-center text-center">
           <div className="h-20 w-20 bg-slate-50 text-slate-900 rounded-[28px] flex items-center justify-center mb-8 shadow-inner">
@@ -910,10 +1065,10 @@ function InviteTenantModal({
             <h2 className="text-3xl md:text-4xl font-black text-slate-900 mb-4 tracking-tighter italic font-display">הוספת דייר לנכס</h2>
             <p className="text-slate-500 text-base font-bold italic mb-10">{property.address}</p>
 
-            <div className="grid gap-8 md:grid-cols-2 w-full mb-10">
-              <div className="rounded-[32px] border-2 border-slate-100 bg-slate-50/50 p-8 flex flex-col items-center text-center group hover:border-blue-500/20 hover:bg-white transition-all shadow-sm">
+            <div className="mb-10 grid w-full gap-6 md:grid-cols-2 md:gap-8">
+              <div className="group flex flex-col items-center rounded-[28px] border-2 border-slate-100 bg-slate-50/50 p-5 text-center shadow-sm transition-all hover:border-blue-500/20 hover:bg-white sm:p-8">
                 <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6">QR לשוכר (סריקה מהירה)</p>
-                <div className="relative p-6 bg-white rounded-[32px] shadow-xl border border-slate-100 group-hover:scale-105 transition-transform duration-500 overflow-hidden">
+                <div className="relative overflow-hidden rounded-[28px] border border-slate-100 bg-white p-4 shadow-xl transition-transform duration-500 group-hover:scale-[1.02] sm:p-6 sm:rounded-[32px]">
                   <div className="absolute inset-0 bg-[linear-gradient(to_bottom,transparent_49%,#3b82f6_50%,#3b82f6_51%,transparent_52%)] bg-[length:100%_200%] animate-[scan_3s_linear_infinite] opacity-10 pointer-events-none"></div>
                   <img 
                     src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&ecc=M&margin=10&data=${encodeURIComponent(window.location.origin + "/?propertyId=" + property.id)}`}
@@ -955,7 +1110,7 @@ function InviteTenantModal({
                 </div>
               </div>
 
-              <div className="flex flex-col gap-6 text-right">
+              <div className="flex min-w-0 flex-col gap-6 text-right">
                 <div className="rounded-[28px] bg-slate-50 p-6 border border-slate-100">
                    <h3 className="text-sm font-black text-slate-900 mb-4 flex items-center gap-2">
                      <Users size={16} />
@@ -1039,6 +1194,12 @@ function InviteTenantModal({
                   )}
 
                   <div className="flex flex-col gap-3">
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-white shadow-inner">
+                       <div
+                         className="h-full rounded-full bg-indigo-600 transition-all"
+                         style={{ width: `${Math.round(((onboardingSnapshot.stepIndex + 1) / onboardingSnapshot.totalSteps) * 100)}%` }}
+                       />
+                    </div>
                     <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-full self-start inline-flex border border-indigo-100">
                        <div className={cn("h-2 w-2 rounded-full", tenant ? "bg-blue-500 animate-pulse" : "bg-amber-500 animate-pulse")}></div>
                        <span className="text-[10px] font-black text-indigo-900">{processStatus}</span>

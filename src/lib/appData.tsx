@@ -400,6 +400,98 @@ function upsertOnboardingInvite(
   return invite;
 }
 
+function startTenantOnboardingForProperty(db: RentflowDb, userId: string, propertyId: string) {
+  const user = findUser(db, userId);
+  const property = findProperty(db, propertyId);
+  if (!user || user.role !== "tenant" || !property) return;
+
+  const tenantEmail = user.email.trim().toLowerCase();
+  db.onboardingInvites.forEach((invite) => {
+    if (
+      invite.propertyId === property.id &&
+      invite.tenantEmail.toLowerCase() !== tenantEmail &&
+      invite.status !== "completed"
+    ) {
+      invite.status = "completed";
+    }
+  });
+
+  property.tenantId = user.id;
+  property.status = "occupied";
+  user.onboardingComplete = false;
+  user.onboardingStep = 0;
+  user.kycStatus = "pending";
+  user.bdiStatus = "pending";
+  user.bdiReason = undefined;
+
+  upsertOnboardingInvite(db, {
+    landlordId: property.landlordId,
+    propertyId: property.id,
+    tenantEmail,
+    tenantPhone: user.phone,
+    status: "opened",
+    contractVisibilityStep: 2,
+  });
+
+  const existingContract = db.contracts.find(
+    (contract) =>
+      contract.propertyId === property.id &&
+      contract.tenantId === user.id &&
+      contract.status !== "active" &&
+      contract.status !== "expired",
+  );
+
+  if (existingContract) {
+    existingContract.propertyAddress = property.address;
+    existingContract.landlordId = property.landlordId;
+    existingContract.tenantName = user.name;
+    existingContract.rentAmount = property.rent;
+    existingContract.buildingCommitteeAmount = property.costs?.buildingCommittee ?? 0;
+    existingContract.arnonaAmount = property.costs?.arnona ?? 0;
+    existingContract.utilityPaymentMode = "separate";
+    existingContract.monthlyPaymentAmount = property.rent;
+    existingContract.status = "waiting_kyc";
+    existingContract.tenantQrScannedAt = nowIso();
+    existingContract.landlordQrScannedAt = undefined;
+    existingContract.contractUploadedAt = undefined;
+    existingContract.contractClausesApprovedAt = undefined;
+    existingContract.signedByTenantAt = undefined;
+    existingContract.signedByLandlordAt = undefined;
+    return;
+  }
+
+  const contractId = buildId("contract");
+  db.contracts.unshift({
+    id: contractId,
+    propertyId: property.id,
+    propertyAddress: property.address,
+    landlordId: property.landlordId,
+    tenantId: user.id,
+    tenantName: user.name,
+    rentAmount: property.rent,
+    buildingCommitteeAmount: property.costs?.buildingCommittee ?? 0,
+    arnonaAmount: property.costs?.arnona ?? 0,
+    utilityPaymentMode: "separate",
+    monthlyPaymentAmount: property.rent,
+    startDate: todayIso(),
+    endDate: oneYearFromTodayIso(),
+    status: "waiting_kyc",
+    guaranteeType: "bank",
+    createdAt: nowIso(),
+    templateId: "template_standard",
+    tenantQrScannedAt: nowIso(),
+  });
+
+  db.documents.unshift({
+    id: buildId("document"),
+    ownerType: "contract",
+    ownerId: contractId,
+    label: "טיוטת חוזה שכירות",
+    category: "contract",
+    status: "pending",
+  });
+}
+
 function upsertNotification(
   db: RentflowDb,
   notification: RentflowDb["notifications"][number],
@@ -597,42 +689,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       restartOnboarding(account.userId);
     }
 
-    // Link property if provided for existing tenant
     if (propertyId) {
       applyDbUpdate((nextDb) => {
-        const user = findUser(nextDb, account.userId);
-        if (user && user.role === "tenant") {
-          const property = nextDb.properties.find(p => p.id === propertyId);
-          if (property && !property.tenantId) {
-            property.tenantId = user.id;
-            property.status = "occupied";
-            
-            // Ensure contract exists
-            let contract = findOnboardingContract(nextDb, user.id);
-            if (!contract) {
-              const contractId = buildId("contract");
-              nextDb.contracts.unshift({
-                id: contractId,
-                propertyId: property.id,
-                propertyAddress: property.address,
-                landlordId: property.landlordId,
-                tenantId: user.id,
-                tenantName: user.name,
-                rentAmount: property.rent,
-                buildingCommitteeAmount: property.costs?.buildingCommittee ?? 0,
-                arnonaAmount: property.costs?.arnona ?? 0,
-                utilityPaymentMode: "separate",
-                monthlyPaymentAmount: property.rent,
-                startDate: todayIso(),
-                endDate: oneYearFromTodayIso(),
-                status: "waiting_kyc",
-                guaranteeType: "bank",
-                createdAt: nowIso(),
-                templateId: "template_standard",
-              });
-            }
-          }
-        }
+        startTenantOnboardingForProperty(nextDb, account.userId, propertyId);
       });
     }
 
@@ -681,51 +740,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         createdAt: nowIso(),
       });
 
-      // Link property and create contract if provided for new tenant
       if (role === "tenant" && propertyId) {
-        const property = nextDb.properties.find(p => p.id === propertyId);
-        if (property) {
-          property.tenantId = userId;
-          property.status = "occupied";
-          upsertOnboardingInvite(nextDb, {
-            landlordId: property.landlordId,
-            propertyId: property.id,
-            tenantEmail: normalizedEmail,
-            status: "opened",
-            contractVisibilityStep: 2,
-          });
-
-          // Create onboarding contract
-          const contractId = buildId("contract");
-          nextDb.contracts.unshift({
-            id: contractId,
-            propertyId: property.id,
-            propertyAddress: property.address,
-            landlordId: property.landlordId,
-            tenantId: userId,
-            tenantName: name,
-            rentAmount: property.rent,
-            buildingCommitteeAmount: property.costs?.buildingCommittee ?? 0,
-            arnonaAmount: property.costs?.arnona ?? 0,
-            utilityPaymentMode: "separate",
-            monthlyPaymentAmount: property.rent,
-            startDate: todayIso(),
-            endDate: oneYearFromTodayIso(),
-            status: "waiting_kyc",
-            guaranteeType: "bank",
-            createdAt: nowIso(),
-            templateId: "template_standard",
-          });
-          
-          nextDb.documents.unshift({
-            id: buildId("document"),
-            ownerType: "contract",
-            ownerId: contractId,
-            label: "טיוטת חוזה שכירות",
-            category: "contract",
-            status: "pending",
-          });
-        }
+        startTenantOnboardingForProperty(nextDb, userId, propertyId);
       }
     });
     setSession({ userId });
@@ -736,44 +752,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       const user = findUser(nextDb, userId);
       if (!user || user.role !== "tenant") return;
 
-      const property = nextDb.properties.find(p => p.id === propertyId);
-      if (property && !property.tenantId) {
-        property.tenantId = user.id;
-        property.status = "occupied";
-        upsertOnboardingInvite(nextDb, {
-          landlordId: property.landlordId,
-          propertyId: property.id,
-          tenantEmail: user.email,
-          tenantPhone: user.phone,
-          status: "opened",
-          contractVisibilityStep: 2,
-        });
-        
-        // Ensure contract exists
-        let contract = findOnboardingContract(nextDb, user.id);
-        if (!contract) {
-          const contractId = buildId("contract");
-          nextDb.contracts.unshift({
-            id: contractId,
-            propertyId: property.id,
-            propertyAddress: property.address,
-            landlordId: property.landlordId,
-            tenantId: user.id,
-            tenantName: user.name,
-            rentAmount: property.rent,
-            buildingCommitteeAmount: property.costs?.buildingCommittee ?? 0,
-            arnonaAmount: property.costs?.arnona ?? 0,
-            utilityPaymentMode: "separate",
-            monthlyPaymentAmount: property.rent,
-            startDate: todayIso(),
-            endDate: oneYearFromTodayIso(),
-            status: "waiting_kyc",
-            guaranteeType: "bank",
-            createdAt: nowIso(),
-            templateId: "template_standard",
-          });
-        }
-      }
+      startTenantOnboardingForProperty(nextDb, user.id, propertyId);
     });
   };
 

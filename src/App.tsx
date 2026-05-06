@@ -176,7 +176,7 @@ export default function App() {
   }
 
   return (
-    <div className="relative flex min-h-screen flex-col bg-slate-100 font-sans text-right selection:bg-blue-100 selection:text-blue-900 md:h-screen md:flex-row" dir="rtl">
+    <div className="relative flex min-h-screen min-w-0 flex-col bg-slate-100 font-sans text-right selection:bg-blue-100 selection:text-blue-900 md:h-screen md:flex-row" dir="rtl">
       {isMobileSidebarOpen && (
         <button
           onClick={() => setIsMobileSidebarOpen(false)}
@@ -202,7 +202,7 @@ export default function App() {
           {isSidebarOpen ? <ChevronRight size={10} className="text-slate-400" /> : <ChevronLeft size={10} className="text-slate-400" />}
         </button>
 
-        <div className="flex h-full flex-col overflow-hidden">
+        <div className="flex h-full min-h-0 flex-col overflow-hidden">
           {/* Sidebar Logo Area */}
           <div className="flex items-center gap-4 p-8 pt-10 h-24 shrink-0 transition-all">
             <div className="h-16 shrink-0 cursor-pointer active:scale-95 md:h-[4.5rem]">
@@ -296,7 +296,7 @@ export default function App() {
       </aside>
 
       {/* 5. MAIN CONTENT AREA */}
-      <main className="flex-1 flex min-w-0 flex-col relative bg-[#F9FBFB]">
+      <main className="relative flex min-w-0 flex-1 flex-col bg-[#F9FBFB]">
         
         {/* Top Header Bar */}
         <header className="h-20 shrink-0 bg-white/80 backdrop-blur-xl border-b border-slate-200/40 flex items-center justify-between gap-3 px-4 md:h-24 md:px-12 z-20 sticky top-0">
@@ -355,7 +355,7 @@ export default function App() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.98, y: -5 }}
               transition={{ duration: 0.35, ease: "easeOut" }}
-              className="max-w-7xl mx-auto"
+              className="mx-auto w-full min-w-0 max-w-7xl"
             >
               {renderTabContent(
                 activeTab,
@@ -695,7 +695,7 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
   const successRate = "99.5%";
 
   return (
-    <div className="relative min-h-screen w-full flex flex-col items-center justify-start bg-slate-100 font-sans selection:bg-slate-900 selection:text-white overflow-x-hidden p-4 md:justify-center md:p-8" dir="rtl">
+    <div className="relative flex min-h-[100svh] w-full flex-col items-center justify-start overflow-x-hidden bg-slate-100 p-3 font-sans selection:bg-slate-900 selection:text-white sm:p-4 md:p-6 lg:p-8" dir="rtl">
       
       {/* 1. Full-Page Background Image */}
       <img 
@@ -706,7 +706,7 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
 
       {activePropertyId ? (
         /* Focused Join Property UI */
-        <div className="relative z-10 flex w-full max-w-4xl flex-col items-center px-0 py-6 sm:px-4 sm:py-10 md:py-20">
+        <div className="relative z-10 flex w-full max-w-4xl flex-col items-center px-0 py-6 sm:px-4 sm:py-10 md:py-14">
           <div className="w-full animate-in zoom-in-95 fade-in rounded-[28px] border border-white/40 bg-white/95 p-5 shadow-[0_50px_100px_rgba(0,0,0,0.4)] backdrop-blur-3xl duration-700 sm:rounded-[36px] sm:p-8 md:rounded-[40px] md:p-16">
              
              <div className="mb-8 flex flex-col items-center gap-6 md:mb-12 md:flex-row md:gap-10">
@@ -718,7 +718,7 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
                       <div className="h-2 w-2 rounded-full bg-blue-600 animate-pulse" />
                       <span className="text-[11px] font-black uppercase tracking-widest">הזמנה להצטרפות לנכס</span>
                    </div>
-                   <h1 className="mb-4 text-3xl font-black leading-[1.12] tracking-tight text-slate-900 sm:text-4xl md:text-6xl md:tracking-tighter italic font-display">
+                   <h1 className="mb-4 text-3xl font-black leading-[1.12] text-slate-900 sm:text-4xl md:text-5xl lg:text-6xl italic font-display">
                       הצטרפות לדירה ב-{db.properties.find(p => p.id === activePropertyId)?.address || "נכס חדש במערכת"}
                    </h1>
                    <p className="text-sm font-bold leading-7 text-slate-500 sm:text-base md:text-lg md:leading-relaxed">
@@ -835,20 +835,20 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
         </div>
       ) : (
         /* Default Hero Experience */
-        <div className="relative z-10 w-full flex-1 flex flex-col items-center justify-center px-2 py-10 sm:px-4 md:py-20 md:pt-[80px]">
-           <div className="animate-in fade-in slide-in-from-bottom-10 duration-1000 flex flex-col items-center">
+        <div className="relative z-10 flex w-full flex-1 flex-col items-center justify-center px-2 py-10 sm:px-4 md:py-14 lg:py-16">
+           <div className="animate-in fade-in slide-in-from-bottom-10 flex w-full max-w-4xl flex-col items-center duration-1000">
               
               {/* Centered Logo & Brand */}
               <div className="mb-8 flex flex-col items-center gap-4">
                  <div className="h-20 w-20 md:h-24 md:w-24 bg-white/20 backdrop-blur-md rounded-[28px] flex items-center justify-center border border-white/30 shadow-[0_30px_60px_rgba(0,0,0,0.3)] animate-bounce-slow">
                     <img src={hagaiLogo} alt="Logo" className="h-14 md:h-16 w-auto object-contain scale-[1.2]" />
                  </div>
-                 <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter italic font-display drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)]">
+                 <h1 className="text-4xl font-black text-white italic font-display drop-shadow-[0_8px_16px_rgba(15,23,42,0.35)] sm:text-5xl">
                     {BRAND_NAME}
                  </h1>
               </div>
 
-              <h2 className="text-4xl md:text-6xl font-black text-white leading-tight tracking-tighter drop-shadow-2xl italic font-display opacity-90">
+              <h2 className="max-w-3xl text-center text-4xl font-black leading-tight text-white drop-shadow-[0_10px_18px_rgba(15,23,42,0.35)] sm:text-5xl md:text-6xl italic font-display">
                  מערכת תשלומי<br />שכר דירה חכמה.
               </h2>
               
@@ -890,10 +890,10 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
 
       {/* 5. Combined Login & Stats Command Bar (Only shown if NOT in focused join flow) */}
       {!activePropertyId && (
-        <div className="relative z-30 flex w-full max-w-full flex-col items-center gap-3 px-2 pb-6 sm:px-4 sm:pb-8 md:fixed md:bottom-8 md:left-1/2 md:max-w-7xl md:-translate-x-1/2 md:gap-6 md:px-4 md:pb-0">
+        <div className="relative z-30 flex w-full max-w-7xl flex-col items-center gap-3 px-2 pb-6 sm:px-4 sm:pb-8 md:gap-5">
 
          {/* Unified "Command Bar" for Login + Stats (Darkened Glass) */}
-         <div className="bg-white/85 backdrop-blur-3xl rounded-[28px] md:rounded-[48px] p-4 sm:p-6 md:p-10 border border-white/40 shadow-[0_40px_100px_rgba(0,0,0,0.5)] w-full flex flex-col gap-4 sm:gap-5 md:gap-10">
+         <div className="flex w-full flex-col gap-4 rounded-[28px] border border-white/40 bg-white/85 p-4 shadow-[0_40px_100px_rgba(0,0,0,0.38)] backdrop-blur-3xl sm:gap-5 sm:p-6 md:gap-8 md:rounded-[36px] md:p-8 lg:p-10">
 
             {/* Stats Group - compact on mobile */}
             <div className="flex items-center justify-center gap-6 sm:gap-10 md:gap-24">
@@ -1070,7 +1070,7 @@ function SiteAccessScreen() {
   };
 
   return (
-    <div className="relative min-h-screen w-full flex flex-col items-center justify-start bg-slate-900 font-sans selection:bg-slate-900 selection:text-white overflow-x-hidden p-4 py-6 md:justify-center md:p-8" dir="rtl">
+    <div className="relative flex min-h-[100svh] w-full flex-col items-center justify-start overflow-x-hidden bg-slate-900 p-4 py-6 font-sans selection:bg-slate-900 selection:text-white md:justify-center md:p-8" dir="rtl">
       
       {/* 1. Full-Page Background Image */}
       <img 
@@ -1095,7 +1095,7 @@ function SiteAccessScreen() {
 
           {/* 3. Immersive Centered Access Card */}
       <div className="relative z-10 w-full max-w-xl px-0 sm:px-4 animate-in zoom-in-95 fade-in duration-1000">
-         <div className="bg-white/85 backdrop-blur-3xl rounded-[28px] md:rounded-[32px] p-6 sm:p-8 md:p-16 shadow-[0_40px_100px_rgba(0,0,0,0.3)] border border-white/40 text-center">
+         <div className="rounded-[28px] border border-white/40 bg-white/85 p-6 text-center shadow-[0_40px_100px_rgba(0,0,0,0.3)] backdrop-blur-3xl sm:p-8 md:rounded-[32px] md:p-12 lg:p-16">
             
             <div className="flex justify-center mb-6 md:mb-8">
                <div className="h-16 w-16 md:h-20 md:w-20 bg-slate-950 text-white rounded-2xl flex items-center justify-center shadow-2xl">
@@ -1169,7 +1169,7 @@ function QuickAccessBtn({ icon, label, onClick }: { icon: ReactNode, label: stri
    return (
       <button 
          onClick={onClick}
-         className="flex items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-slate-500 transition-all hover:bg-slate-50 hover:text-slate-900 group md:justify-start md:gap-2 md:px-4"
+         className="flex shrink-0 items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-slate-500 transition-all hover:bg-slate-50 hover:text-slate-900 group md:justify-start md:gap-2 md:px-4"
       >
          <span className="text-slate-400 group-hover:text-blue-600 transition-colors">{icon}</span>
          <span className="text-[11px] font-bold md:text-xs">{label}</span>
@@ -1264,7 +1264,7 @@ function PropertyDetailsPopup({ property: p, onClose }: { property: Property, on
             initial={{ scale: 0.95, opacity: 0, y: 60 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.95, opacity: 0, y: 60 }}
-            className="relative flex max-h-[95dvh] w-full max-w-7xl flex-col overflow-hidden rounded-t-[32px] bg-white shadow-[0_50px_100px_rgba(0,0,0,0.5)] sm:max-h-[90vh] sm:rounded-[40px] lg:max-h-[850px] lg:flex-row lg:rounded-[56px]"
+            className="relative flex max-h-[95dvh] w-full max-w-7xl flex-col overflow-hidden rounded-t-[32px] bg-white shadow-[0_50px_100px_rgba(0,0,0,0.5)] sm:max-h-[90vh] sm:rounded-[40px] lg:max-h-[850px] lg:flex-row lg:rounded-[44px]"
             dir="rtl"
          >
             {/* Pinterest Style Layout: Left Side (Interactive Gallery) */}
@@ -1334,7 +1334,7 @@ function PropertyDetailsPopup({ property: p, onClose }: { property: Property, on
                </div>
 
                <div className="mb-8 sm:mb-10">
-                  <h1 className="mb-3 text-3xl font-black leading-tight tracking-tight text-slate-900 sm:text-4xl font-display italic italic-black">{p.address}</h1>
+                  <h1 className="mb-3 text-3xl font-black leading-tight text-slate-900 sm:text-4xl font-display italic italic-black">{p.address}</h1>
                   <div className="flex items-center gap-2">
                      <div className="h-5 w-5 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center">
                         <MapPin size={12} />
@@ -1379,7 +1379,7 @@ function PropertyDetailsPopup({ property: p, onClose }: { property: Property, on
                   <div className="flex justify-between items-center">
                      <div className="text-right">
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-1">מחיר סופי מבוקש</p>
-                        <p className="text-5xl font-black text-slate-900 italic font-display tracking-tight leading-none">₪{(p.rent * 300 || 1990000).toLocaleString()}</p>
+                        <p className="break-words text-3xl font-black leading-none text-slate-900 sm:text-4xl md:text-5xl italic font-display">₪{(p.rent * 300 || 1990000).toLocaleString()}</p>
                      </div>
                   </div>
                   
@@ -1417,10 +1417,10 @@ function DetailRow({ label, value }: { label: string, value: string }) {
 
 function RoleSelection({ onSelect }: { onSelect: (role: Role) => void }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4 md:p-8 text-right font-sans selection:bg-slate-900 selection:text-white" dir="rtl">
+    <div className="flex min-h-[100svh] items-center justify-center overflow-x-hidden bg-slate-50 p-4 text-right font-sans selection:bg-slate-900 selection:text-white md:p-8" dir="rtl">
       <div className="w-full max-w-6xl space-y-12 md:space-y-20 animate-in zoom-in-95 duration-500 py-8 md:py-12">
         <div className="text-center space-y-6">
-          <h1 className="text-4xl sm:text-5xl md:text-8xl font-black text-slate-900 tracking-tighter leading-tight italic font-display">
+          <h1 className="text-4xl font-black leading-tight text-slate-900 sm:text-5xl md:text-7xl lg:text-8xl italic font-display">
             הבית שלך ב-<span className="text-blue-600">שליטה מלאה</span>
           </h1>
           <p className="text-lg md:text-2xl text-slate-400 font-bold max-w-3xl mx-auto leading-relaxed italic">
@@ -1428,7 +1428,7 @@ function RoleSelection({ onSelect }: { onSelect: (role: Role) => void }) {
           </p>
         </div>
 
-        <div className="grid gap-10 md:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-3 lg:gap-10">
           <RoleCard 
             title="שוכר" 
             desc="תשלום שכירות פשוט, דיווח על תקלות וניהול החיים בדירה בשלושה קליקים" 
@@ -1467,7 +1467,7 @@ function RoleCard({ title, desc, onSelect, color, icon }: any) {
   return (
     <button 
       onClick={onSelect}
-      className="group relative min-h-[340px] md:h-[450px] overflow-hidden rounded-[40px] bg-white p-8 md:p-12 text-right shadow-2xl transition-all hover:scale-[1.02] hover:-translate-y-3 border border-slate-100 flex flex-col justify-between items-start"
+      className="group relative flex min-h-[300px] flex-col items-start justify-between overflow-hidden rounded-[32px] border border-slate-100 bg-white p-6 text-right shadow-2xl transition-all hover:-translate-y-1 hover:scale-[1.01] md:h-[420px] md:rounded-[40px] md:p-10 lg:p-12"
     >
       <div className={cn("absolute top-0 right-0 h-3 w-full", color)}></div>
       <div className={cn("h-20 w-20 rounded-[28px] flex items-center justify-center text-white shadow-2xl shadow-current/20 transition-all group-hover:scale-110 group-hover:rotate-6 bg-slate-900", color)}>
