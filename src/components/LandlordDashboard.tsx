@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, ReactNode } from "react";
+import { useEffect, useState, useMemo, ReactNode, FormEvent } from "react";
 import { 
   Home, 
   Users, 
@@ -508,7 +508,14 @@ export default function LandlordDashboard({ user }: { user: User }) {
       {showAddProperty && (
         <AddPropertyModal
           landlordId={user.id}
-          onCreate={(payload) => addProperty(user.id, payload)}
+          onCreate={(payload) => {
+            const propertyId = addProperty(user.id, payload);
+            if (propertyId) {
+              setActiveTab("properties");
+              setSelectedPropertyId(propertyId);
+            }
+            return propertyId;
+          }}
           onClose={() => setShowAddProperty(false)}
         />
       )}
@@ -813,8 +820,9 @@ function AddPropertyModal({
     rent: number;
     buildingCommittee?: number;
     arnona?: number;
+    utilities?: number;
     description?: string;
-  }) => void;
+  }) => string | null;
   onClose: () => void;
 }) {
   const [formData, setFormData] = useState({
@@ -822,22 +830,47 @@ function AddPropertyModal({
     rent: "0",
     buildingCommittee: "0",
     arnona: "0",
+    utilities: "0",
     description: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isCreated, setIsCreated] = useState(false);
 
-  const handleSubmit = async () => {
-    if (!formData.address) return;
+  const parseAmount = (value: string) => {
+    const amount = Number(value);
+    return Number.isFinite(amount) ? Math.max(0, amount) : 0;
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError(null);
+    const address = formData.address.trim();
+    const rent = parseAmount(formData.rent);
+    if (!address) {
+      setError("נא להזין כתובת נכס מלאה");
+      return;
+    }
+    if (rent <= 0) {
+      setError("נא להזין דמי שכירות חודשיים גדולים מאפס");
+      return;
+    }
     setIsSubmitting(true);
     try {
-      onCreate({
-        address: formData.address,
-        rent: Number(formData.rent),
-        buildingCommittee: Number(formData.buildingCommittee),
-        arnona: Number(formData.arnona),
-        description: formData.description || undefined,
+      const propertyId = onCreate({
+        address,
+        rent,
+        buildingCommittee: parseAmount(formData.buildingCommittee),
+        arnona: parseAmount(formData.arnona),
+        utilities: parseAmount(formData.utilities),
+        description: formData.description.trim() || undefined,
       });
-      onClose();
+      if (!propertyId) {
+        setError("לא ניתן היה להוסיף את הנכס. נסה שוב.");
+        return;
+      }
+      setIsCreated(true);
+      window.setTimeout(onClose, 650);
     } finally {
       setIsSubmitting(false);
     }
@@ -847,21 +880,32 @@ function AddPropertyModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-3 text-right backdrop-blur-sm sm:p-4" dir="rtl">
       <div className="max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl animate-in zoom-in-95 duration-200 sm:p-8 md:p-10">
         <h2 className="text-3xl font-black text-slate-900 mb-8 italic tracking-tighter text-right">הוספת נכס חדש לפורטפוליו</h2>
-        <div className="space-y-6">
-          <Input label="כתובת מלאה" value={formData.address} onChange={(address: string) => setFormData({...formData, address})} placeholder="למשל: רוטשילד 42, תל אביב" />
+        <form className="space-y-6" onSubmit={handleSubmit}>
+          <Input label="כתובת מלאה" value={formData.address} onChange={(address: string) => setFormData({...formData, address})} placeholder="למשל: רוטשילד 42, תל אביב" autoFocus />
           <Input label="דמי שכירות חודשיים (₪)" type="number" value={formData.rent} onChange={(rent: string) => setFormData({...formData, rent})} />
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-3">
             <Input label="ועד בית חודשי (₪)" type="number" value={formData.buildingCommittee} onChange={(buildingCommittee: string) => setFormData({...formData, buildingCommittee})} />
             <Input label="ארנונה חודשית (₪)" type="number" value={formData.arnona} onChange={(arnona: string) => setFormData({...formData, arnona})} />
+            <Input label="שירותים חודשיים (₪)" type="number" value={formData.utilities} onChange={(utilities: string) => setFormData({...formData, utilities})} />
           </div>
           <Input label="תיאור חופשי" value={formData.description} onChange={(description: string) => setFormData({...formData, description})} placeholder="קומה, חדרים, מרפסת..." />
-        </div>
-        <div className="flex gap-4 mt-10">
-          <button onClick={onClose} className="flex-1 py-4 text-sm font-black text-slate-400 hover:text-slate-900">ביטול</button>
-          <button onClick={handleSubmit} disabled={isSubmitting} className="flex-[2] py-4 bg-blue-600 text-white rounded-2xl font-black shadow-sleek-blue hover:bg-blue-700 transition-all">
-             {isSubmitting ? "שומר..." : "הוסף נכס למערכת"}
-          </button>
-        </div>
+          {error && (
+            <div className="rounded-2xl border border-rose-100 bg-rose-50 p-3 text-sm font-bold text-rose-600">
+              {error}
+            </div>
+          )}
+          {isCreated && (
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-3 text-sm font-black text-emerald-700">
+              הנכס נוסף בהצלחה ומופיע כעת ברשימת הנכסים.
+            </div>
+          )}
+          <div className="flex gap-4 pt-4">
+            <button type="button" onClick={onClose} className="flex-1 py-4 text-sm font-black text-slate-400 hover:text-slate-900">ביטול</button>
+            <button type="submit" disabled={isSubmitting || isCreated} className="flex-[2] py-4 bg-blue-600 text-white rounded-2xl font-black shadow-sleek-blue hover:bg-blue-700 transition-all disabled:bg-slate-300">
+               {isSubmitting ? "שומר..." : isCreated ? "הנכס נוסף" : "הוסף נכס למערכת"}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
@@ -1264,7 +1308,7 @@ function InviteTenantModal({
   );
 }
 
-function Input({ label, value, onChange, placeholder, type = "text" }: any) {
+function Input({ label, value, onChange, placeholder, type = "text", autoFocus = false }: any) {
   return (
     <div className="space-y-2 text-right">
       <label className="text-[10px] font-black text-slate-400 tracking-[0.12em] mr-2">{label}</label>
@@ -1273,6 +1317,8 @@ function Input({ label, value, onChange, placeholder, type = "text" }: any) {
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
+        autoFocus={autoFocus}
+        min={type === "number" ? 0 : undefined}
         className="w-full rounded-2xl bg-slate-50 border border-slate-100 p-4 text-sm focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-bold"
       />
     </div>

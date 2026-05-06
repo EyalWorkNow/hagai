@@ -150,7 +150,7 @@ type AppDataContextValue = {
   saveBankAuthorization: (userId: string) => void;
   signOnboardingContract: (userId: string) => void;
   completeOnboarding: (userId: string) => void;
-  addProperty: (landlordId: string, payload: AddPropertyPayload) => void;
+  addProperty: (landlordId: string, payload: AddPropertyPayload) => string | null;
   inviteTenant: (landlordId: string, payload: InviteTenantPayload) => void;
   setTenantCreditSkipApproval: (landlordId: string, payload: CreditSkipApprovalPayload) => void;
   createContract: (landlordId: string, payload: CreateContractPayload) => void;
@@ -1001,7 +1001,45 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   };
 
   const completeOnboarding = (userId: string) => {
-    updateUser(userId, { onboardingComplete: true, onboardingStep: 5 });
+    applyDbUpdate((nextDb) => {
+      const user = findUser(nextDb, userId);
+      if (!user) return;
+
+      const completedAt = nowIso();
+      user.onboardingComplete = true;
+      user.onboardingStep = 5;
+      user.kycStatus = user.kycStatus === "pending" ? "approved" : user.kycStatus;
+      user.bdiStatus = user.bdiStatus === "pending" ? "green" : user.bdiStatus;
+
+      const contract = findOnboardingContract(nextDb, userId);
+      if (contract) {
+        contract.status = "active";
+        contract.tenantQrScannedAt = contract.tenantQrScannedAt ?? completedAt;
+        contract.signedByTenantAt = contract.signedByTenantAt ?? completedAt;
+        contract.signedByLandlordAt = contract.signedByLandlordAt ?? completedAt;
+        contract.monthlyPaymentAmount = calculateMonthlyPayment(
+          contract.rentAmount ?? 0,
+          contract.buildingCommitteeAmount ?? 0,
+          contract.arnonaAmount ?? 0,
+          contract.utilityPaymentMode ?? "separate",
+        );
+
+        const property = findProperty(nextDb, contract.propertyId);
+        if (property) {
+          property.status = "occupied";
+          property.tenantId = userId;
+        }
+      }
+
+      nextDb.onboardingInvites.forEach((invite) => {
+        if (
+          invite.tenantEmail.toLowerCase() === user.email.toLowerCase() &&
+          (!contract || invite.propertyId === contract.propertyId)
+        ) {
+          invite.status = "completed";
+        }
+      });
+    });
   };
 
   const restartOnboarding = (userId: string) => {
@@ -1039,9 +1077,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   };
 
   const addProperty = (landlordId: string, payload: AddPropertyPayload) => {
+    const propertyId = buildId("property");
     applyDbUpdate((nextDb) => {
       nextDb.properties.unshift({
-        id: buildId("property"),
+        id: propertyId,
         address: payload.address,
         rent: payload.rent,
         status: "vacant",
@@ -1056,6 +1095,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         catalogStatus: "draft",
       });
     });
+    return propertyId;
   };
 
   const inviteTenant = (landlordId: string, payload: InviteTenantPayload) => {
