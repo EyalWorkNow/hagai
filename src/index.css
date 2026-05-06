@@ -61,8 +61,46 @@
     max-width: 100%;
   }
 
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  p,
+  span,
+  button,
+  label {
+    overflow-wrap: break-word;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    max-width: 100%;
+  }
+
   table {
     min-width: 100%;
+  }
+
+  @media (max-width: 640px) {
+    table {
+      min-width: 100% !important;
+      table-layout: auto;
+    }
+
+    th,
+    td {
+      padding-left: 0.75rem !important;
+      padding-right: 0.75rem !important;
+      white-space: normal;
+    }
   }
 
   /* Smooth scrolling */
