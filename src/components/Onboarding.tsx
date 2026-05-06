@@ -223,6 +223,13 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
     });
   };
 
+  const persistTenantContact = () => {
+    const normalizedPhone = draft.phoneNumber.trim();
+    if (normalizedPhone && normalizedPhone !== (user.phone ?? "")) {
+      updateUser(user.id, { phone: normalizedPhone });
+    }
+  };
+
   const getButtonText = () => {
     if (isProcessing) return "...";
     if (currentStep === 0) {
@@ -253,6 +260,7 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
 
     try {
       if (currentStep === 0) {
+        persistTenantContact();
         if (user.kycStatus === "pending") {
           submitKyc(user.id);
           approveKyc(user.id);
