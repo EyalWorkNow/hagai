@@ -21,6 +21,7 @@ import {
 } from "./siteAccess";
 
 const DB_STORAGE_KEY = "garim-po-json-db-v1";
+const DB_BROADCAST_CHANNEL = "garim-po-db-sync";
 const SESSION_STORAGE_KEY = "garim-po-session";
 const SITE_ACCESS_SESSION_STORAGE_KEY = "garim-po-site-access-session";
 const SITE_ACCESS_ACTIVATIONS_STORAGE_KEY = "garim-po-site-access-activations";
@@ -580,6 +581,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   );
   const [isReady, setIsReady] = useState(false);
   const lastPersistedDbRef = useRef<string | null>(null);
+  const dbBroadcastChannelRef = useRef<BroadcastChannel | null>(null);
 
   // Async DB initialization — avoids blocking the main thread on first render.
   // We REMOVE any stale snapshot before loading so an old EMPTY_DB save never
@@ -606,8 +608,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (isReady && db !== EMPTY_DB) {
       const nextSnapshot = JSON.stringify(buildPersistableDbSnapshot(db));
+      if (nextSnapshot === lastPersistedDbRef.current) return;
       lastPersistedDbRef.current = nextSnapshot;
       persistValue(DB_STORAGE_KEY, buildPersistableDbSnapshot(db));
+      dbBroadcastChannelRef.current?.postMessage(nextSnapshot);
     }
   }, [db, isReady]);
 
@@ -618,9 +622,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isReady) return;
 
-    const syncDbFromStorage = () => {
+    const syncDbSnapshot = (raw: string | null) => {
       try {
-        const raw = window.localStorage.getItem(DB_STORAGE_KEY);
         if (!raw || raw === lastPersistedDbRef.current) return;
         lastPersistedDbRef.current = raw;
         setDb(normalizeDb(JSON.parse(raw) as RentflowDb));
@@ -629,9 +632,26 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       }
     };
 
+    const syncDbFromStorage = () => {
+      syncDbSnapshot(window.localStorage.getItem(DB_STORAGE_KEY));
+    };
+
     const handleStorage = (event: StorageEvent) => {
       if (event.key === DB_STORAGE_KEY) syncDbFromStorage();
     };
+
+    const channel =
+      typeof BroadcastChannel !== "undefined"
+        ? new BroadcastChannel(DB_BROADCAST_CHANNEL)
+        : null;
+    dbBroadcastChannelRef.current = channel;
+    if (channel) {
+      channel.onmessage = (event) => {
+        if (typeof event.data === "string") {
+          syncDbSnapshot(event.data);
+        }
+      };
+    }
 
     window.addEventListener("storage", handleStorage);
     const intervalId = window.setInterval(syncDbFromStorage, 1500);
@@ -639,6 +659,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     return () => {
       window.removeEventListener("storage", handleStorage);
       window.clearInterval(intervalId);
+      if (dbBroadcastChannelRef.current === channel) {
+        dbBroadcastChannelRef.current = null;
+      }
+      channel?.close();
     };
   }, [isReady]);
 
