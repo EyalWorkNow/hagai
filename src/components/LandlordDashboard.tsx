@@ -52,7 +52,11 @@ export default function LandlordDashboard({ user }: { user: User }) {
   // Modal States
   const [showAddProperty, setShowAddProperty] = useState(false);
   const [showInviteTenant, setShowInviteTenant] = useState(false);
-  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
+  const selectedProperty = useMemo(
+    () => properties.find((property) => property.id === selectedPropertyId) ?? null,
+    [properties, selectedPropertyId],
+  );
 
   // Derived Metrics
   const { totalMonthlyIncome, occupiedCount, vacantCount, pendingPaymentsNum, failedPaymentsNum, openServiceCalls, featuredProperty, featuredCosts } = useMemo(() => {
@@ -128,7 +132,7 @@ export default function LandlordDashboard({ user }: { user: User }) {
                   <div className="mt-5 flex flex-wrap gap-3">
                     <button
                       onClick={() => {
-                        setSelectedProperty(featuredProperty);
+                        setSelectedPropertyId(featuredProperty.id);
                         setShowInviteTenant(true);
                       }}
                       className="inline-flex items-center justify-center gap-3 rounded-2xl bg-blue-600 px-6 py-4 text-sm font-black text-white shadow-sleek-blue transition-all hover:bg-blue-700 active:scale-95"
@@ -154,7 +158,7 @@ export default function LandlordDashboard({ user }: { user: User }) {
                   className="mt-6"
                   snapshot={featuredOnboarding}
                   onOpenInvite={() => {
-                    setSelectedProperty(featuredProperty);
+                    setSelectedPropertyId(featuredProperty.id);
                     setShowInviteTenant(true);
                   }}
                   onCreditSkipApproval={(approved) =>
@@ -453,7 +457,7 @@ export default function LandlordDashboard({ user }: { user: User }) {
                           property={p} 
                           onboarding={getTenantOnboardingSnapshot(p, contracts, db.users, db.onboardingInvites)}
                           onInvite={() => {
-                             setSelectedProperty(p);
+                             setSelectedPropertyId(p.id);
                              setShowInviteTenant(true);
                           }} 
                         />
@@ -531,7 +535,10 @@ export default function LandlordDashboard({ user }: { user: User }) {
             })
           }
           onCompleteOnboarding={completeOnboarding}
-          onClose={() => setShowInviteTenant(false)}
+          onClose={() => {
+            setShowInviteTenant(false);
+            setSelectedPropertyId(null);
+          }}
         />
       )}
     </div>
@@ -901,17 +908,28 @@ function getTenantOnboardingSnapshot(
   invites: OnboardingInvite[],
 ): TenantOnboardingSnapshot {
   const propertyContracts = contracts.filter((contract) => contract.propertyId === property.id);
-  const onboardingContract =
-    propertyContracts.find((contract) => {
-      if (contract.status === "active" || contract.status === "expired") return false;
-      const candidate = users.find((user) => user.id === contract.tenantId);
-      return Boolean(candidate && !candidate.onboardingComplete);
-    }) ?? null;
-  const tenant = onboardingContract
-    ? users.find((candidate) => candidate.id === onboardingContract.tenantId) ?? null
-    : null;
   const currentTenant = property.tenantId
     ? users.find((candidate) => candidate.id === property.tenantId) ?? null
+    : null;
+  const onboardingContracts = propertyContracts
+    .filter((contract) => contract.status !== "active" && contract.status !== "expired")
+    .sort(
+      (left, right) =>
+        getContractActivityTime(right) - getContractActivityTime(left),
+    );
+  const currentTenantContract =
+    currentTenant && !currentTenant.onboardingComplete
+      ? onboardingContracts.find((contract) => contract.tenantId === currentTenant.id) ?? null
+      : null;
+  const onboardingContract =
+    currentTenantContract ??
+    onboardingContracts.find((contract) => {
+      const candidate = users.find((user) => user.id === contract.tenantId);
+      return Boolean(candidate && !candidate.onboardingComplete);
+    }) ??
+    null;
+  const tenant = onboardingContract
+    ? users.find((candidate) => candidate.id === onboardingContract.tenantId) ?? null
     : null;
   const propertyInvites = [...invites]
     .filter((invite) => invite.propertyId === property.id && invite.status !== "completed")
@@ -937,6 +955,14 @@ function getTenantOnboardingSnapshot(
     activeTenantEmail: tenant?.email ?? invite?.tenantEmail,
     landlordCreditSkipApproved: Boolean(invite?.landlordCreditSkipApproved),
   };
+}
+
+function getContractActivityTime(contract: Contract) {
+  return Math.max(
+    Date.parse(contract.tenantQrScannedAt ?? "") || 0,
+    Date.parse(contract.createdAt ?? "") || 0,
+    Date.parse(contract.signedByTenantAt ?? "") || 0,
+  );
 }
 
 function LandlordOnboardingTracker({
