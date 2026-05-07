@@ -1,6 +1,7 @@
 import express from "express";
 import os from "os";
 import path from "path";
+import { pathToFileURL } from "url";
 import { createServer as createViteServer } from "vite";
 import seedDb from "./src/data/garim-po-db.json";
 import {
@@ -974,13 +975,23 @@ function buildApi() {
   return router;
 }
 
+function registerApi(app: express.Express, mountPath = "/api/v1") {
+  app.use(express.json({ limit: "25mb" }));
+  app.use(mountPath, buildApi());
+  app.set("trust proxy", true);
+  return app;
+}
+
+export function createApiApp(mountPath = "/api/v1") {
+  return registerApi(express(), mountPath);
+}
+
 async function startServer() {
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
   const HOST = "0.0.0.0";
 
-  app.use(express.json({ limit: "25mb" }));
-  app.use("/api/v1", buildApi());
+  registerApi(app, "/api/v1");
 
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -999,4 +1010,9 @@ async function startServer() {
   });
 }
 
-startServer();
+const launchedDirectly =
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (launchedDirectly) {
+  startServer();
+}
