@@ -1151,6 +1151,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     setDb((previousDb) => {
       const nextDb = mergeOnboardingRecords(previousDb ?? EMPTY_DB, sync);
       const nextSnapshot = serializePersistableDbSnapshot(nextDb);
+      if (nextSnapshot === lastPersistedDbRef.current) return previousDb;
       lastPersistedDbRef.current = nextSnapshot;
       persistValue(DB_STORAGE_KEY, buildPersistableDbSnapshot(nextDb));
       dbBroadcastChannelRef.current?.postMessage(nextSnapshot);

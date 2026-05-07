@@ -163,7 +163,7 @@ export default function App() {
   }
 
   // 4. Tenant Onboarding Flow (if applicable)
-  if (showOnboardingFlow && user.role === "tenant") {
+  if ((showOnboardingFlow || needsOnboarding) && user.role === "tenant") {
     return (
         <Onboarding
           user={user}

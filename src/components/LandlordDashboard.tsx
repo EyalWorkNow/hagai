@@ -1049,6 +1049,9 @@ function InviteTenantModal({
       eventSource = new EventSource(
         `/api/v1/onboarding/events?propertyId=${encodeURIComponent(property.id)}`,
       );
+      eventSource.onopen = () => {
+        lastEventAt = Date.now();
+      };
       eventSource.addEventListener("onboarding-sync", (event) => {
         lastEventAt = Date.now();
         try {
@@ -1063,7 +1066,7 @@ function InviteTenantModal({
     }
 
     const fallbackInterval = window.setInterval(() => {
-      if (Date.now() - lastEventAt > 900) {
+      if (Date.now() - lastEventAt > 4500) {
         void syncOnboardingStatus(property.id);
       }
     }, 1000);
