@@ -1,5 +1,5 @@
 import os from "os";
-import seedDb from "../data/garim-po-db.json";
+import { createRequire } from "module";
 import type {
   AuthAccount,
   Contract,
@@ -11,6 +11,9 @@ import type {
   Role,
   User,
 } from "../types";
+
+const require = createRequire(import.meta.url);
+const seedDb = require("../data/garim-po-db.json") as RentflowDb;
 
 export type OnboardingSyncResponse = {
   revision: number;
