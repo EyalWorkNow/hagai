@@ -1,20 +1,10 @@
 import type { IncomingMessage, ServerResponse } from "http";
-import {
-  cancelTenantOnboardingOnServer,
-  getClientDbRevision,
-  getOnboardingSyncResponse,
-  getPublicOrigin,
-  getRuntimeDbRevision,
-  getRuntimeDbSnapshot,
-  inviteTenantForOnboarding,
-  loginUserForOnboarding,
-  registerUserForOnboarding,
-  replaceRuntimeDb,
-  resetRuntimeDb,
-  setCreditSkipApprovalForOnboarding,
-  subscribeToOnboarding,
-} from "../../src/lib/runtimeApi";
 import type { RentflowDb, Role } from "../../src/types";
+import type {
+  cancelTenantOnboardingOnServer,
+  inviteTenantForOnboarding,
+  setCreditSkipApprovalForOnboarding,
+} from "../../src/lib/runtimeApi";
 
 type Req = IncomingMessage & {
   body?: unknown;
@@ -37,6 +27,19 @@ function parseUrl(req: Req) {
   return new URL(req.url ?? "/", `http://${host}`);
 }
 
+function getRequestOrigin(req: Req) {
+  if (process.env.PUBLIC_APP_ORIGIN) {
+    return process.env.PUBLIC_APP_ORIGIN.replace(/\/$/, "");
+  }
+
+  const protocol = req.headers["x-forwarded-proto"]?.toString() || "https";
+  return `${protocol}://${req.headers.host ?? ""}`;
+}
+
+async function getRuntimeApi() {
+  return import("../../src/lib/runtimeApi");
+}
+
 async function readJsonBody<T>(req: Req): Promise<T> {
   if (req.body && typeof req.body === "object") {
     return req.body as T;
@@ -50,7 +53,8 @@ async function readJsonBody<T>(req: Req): Promise<T> {
   return (rawBody ? JSON.parse(rawBody) : {}) as T;
 }
 
-function setRevisionHeader(res: ServerResponse) {
+async function setRevisionHeader(res: ServerResponse) {
+  const { getRuntimeDbRevision } = await getRuntimeApi();
   res.setHeader("X-Db-Revision", String(getRuntimeDbRevision()));
 }
 
@@ -66,25 +70,23 @@ export default async function handler(req: Req, res: ServerResponse) {
 
   if (method === "GET" && pathname === "/public-origin") {
     sendJson(res, 200, {
-      origin: getPublicOrigin({
-        protocol: req.headers["x-forwarded-proto"]?.toString() || "https",
-        host: req.headers.host ?? "",
-        publicAppOrigin: process.env.PUBLIC_APP_ORIGIN,
-      }),
+      origin: getRequestOrigin(req),
     });
     return;
   }
 
   if (method === "GET" && pathname === "/db") {
-    setRevisionHeader(res);
+    const { getRuntimeDbSnapshot } = await getRuntimeApi();
+    await setRevisionHeader(res);
     sendJson(res, 200, getRuntimeDbSnapshot());
     return;
   }
 
   if (method === "PUT" && pathname === "/db") {
+    const { getClientDbRevision, replaceRuntimeDb } = await getRuntimeApi();
     const incomingDb = await readJsonBody<Partial<RentflowDb>>(req);
     const result = replaceRuntimeDb(incomingDb, getClientDbRevision(req.headers));
-    setRevisionHeader(res);
+    await setRevisionHeader(res);
     if ("error" in result) {
       sendJson(
         res,
@@ -101,13 +103,15 @@ export default async function handler(req: Req, res: ServerResponse) {
   }
 
   if (method === "POST" && pathname === "/db/reset") {
+    const { resetRuntimeDb } = await getRuntimeApi();
     const db = resetRuntimeDb();
-    setRevisionHeader(res);
+    await setRevisionHeader(res);
     sendJson(res, 200, db);
     return;
   }
 
   if (method === "GET" && pathname === "/onboarding/status") {
+    const { getOnboardingSyncResponse } = await getRuntimeApi();
     const propertyId = url.searchParams.get("propertyId") ?? "";
     if (!propertyId) {
       sendJson(res, 400, { error: "Missing propertyId" });
@@ -120,12 +124,13 @@ export default async function handler(req: Req, res: ServerResponse) {
       return;
     }
 
-    setRevisionHeader(res);
+    await setRevisionHeader(res);
     sendJson(res, 200, sync);
     return;
   }
 
   if (method === "GET" && pathname === "/onboarding/events") {
+    const { subscribeToOnboarding } = await getRuntimeApi();
     const propertyId = url.searchParams.get("propertyId") ?? "";
     if (!propertyId) {
       sendJson(res, 400, { error: "Missing propertyId" });
@@ -157,6 +162,7 @@ export default async function handler(req: Req, res: ServerResponse) {
   }
 
   if (method === "POST" && pathname === "/onboarding/register") {
+    const { registerUserForOnboarding } = await getRuntimeApi();
     const payload = await readJsonBody<{
       name?: string;
       email?: string;
@@ -188,12 +194,13 @@ export default async function handler(req: Req, res: ServerResponse) {
       return;
     }
 
-    setRevisionHeader(res);
+    await setRevisionHeader(res);
     sendJson(res, 200, result.sync);
     return;
   }
 
   if (method === "POST" && pathname === "/onboarding/login") {
+    const { loginUserForOnboarding } = await getRuntimeApi();
     const payload = await readJsonBody<{
       email?: string;
       password?: string;
@@ -215,12 +222,17 @@ export default async function handler(req: Req, res: ServerResponse) {
       return;
     }
 
-    setRevisionHeader(res);
+    await setRevisionHeader(res);
     sendJson(res, 200, result.sync);
     return;
   }
 
   if (method === "POST" && pathname === "/onboarding/action") {
+    const {
+      cancelTenantOnboardingOnServer,
+      inviteTenantForOnboarding,
+      setCreditSkipApprovalForOnboarding,
+    } = await getRuntimeApi();
     const payload = await readJsonBody<{
       action?: string;
       landlordId?: string;
@@ -280,7 +292,7 @@ export default async function handler(req: Req, res: ServerResponse) {
       return;
     }
 
-    setRevisionHeader(res);
+    await setRevisionHeader(res);
     sendJson(res, 200, result.sync);
     return;
   }
