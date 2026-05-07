@@ -578,15 +578,7 @@ export function replaceRuntimeDb(incomingDb: Partial<RentflowDb>, clientRevision
     return { error: "Invalid database snapshot", status: 400 as const };
   }
 
-  if (runtimeDbRevision > 1 && (clientRevision === null || clientRevision < runtimeDbRevision)) {
-    return {
-      error: "Database snapshot is stale",
-      status: 200 as const,
-      stale: true,
-      revision: runtimeDbRevision,
-      db: cloneDb(),
-    };
-  }
+  // Removed stale check to prevent optimistic UI reversion during onboarding
 
   const nextRuntimeDb = normalizeDb({
     ...runtimeDb,
