@@ -34,6 +34,8 @@ const ONBOARDING_ACTION_API_ENDPOINT = "/api/v1/onboarding/action";
 const SESSION_STORAGE_KEY = "garim-po-session";
 const SITE_ACCESS_SESSION_STORAGE_KEY = "garim-po-site-access-session";
 const SITE_ACCESS_ACTIVATIONS_STORAGE_KEY = "garim-po-site-access-activations";
+const DEBUG_LOG_STORAGE_KEY = "garim-po-debug-log-v1";
+const DEBUG_LOG_LIMIT = 250;
 const STORAGE_WARNING =
   "נפח הנתונים המקומי חרג ממגבלת הדפדפן. המערכת ממשיכה לעבוד, אך שינויים כבדים לא יישמרו מקומית.";
 
@@ -273,6 +275,51 @@ type QueuedServerPersist = {
   staleRetries: number;
 };
 
+type DebugLogEntry = {
+  at: string;
+  event: string;
+  details?: Record<string, unknown>;
+};
+
+function appendDebugLog(event: string, details?: Record<string, unknown>) {
+  const entry: DebugLogEntry = {
+    at: new Date().toISOString(),
+    event,
+    details,
+  };
+
+  try {
+    if (typeof window !== "undefined") {
+      const currentLogs = loadStoredValue<DebugLogEntry[]>(DEBUG_LOG_STORAGE_KEY, []);
+      const nextLogs = [...currentLogs, entry].slice(-DEBUG_LOG_LIMIT);
+      window.localStorage.setItem(DEBUG_LOG_STORAGE_KEY, JSON.stringify(nextLogs));
+      (window as typeof window & {
+        __garimPoDebug?: {
+          getLogs: () => DebugLogEntry[];
+          clearLogs: () => void;
+        };
+      }).__garimPoDebug = {
+        getLogs: () => loadStoredValue<DebugLogEntry[]>(DEBUG_LOG_STORAGE_KEY, []),
+        clearLogs: () => window.localStorage.removeItem(DEBUG_LOG_STORAGE_KEY),
+      };
+    }
+  } catch {
+    // Logging must not affect product flow.
+  }
+
+  console.debug("[garim-po-debug]", event, details ?? {});
+}
+
+function summarizeDbForDebug(db: RentflowDb) {
+  return {
+    users: db.users.length,
+    properties: db.properties.length,
+    contracts: db.contracts.length,
+    invites: db.onboardingInvites.length,
+    documents: db.documents.length,
+  };
+}
+
 function getResponseRevision(response: Response) {
   const rawRevision = response.headers.get("x-db-revision");
   if (!rawRevision) return null;
@@ -284,11 +331,14 @@ async function loadServerDbAsync(): Promise<ServerDbResult | null> {
   try {
     const response = await fetch(DB_API_ENDPOINT, { cache: "no-store" });
     if (!response.ok) return null;
+    const revision = getResponseRevision(response);
+    appendDebugLog("db.load_server.success", { revision, status: response.status });
     return {
       db: normalizeDb((await response.json()) as RentflowDb),
-      revision: getResponseRevision(response),
+      revision,
     };
   } catch {
+    appendDebugLog("db.load_server.failure");
     return null;
   }
 }
@@ -297,16 +347,30 @@ async function persistServerDbAsync(
   db: RentflowDb,
   baseRevision: number | null,
 ): Promise<ServerPersistResult> {
+  const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  appendDebugLog("db.persist.start", {
+    requestId,
+    baseRevision,
+    summary: summarizeDbForDebug(db),
+  });
   try {
     const response = await fetch(DB_API_ENDPOINT, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
+        "X-Debug-Request-Id": requestId,
         ...(baseRevision !== null ? { "X-Db-Base-Revision": String(baseRevision) } : {}),
       },
       body: JSON.stringify(db),
     });
     const payload = await response.json().catch(() => null);
+    appendDebugLog("db.persist.response", {
+      requestId,
+      status: response.status,
+      responseRevision: getResponseRevision(response),
+      payloadRevision: typeof payload?.revision === "number" ? payload.revision : null,
+      stale: response.status === 409 || Boolean(payload?.stale),
+    });
     if (response.status === 409 || payload?.stale) {
       return {
         ok: false,
@@ -321,6 +385,7 @@ async function persistServerDbAsync(
       revision: getResponseRevision(response),
     };
   } catch {
+    appendDebugLog("db.persist.failure", { requestId, baseRevision });
     return { ok: false };
   }
 }
@@ -819,6 +884,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     }
 
     const queuedPersist = queuedServerPersistRef.current;
+    appendDebugLog("db.queue.flush", {
+      snapshot: queuedPersist.snapshot.slice(0, 24),
+      staleRetries: queuedPersist.staleRetries,
+      serverRevision: serverRevisionRef.current,
+    });
     queuedServerPersistRef.current = null;
     activeServerPersistRef.current = queuedPersist.snapshot;
 
@@ -826,6 +896,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       if (activeServerPersistRef.current !== queuedPersist.snapshot) return;
 
       if (result.stale) {
+        appendDebugLog("db.queue.stale", {
+          revision: result.revision,
+          staleRetries: queuedPersist.staleRetries,
+        });
         hasServerDbRef.current = true;
         serverRevisionRef.current = result.revision ?? serverRevisionRef.current;
 
@@ -853,11 +927,13 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       }
 
       if (result.ok) {
+        appendDebugLog("db.queue.success", { revision: result.revision });
         hasServerDbRef.current = true;
         serverRevisionRef.current = result.revision ?? serverRevisionRef.current;
         return;
       }
 
+      appendDebugLog("db.queue.offline_or_failed");
       hasServerDbRef.current = false;
     }).finally(() => {
       if (activeServerPersistRef.current === queuedPersist.snapshot) {
@@ -870,6 +946,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   };
 
   const queueServerPersist = (persistableDb: RentflowDb, snapshot: string) => {
+    appendDebugLog("db.queue.enqueue", {
+      snapshot: snapshot.slice(0, 24),
+      serverRevision: serverRevisionRef.current,
+    });
     queuedServerPersistRef.current = { db: persistableDb, snapshot, staleRetries: 0 };
     flushQueuedServerPersist();
   };
@@ -889,6 +969,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     }
 
     loadDbStateAsync().then((loadedState) => {
+      appendDebugLog("app.init.loaded", {
+        source: loadedState.source,
+        revision: loadedState.revision,
+        summary: summarizeDbForDebug(loadedState.db),
+      });
       hasServerDbRef.current = loadedState.source === "server";
       serverRevisionRef.current = loadedState.revision;
       lastPersistedDbRef.current = serializePersistableDbSnapshot(loadedState.db);
@@ -906,6 +991,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       const persistableDb = buildPersistableDbSnapshot(db);
       persistValue(DB_STORAGE_KEY, persistableDb);
       dbBroadcastChannelRef.current?.postMessage(nextSnapshot);
+      appendDebugLog("db.local.persist", {
+        serverEnabled: hasServerDbRef.current,
+        summary: summarizeDbForDebug(db),
+      });
       if (hasServerDbRef.current) {
         queueServerPersist(persistableDb, nextSnapshot);
       }
@@ -913,6 +1002,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   }, [db, isReady]);
 
   useEffect(() => {
+    appendDebugLog("session.changed", { userId: session.userId });
     persistSessionValue(session);
   }, [session]);
 
@@ -924,6 +1014,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         if (!raw || raw === lastPersistedDbRef.current) return;
         lastPersistedDbRef.current = raw;
         const incomingDb = normalizeDb(JSON.parse(raw) as RentflowDb);
+        appendDebugLog("db.sync.storage", {
+          summary: summarizeDbForDebug(incomingDb),
+        });
         setDb((currentDb) =>
           normalizeDb({
             ...(currentDb ?? EMPTY_DB),
@@ -954,6 +1047,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       serverRevisionRef.current = serverState.revision;
       lastPersistedDbRef.current = nextSnapshot;
       persistValue(DB_STORAGE_KEY, buildPersistableDbSnapshot(serverState.db));
+      appendDebugLog("db.sync.server_apply", {
+        revision: serverState.revision,
+        summary: summarizeDbForDebug(serverState.db),
+      });
       setDb(serverState.db);
     };
 
@@ -1016,11 +1113,18 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       // the entire multi-MB dataset on every action.
       const nextDb: RentflowDb = { ...(previousDb ?? EMPTY_DB) };
       updater(nextDb);
+      appendDebugLog("db.apply_local_update", {
+        summary: summarizeDbForDebug(nextDb),
+      });
       return nextDb;
     });
   };
 
   const applyServerDb = (serverDb: RentflowDb, revision: number | null = serverRevisionRef.current) => {
+    appendDebugLog("db.apply_server", {
+      revision,
+      summary: summarizeDbForDebug(serverDb),
+    });
     const nextSnapshot = serializePersistableDbSnapshot(serverDb);
     queuedServerPersistRef.current = null;
     activeServerPersistRef.current = null;
@@ -1033,6 +1137,13 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   };
 
   const applyOnboardingSync = (sync: OnboardingSyncResponse) => {
+    appendDebugLog("onboarding.sync.apply", {
+      revision: sync.revision,
+      userId: sync.userId,
+      propertyId: sync.propertyId,
+      contractId: sync.records.contract?.id ?? null,
+      onboardingStep: sync.records.user?.onboardingStep ?? null,
+    });
     hasServerDbRef.current = true;
     serverRevisionRef.current = sync.revision;
     queuedServerPersistRef.current = null;
@@ -1048,6 +1159,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   };
 
   const syncOnboardingStatus = async (propertyId: string) => {
+    appendDebugLog("onboarding.status.fetch", { propertyId });
     const sync = await fetchOnboardingStatus(propertyId);
     if (sync) {
       applyOnboardingSync(sync);
@@ -1055,11 +1167,13 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   };
 
   const postOnboardingAction = async (payload: Record<string, unknown>) => {
+    appendDebugLog("onboarding.action.start", payload);
     const sync = await postOnboardingMutation(ONBOARDING_ACTION_API_ENDPOINT, payload);
     if (sync) {
       applyOnboardingSync(sync);
       return true;
     }
+    appendDebugLog("onboarding.action.no_sync", payload);
     return false;
   };
 

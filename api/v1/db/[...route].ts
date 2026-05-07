@@ -58,10 +58,16 @@ async function setRevisionHeader(res: ServerResponse) {
   res.setHeader("X-Db-Revision", String(getRuntimeDbRevision()));
 }
 
+function getRequestId(req: Req) {
+  const raw = req.headers["x-debug-request-id"];
+  return Array.isArray(raw) ? raw[0] : raw ?? `srv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 async function routeRequest(req: Req, res: ServerResponse) {
   const url = parseUrl(req);
   const pathname = url.pathname.replace(/^\/api\/v1/, "") || "/";
   const method = req.method ?? "GET";
+  const requestId = getRequestId(req);
 
   if (method === "GET" && pathname === "/health") {
     sendJson(res, 200, { status: "ok", service: "garim-po-api" });
@@ -84,14 +90,33 @@ async function routeRequest(req: Req, res: ServerResponse) {
 
   if (method === "PUT" && pathname === "/db") {
     const { getClientDbRevision, replaceRuntimeDb } = await getRuntimeApi();
+    const baseRevision = getClientDbRevision(req.headers);
     const incomingDb = await readJsonBody<Partial<RentflowDb>>(req);
-    const result = replaceRuntimeDb(incomingDb, getClientDbRevision(req.headers));
+    console.log("[garim-po-api]", "db.put.start", {
+      requestId,
+      baseRevision,
+      users: Array.isArray(incomingDb.users) ? incomingDb.users.length : null,
+      properties: Array.isArray(incomingDb.properties) ? incomingDb.properties.length : null,
+      contracts: Array.isArray(incomingDb.contracts) ? incomingDb.contracts.length : null,
+    });
+    const result = replaceRuntimeDb(incomingDb, baseRevision);
     await setRevisionHeader(res);
     if ("error" in result) {
+      console.log("[garim-po-api]", "db.put.error", {
+        requestId,
+        baseRevision,
+        status: result.status,
+        error: result.error,
+      });
       sendJson(res, result.status, { error: result.error });
       return;
     }
 
+    console.log("[garim-po-api]", "db.put.success", {
+      requestId,
+      baseRevision,
+      responseRevision: res.getHeader("X-Db-Revision"),
+    });
     sendJson(res, 200, result.db);
     return;
   }
