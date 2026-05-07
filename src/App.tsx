@@ -768,6 +768,7 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
                           onChange={setName}
                           placeholder="ישראל ישראלי"
                           name="name"
+                          autoComplete="name"
                         />
                       )}
                       <AuthInput
@@ -778,6 +779,7 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
                         placeholder="your@email.com"
                         type="email"
                         name="email"
+                        autoComplete="email"
                       />
                       <AuthInput
                         label="סיסמה"
@@ -787,6 +789,7 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
                         placeholder="••••••••"
                         type="password"
                         name="password"
+                        autoComplete={isRegister ? "new-password" : "current-password"}
                       />
 
                       <button 
@@ -924,6 +927,7 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
                      onChange={setName}
                      placeholder="שם מלא"
                      name="name"
+                     autoComplete="name"
                   />
                   <AuthInputCompact
                      icon={<Lock size={16} />}
@@ -932,6 +936,7 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
                      placeholder="סיסמה"
                      type="password"
                      name="password"
+                     autoComplete="current-password"
                   />
                   <AuthInputCompact
                      icon={<Mail size={16} />}
@@ -940,6 +945,7 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
                      placeholder="דוא״ל"
                      type="email"
                      name="email"
+                     autoComplete="email"
                   />
                </div>
                <button
@@ -1193,19 +1199,21 @@ function DemoBtn({ label, onClick, color }: any) {
    );
 }
 
-function AuthInputCompact({ icon, value, onChange, placeholder, type = "text", name }: any) {
+function AuthInputCompact({ icon, value, onChange, placeholder, type = "text", name, autoComplete }: any) {
    return (
       <div className="relative group">
          <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-slate-900 transition-colors">
             {icon}
          </div>
-         <input 
-            type={type} 
+         <input
+            type={type}
             required
+            id={name}
             name={name}
+            autoComplete={autoComplete}
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            placeholder={placeholder} 
+            placeholder={placeholder}
             className="w-full h-14 bg-slate-50/50 border border-slate-100 rounded-[20px] pr-12 pl-4 text-xs font-bold focus:ring-4 focus:ring-slate-900/5 focus:border-slate-300 transition-all outline-none placeholder:text-slate-400"
          />
       </div>
@@ -1215,19 +1223,20 @@ function AuthInputCompact({ icon, value, onChange, placeholder, type = "text", n
 function AuthInput({ label, icon, value, onChange, placeholder, type = "text", name, autoComplete }: any) {
    return (
       <div className="space-y-3">
-         {label && <label className="text-[10px] font-black text-slate-400 tracking-[0.12em] mr-1 uppercase tracking-widest">{label}</label>}
+         {label && <label htmlFor={name} className="text-[10px] font-black text-slate-400 tracking-[0.12em] mr-1 uppercase tracking-widest">{label}</label>}
          <div className="relative group">
             <div className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-slate-900 transition-colors">
                {icon}
             </div>
-            <input 
-               type={type} 
+            <input
+               type={type}
                required
+               id={name}
                name={name}
                autoComplete={autoComplete}
                value={value}
                onChange={(e) => onChange(e.target.value)}
-               placeholder={placeholder} 
+               placeholder={placeholder}
                className="w-full h-16 bg-white border border-slate-200 rounded-[24px] pr-14 pl-6 text-[15px] font-bold focus:ring-4 focus:ring-slate-900/5 focus:border-slate-900 transition-all outline-none shadow-sm placeholder:text-slate-300"
             />
          </div>

@@ -571,10 +571,13 @@ function IdentitySetupStep({
           <div className="mt-8 border-t border-slate-100 pt-6 md:mt-12 md:pt-10">
              <div className="grid gap-4 md:grid-cols-2 md:gap-8">
                 <div className="space-y-2">
-                   <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest mr-2">מספר תעודת זהות</label>
-                   <input name="onboarding_field"
+                   <label htmlFor="onboarding_identity" className="text-[11px] font-black text-slate-400 uppercase tracking-widest mr-2">מספר תעודת זהות</label>
+                   <input
+                    id="onboarding_identity"
+                    name="onboarding_identity"
                     type="text"
                     inputMode="numeric"
+                    autoComplete="off"
                     value={draft.identityNumber}
                     onChange={(event) =>
                       onDraftChange((currentDraft) => ({
@@ -590,10 +593,13 @@ function IdentitySetupStep({
                    )}
                 </div>
                 <div className="space-y-2">
-                   <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest mr-2">מספר טלפון נייד</label>
-                   <input name="onboarding_field"
+                   <label htmlFor="onboarding_phone" className="text-[11px] font-black text-slate-400 uppercase tracking-widest mr-2">מספר טלפון נייד</label>
+                   <input
+                    id="onboarding_phone"
+                    name="onboarding_phone"
                     type="tel"
                     inputMode="tel"
+                    autoComplete="tel"
                     value={draft.phoneNumber}
                     onChange={(event) =>
                       onDraftChange((currentDraft) => ({
@@ -781,7 +787,7 @@ function PropertyStep({
             </div>
 
             <label className="flex cursor-pointer items-start gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-5 transition hover:bg-white">
-              <input name="onboarding_field"
+              <input name="onboarding_field" autoComplete="off"
                 type="checkbox"
                 checked={draft.clausesApproved}
                 onChange={(event) =>
@@ -955,7 +961,7 @@ function BankAuthorizationStep({
             />
 
             <label className="flex cursor-pointer items-start gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-5 transition hover:bg-white">
-              <input name="onboarding_field"
+              <input name="onboarding_field" autoComplete="off"
                 type="checkbox"
                 checked={draft.bankConsent}
                 onChange={(event) =>
@@ -1066,7 +1072,7 @@ function CreditCheckStep({
           {!approved && !rejected && !isPending && (
              <div className="space-y-6">
                 <label className="flex cursor-pointer items-start gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-5 transition-all hover:bg-white hover:border-blue-200 md:p-6">
-                  <input name="onboarding_field"
+                  <input name="onboarding_field" autoComplete="off"
                     type="checkbox"
                     checked={draft.creditConsent}
                     onChange={(event) =>
@@ -1530,7 +1536,7 @@ export function BDICheckStandalone({
           </div>
 
           <div className="flex items-start gap-4 rounded-2xl border border-slate-100 bg-slate-50 p-6 shadow-inner">
-            <input name="onboarding_field"
+            <input name="onboarding_field" autoComplete="off"
               type="checkbox"
               defaultChecked
               className="mt-1 h-5 w-5 rounded-lg border-2 border-slate-300 text-slate-900 focus:ring-slate-900"
@@ -1699,7 +1705,7 @@ function UploadCard({
       )}
     >
       {onUpload && (
-        <input name="onboarding_field"
+        <input name="onboarding_field" autoComplete="off"
           type="file"
           accept={accept}
           capture={capture}
@@ -1728,6 +1734,10 @@ function UploadCard({
   );
 }
 
+function labelToId(label: string) {
+  return `onboarding_${label.replace(/[\s/]+/g, "_").replace(/[^\w]/g, "").toLowerCase()}`;
+}
+
 function NumericField({
   label,
   value,
@@ -1741,14 +1751,18 @@ function NumericField({
   onChange: (value: number) => void;
   readOnly?: boolean;
 }) {
+  const fieldId = labelToId(label);
   return (
     <div className="space-y-3">
-      <label className="mr-2 block text-[11px] font-black text-slate-400">{label}</label>
+      <label htmlFor={fieldId} className="mr-2 block text-[11px] font-black text-slate-400">{label}</label>
       <div className="relative">
         <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300">{icon}</div>
-        <input name="onboarding_field"
+        <input
+          id={fieldId}
+          name={fieldId}
           type="number"
           min="0"
+          autoComplete="off"
           value={value}
           readOnly={readOnly}
           onChange={(event) => !readOnly && onChange(Number(event.target.value || 0))}
@@ -1775,12 +1789,16 @@ function TextField({
   inputMode?: HTMLAttributes<HTMLInputElement>["inputMode"];
   onChange: (value: string) => void;
 }) {
+  const fieldId = labelToId(label);
   return (
     <div className="space-y-3">
-      <label className="mr-2 block text-[11px] font-black text-slate-400">{label}</label>
-      <input name="onboarding_field"
+      <label htmlFor={fieldId} className="mr-2 block text-[11px] font-black text-slate-400">{label}</label>
+      <input
+        id={fieldId}
+        name={fieldId}
         type="text"
         inputMode={inputMode}
+        autoComplete="off"
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
@@ -1813,7 +1831,7 @@ function PaymentModeCheck({
           : (disabled ? "border-slate-100 bg-slate-50 text-slate-400 opacity-70" : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-white"),
       )}
     >
-      <input name="onboarding_field"
+      <input name="onboarding_field" autoComplete="off"
         type="checkbox"
         checked={checked}
         onChange={() => !disabled && onChange()}
@@ -1927,11 +1945,15 @@ function InputField({
   value?: string;
   readOnly?: boolean;
 }) {
+  const fieldId = labelToId(label);
   return (
     <div className="space-y-3">
-      <label className="mr-3 block text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">{label}</label>
-      <input name="onboarding_field"
+      <label htmlFor={fieldId} className="mr-3 block text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">{label}</label>
+      <input
+        id={fieldId}
+        name={fieldId}
         type="text"
+        autoComplete="off"
         className={cn(
           "w-full rounded-2xl border p-5 text-[15px] font-bold shadow-sm transition-all",
           readOnly
