@@ -1441,11 +1441,59 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     landlordId: string,
     payload: CancelTenantOnboardingPayload,
   ) => {
-    void postOnboardingAction({
+    applyDbUpdate((nextDb) => {
+      const property = findProperty(nextDb, payload.propertyId);
+      const tenant = findUser(nextDb, payload.tenantId);
+      if (!property || property.landlordId !== landlordId || !tenant || tenant.role !== "tenant") return;
+
+      const tenantEmail = tenant.email.toLowerCase();
+      const relatedContracts = nextDb.contracts.filter(
+        (contract) =>
+          contract.propertyId === property.id &&
+          contract.tenantId === tenant.id &&
+          contract.status !== "active" &&
+          contract.status !== "expired",
+      );
+
+      relatedContracts.forEach((contract) => {
+        contract.status = "expired";
+        contract.tenantQrScannedAt = undefined;
+        contract.landlordQrScannedAt = undefined;
+        contract.contractUploadedAt = undefined;
+        contract.contractClausesApprovedAt = undefined;
+        contract.signedByTenantAt = undefined;
+        contract.signedByLandlordAt = undefined;
+      });
+
+      if (property.tenantId === tenant.id) {
+        property.tenantId = undefined;
+        property.status = "vacant";
+      }
+
+      tenant.onboardingComplete = false;
+      tenant.onboardingStep = 0;
+      tenant.kycStatus = "pending";
+      tenant.bdiStatus = "pending";
+      tenant.bdiReason = undefined;
+      tenant.statusLabel = "תהליך חיבור בוטל";
+
+      nextDb.onboardingInvites.forEach((invite) => {
+        if (
+          invite.propertyId === property.id &&
+          invite.tenantEmail.toLowerCase() === tenantEmail &&
+          invite.status !== "completed"
+        ) {
+          invite.status = "completed";
+        }
+      });
+    });
+    postOnboardingAction({
       action: "cancel",
       landlordId,
       propertyId: payload.propertyId,
       tenantId: payload.tenantId,
+    }).catch((err) => {
+      console.warn("[cancelTenantOnboarding] server action failed, relying on local state:", err);
     });
   };
 
@@ -1506,13 +1554,29 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   };
 
   const inviteTenant = (landlordId: string, payload: InviteTenantPayload) => {
-    void postOnboardingAction({
+    applyDbUpdate((nextDb) => {
+      const property = findProperty(nextDb, payload.propertyId);
+      if (!property) return;
+
+      upsertOnboardingInvite(nextDb, {
+        landlordId,
+        tenantEmail: payload.tenantEmail,
+        tenantPhone: payload.tenantPhone,
+        propertyId: payload.propertyId,
+        status: "sent",
+        contractVisibilityStep: payload.contractVisibilityStep ?? 2,
+        landlordCreditSkipApproved: Boolean(payload.landlordCreditSkipApproved),
+      });
+    });
+    postOnboardingAction({
       action: "invite",
       landlordId,
       propertyId: payload.propertyId,
       tenantEmail: payload.tenantEmail,
       tenantPhone: payload.tenantPhone,
       landlordCreditSkipApproved: Boolean(payload.landlordCreditSkipApproved),
+    }).catch((err) => {
+      console.warn("[inviteTenant] server action failed, relying on local state:", err);
     });
   };
 
@@ -1520,12 +1584,39 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     landlordId: string,
     payload: CreditSkipApprovalPayload,
   ) => {
-    void postOnboardingAction({
+    applyDbUpdate((nextDb) => {
+      const property = findProperty(nextDb, payload.propertyId);
+      if (!property) return;
+
+      const tenant =
+        (property.tenantId ? findUser(nextDb, property.tenantId) : null) ??
+        nextDb.users.find(
+          (candidate) =>
+            payload.tenantEmail &&
+            candidate.email.toLowerCase() === payload.tenantEmail.toLowerCase(),
+        ) ??
+        null;
+      const tenantEmail = (payload.tenantEmail || tenant?.email || "").trim().toLowerCase();
+      if (!tenantEmail) return;
+
+      upsertOnboardingInvite(nextDb, {
+        landlordId,
+        propertyId: property.id,
+        tenantEmail,
+        tenantPhone: tenant?.phone,
+        status: tenant ? "opened" : "sent",
+        contractVisibilityStep: 2,
+        landlordCreditSkipApproved: payload.approved,
+      });
+    });
+    postOnboardingAction({
       action: "credit_skip_approval",
       landlordId,
       propertyId: payload.propertyId,
       tenantEmail: payload.tenantEmail,
       approved: payload.approved,
+    }).catch((err) => {
+      console.warn("[setTenantCreditSkipApproval] server action failed, relying on local state:", err);
     });
   };
 
