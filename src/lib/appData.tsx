@@ -301,7 +301,7 @@ async function persistServerDbAsync(
       body: JSON.stringify(db),
     });
     const payload = await response.json().catch(() => null);
-    if (response.status === 409) {
+    if (response.status === 409 || payload?.stale) {
       return {
         ok: false,
         stale: true,

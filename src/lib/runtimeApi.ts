@@ -581,7 +581,8 @@ export function replaceRuntimeDb(incomingDb: Partial<RentflowDb>, clientRevision
   if (runtimeDbRevision > 1 && (clientRevision === null || clientRevision < runtimeDbRevision)) {
     return {
       error: "Database snapshot is stale",
-      status: 409 as const,
+      status: 200 as const,
+      stale: true,
       revision: runtimeDbRevision,
       db: cloneDb(),
     };

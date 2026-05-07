@@ -91,8 +91,8 @@ async function routeRequest(req: Req, res: ServerResponse) {
       sendJson(
         res,
         result.status,
-        result.status === 409
-          ? { error: result.error, revision: result.revision, db: result.db }
+        "stale" in result && result.stale
+          ? { error: result.error, stale: true, revision: result.revision, db: result.db }
           : { error: result.error },
       );
       return;
