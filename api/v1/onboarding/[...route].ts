@@ -88,13 +88,7 @@ async function routeRequest(req: Req, res: ServerResponse) {
     const result = replaceRuntimeDb(incomingDb, getClientDbRevision(req.headers));
     await setRevisionHeader(res);
     if ("error" in result) {
-      sendJson(
-        res,
-        result.status,
-        "stale" in result && result.stale
-          ? { error: result.error, stale: true, revision: result.revision, db: result.db }
-          : { error: result.error },
-      );
+      sendJson(res, result.status, { error: result.error });
       return;
     }
 
