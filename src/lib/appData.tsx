@@ -1021,16 +1021,20 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     const normalizedEmail = email.trim().toLowerCase();
 
     if (propertyId) {
-      const result = await postOnboardingMutation(ONBOARDING_LOGIN_API_ENDPOINT, {
-        email: normalizedEmail,
-        password,
-        propertyId,
-      });
+      try {
+        const result = await postOnboardingMutation(ONBOARDING_LOGIN_API_ENDPOINT, {
+          email: normalizedEmail,
+          password,
+          propertyId,
+        });
 
-      if (result) {
-        applyOnboardingSync(result);
-        setSession({ userId: result.userId });
-        return;
+        if (result) {
+          applyOnboardingSync(result);
+          setSession({ userId: result.userId });
+          return;
+        }
+      } catch (err) {
+        console.warn("[login] server login failed, using local fallback:", err);
       }
     }
 
