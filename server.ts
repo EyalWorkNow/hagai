@@ -1,7 +1,6 @@
 import express from "express";
 import os from "os";
 import path from "path";
-import { pathToFileURL } from "url";
 import seedDb from "./src/data/garim-po-db.json";
 import {
   formatChannelLabel,
@@ -985,7 +984,7 @@ export function createApiApp(mountPath = "/api/v1") {
   return registerApi(express(), mountPath);
 }
 
-async function startServer() {
+export async function startServer() {
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
   const HOST = "0.0.0.0";
@@ -1008,11 +1007,4 @@ async function startServer() {
   app.listen(PORT, HOST, () => {
     console.log(`Server running on http://${HOST === "0.0.0.0" ? "localhost" : HOST}:${PORT}`);
   });
-}
-
-const launchedDirectly =
-  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
-
-if (launchedDirectly) {
-  startServer();
 }
