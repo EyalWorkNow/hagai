@@ -1,8 +1,11 @@
 import { ReactNode, createContext, useContext, useEffect, useRef, useState } from "react";
 import {
+  AuthAccount,
   ChatMessage,
   Contract,
   DocumentRecord,
+  EligibilityCheck,
+  OnboardingInvite,
   Payment,
   PaymentRetryRequest,
   Property,
@@ -26,6 +29,8 @@ const DB_API_ENDPOINT = "/api/v1/db";
 const DB_RESET_API_ENDPOINT = "/api/v1/db/reset";
 const ONBOARDING_REGISTER_API_ENDPOINT = "/api/v1/onboarding/register";
 const ONBOARDING_LOGIN_API_ENDPOINT = "/api/v1/onboarding/login";
+const ONBOARDING_STATUS_API_ENDPOINT = "/api/v1/onboarding/status";
+const ONBOARDING_ACTION_API_ENDPOINT = "/api/v1/onboarding/action";
 const SESSION_STORAGE_KEY = "garim-po-session";
 const SITE_ACCESS_SESSION_STORAGE_KEY = "garim-po-site-access-session";
 const SITE_ACCESS_ACTIVATIONS_STORAGE_KEY = "garim-po-site-access-activations";
@@ -38,6 +43,21 @@ type RegisterPayload = {
   password: string;
   role: Role;
   propertyId?: string;
+};
+
+export type OnboardingSyncResponse = {
+  revision: number;
+  userId: string | null;
+  propertyId: string;
+  records: {
+    user: User | null;
+    authAccount?: AuthAccount;
+    property: Property;
+    contract: Contract | null;
+    invite: OnboardingInvite | null;
+    documents: DocumentRecord[];
+    eligibilityCheck?: EligibilityCheck | null;
+  };
 };
 
 type CreateContractPayload = {
@@ -148,6 +168,8 @@ type AppDataContextValue = {
   login: (email: string, password: string, propertyId?: string) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<void>;
   linkProperty: (userId: string, propertyId: string) => Promise<void>;
+  applyOnboardingSync: (sync: OnboardingSyncResponse) => void;
+  syncOnboardingStatus: (propertyId: string) => Promise<void>;
   logout: () => void;
   resetDatabase: () => void;
   updateUser: (userId: string, patch: Partial<User>) => void;
@@ -233,37 +255,81 @@ async function loadSeedDbAsync(): Promise<RentflowDb> {
   return normalizeDb(seedDb as RentflowDb);
 }
 
-async function loadServerDbAsync(): Promise<RentflowDb | null> {
+type ServerDbResult = {
+  db: RentflowDb;
+  revision: number | null;
+};
+
+type ServerPersistResult = {
+  ok: boolean;
+  stale?: boolean;
+  db?: RentflowDb;
+  revision?: number | null;
+};
+
+function getResponseRevision(response: Response) {
+  const rawRevision = response.headers.get("x-db-revision");
+  if (!rawRevision) return null;
+  const revision = Number(rawRevision);
+  return Number.isFinite(revision) ? revision : null;
+}
+
+async function loadServerDbAsync(): Promise<ServerDbResult | null> {
   try {
     const response = await fetch(DB_API_ENDPOINT, { cache: "no-store" });
     if (!response.ok) return null;
-    return normalizeDb((await response.json()) as RentflowDb);
+    return {
+      db: normalizeDb((await response.json()) as RentflowDb),
+      revision: getResponseRevision(response),
+    };
   } catch {
     return null;
   }
 }
 
-async function persistServerDbAsync(db: RentflowDb): Promise<boolean> {
+async function persistServerDbAsync(
+  db: RentflowDb,
+  baseRevision: number | null,
+): Promise<ServerPersistResult> {
   try {
     const response = await fetch(DB_API_ENDPOINT, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(baseRevision !== null ? { "X-Db-Base-Revision": String(baseRevision) } : {}),
+      },
       body: JSON.stringify(db),
     });
-    return response.ok;
+    const payload = await response.json().catch(() => null);
+    if (response.status === 409) {
+      return {
+        ok: false,
+        stale: true,
+        db: payload?.db ? normalizeDb(payload.db as RentflowDb) : undefined,
+        revision: typeof payload?.revision === "number" ? payload.revision : getResponseRevision(response),
+      };
+    }
+    return {
+      ok: response.ok,
+      db: response.ok && payload ? normalizeDb(payload as RentflowDb) : undefined,
+      revision: getResponseRevision(response),
+    };
   } catch {
-    return false;
+    return { ok: false };
   }
 }
 
-async function resetServerDbAsync(): Promise<RentflowDb | null> {
+async function resetServerDbAsync(): Promise<ServerDbResult | null> {
   try {
     const response = await fetch(DB_RESET_API_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
     });
     if (!response.ok) return null;
-    return normalizeDb((await response.json()) as RentflowDb);
+    return {
+      db: normalizeDb((await response.json()) as RentflowDb),
+      revision: getResponseRevision(response),
+    };
   } catch {
     return null;
   }
@@ -272,7 +338,7 @@ async function resetServerDbAsync(): Promise<RentflowDb | null> {
 async function postOnboardingMutation(
   endpoint: string,
   payload: Record<string, unknown>,
-): Promise<{ db: RentflowDb; userId: string } | null> {
+): Promise<OnboardingSyncResponse | null> {
   try {
     const response = await fetch(endpoint, {
       method: "POST",
@@ -285,19 +351,36 @@ async function postOnboardingMutation(
       throw new Error(responsePayload?.error || "פעולת הסנכרון מול השרת נכשלה");
     }
 
-    if (!responsePayload?.db || !responsePayload?.userId) {
+    if (!responsePayload?.records || !responsePayload?.propertyId) {
       return null;
     }
 
     return {
-      db: normalizeDb(responsePayload.db as RentflowDb),
-      userId: String(responsePayload.userId),
-    };
+      ...(responsePayload as OnboardingSyncResponse),
+      revision: responsePayload.revision ?? getResponseRevision(response) ?? 0,
+    } as OnboardingSyncResponse;
   } catch (error) {
     if (error instanceof TypeError) {
       return null;
     }
     throw error;
+  }
+}
+
+async function fetchOnboardingStatus(propertyId: string): Promise<OnboardingSyncResponse | null> {
+  try {
+    const response = await fetch(
+      `${ONBOARDING_STATUS_API_ENDPOINT}?propertyId=${encodeURIComponent(propertyId)}`,
+      { cache: "no-store" },
+    );
+    const responsePayload = await response.json().catch(() => null);
+    if (!response.ok || !responsePayload?.records) return null;
+    return {
+      ...(responsePayload as OnboardingSyncResponse),
+      revision: responsePayload.revision ?? getResponseRevision(response) ?? 0,
+    };
+  } catch {
+    return null;
   }
 }
 
@@ -328,19 +411,20 @@ function mergeSeededRecords<T extends { id: string }>(
 type LoadedDbState = {
   db: RentflowDb;
   source: "server" | "local";
+  revision: number | null;
 };
 
 async function loadDbStateAsync(): Promise<LoadedDbState> {
-  const serverDb = await loadServerDbAsync();
-  if (serverDb) {
-    return { db: serverDb, source: "server" };
+  const serverState = await loadServerDbAsync();
+  if (serverState) {
+    return { db: serverState.db, source: "server", revision: serverState.revision };
   }
 
   const seededDb = await loadSeedDbAsync();
   const storedDb = loadStoredValue<RentflowDb | null>(DB_STORAGE_KEY, null);
 
   if (!storedDb) {
-    return { db: seededDb, source: "local" };
+    return { db: seededDb, source: "local", revision: null };
   }
 
   return {
@@ -371,6 +455,7 @@ async function loadDbStateAsync(): Promise<LoadedDbState> {
       supportIssues: seededDb.supportIssues,
     }),
     source: "local",
+    revision: null,
   };
 }
 
@@ -430,6 +515,45 @@ function buildPersistableDbSnapshot(db: RentflowDb): RentflowDb {
 
 function serializePersistableDbSnapshot(db: RentflowDb) {
   return JSON.stringify(buildPersistableDbSnapshot(db));
+}
+
+function upsertRecord<T extends { id: string }>(records: T[], record: T | null | undefined) {
+  if (!record) return records;
+  const existingIndex = records.findIndex((item) => item.id === record.id);
+  if (existingIndex === -1) return [record, ...records];
+  return records.map((item, index) => (index === existingIndex ? { ...item, ...record } : item));
+}
+
+function upsertRecords<T extends { id: string }>(records: T[], nextRecords: T[] | undefined) {
+  return (nextRecords ?? []).reduce((currentRecords, record) => upsertRecord(currentRecords, record), records);
+}
+
+function upsertAuthAccount(records: AuthAccount[], record: AuthAccount | null | undefined) {
+  if (!record) return records;
+  const existingIndex = records.findIndex((item) => item.userId === record.userId);
+  if (existingIndex === -1) return [record, ...records];
+  return records.map((item, index) => (index === existingIndex ? { ...item, ...record } : item));
+}
+
+function mergeOnboardingRecords(db: RentflowDb, sync: OnboardingSyncResponse): RentflowDb {
+  const records = sync.records;
+  return normalizeDb({
+    ...db,
+    authAccounts: upsertAuthAccount(db.authAccounts, records.authAccount),
+    users: upsertRecord(db.users, records.user),
+    properties: upsertRecord(db.properties, records.property),
+    contracts: records.contract ? upsertRecord(db.contracts, records.contract) : db.contracts,
+    onboardingInvites: records.invite
+      ? upsertRecord(db.onboardingInvites, records.invite)
+      : db.onboardingInvites,
+    documents: upsertRecords(db.documents, records.documents),
+    eligibilityChecks:
+      records.eligibilityCheck === undefined
+        ? db.eligibilityChecks
+        : records.eligibilityCheck
+          ? upsertRecord(db.eligibilityChecks, records.eligibilityCheck)
+          : db.eligibilityChecks,
+  });
 }
 
 
@@ -680,6 +804,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const dbBroadcastChannelRef = useRef<BroadcastChannel | null>(null);
   const hasServerDbRef = useRef(false);
   const pendingServerPersistRef = useRef<string | null>(null);
+  const serverRevisionRef = useRef<number | null>(null);
 
   // Async DB initialization — avoids blocking the main thread on first render.
   // We REMOVE any stale snapshot before loading so an old EMPTY_DB save never
@@ -697,6 +822,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
     loadDbStateAsync().then((loadedState) => {
       hasServerDbRef.current = loadedState.source === "server";
+      serverRevisionRef.current = loadedState.revision;
       lastPersistedDbRef.current = serializePersistableDbSnapshot(loadedState.db);
       setDb(loadedState.db);
       setIsReady(true);
@@ -714,11 +840,27 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       dbBroadcastChannelRef.current?.postMessage(nextSnapshot);
       if (hasServerDbRef.current) {
         pendingServerPersistRef.current = nextSnapshot;
-        persistServerDbAsync(persistableDb).then((ok) => {
+        const baseRevision = serverRevisionRef.current;
+        persistServerDbAsync(persistableDb, baseRevision).then((result) => {
           if (pendingServerPersistRef.current === nextSnapshot) {
             pendingServerPersistRef.current = null;
           }
-          if (!ok) {
+          if (result.stale && result.db) {
+            hasServerDbRef.current = true;
+            serverRevisionRef.current = result.revision ?? serverRevisionRef.current;
+            const serverSnapshot = serializePersistableDbSnapshot(result.db);
+            lastPersistedDbRef.current = serverSnapshot;
+            persistValue(DB_STORAGE_KEY, buildPersistableDbSnapshot(result.db));
+            dbBroadcastChannelRef.current?.postMessage(serverSnapshot);
+            setDb(result.db);
+            return;
+          }
+          if (result.ok) {
+            hasServerDbRef.current = true;
+            serverRevisionRef.current = result.revision ?? serverRevisionRef.current;
+            return;
+          }
+          if (!result.ok && !result.stale) {
             hasServerDbRef.current = false;
           }
         });
@@ -758,16 +900,17 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
     const syncDbFromServer = async () => {
       if (!hasServerDbRef.current || pendingServerPersistRef.current) return;
-      const serverDb = await loadServerDbAsync();
-      if (!serverDb) {
-        hasServerDbRef.current = false;
+      const serverState = await loadServerDbAsync();
+      if (!serverState) {
         return;
       }
-      const nextSnapshot = serializePersistableDbSnapshot(serverDb);
+      const nextSnapshot = serializePersistableDbSnapshot(serverState.db);
       if (nextSnapshot === lastPersistedDbRef.current) return;
+      hasServerDbRef.current = true;
+      serverRevisionRef.current = serverState.revision;
       lastPersistedDbRef.current = nextSnapshot;
-      persistValue(DB_STORAGE_KEY, buildPersistableDbSnapshot(serverDb));
-      setDb(serverDb);
+      persistValue(DB_STORAGE_KEY, buildPersistableDbSnapshot(serverState.db));
+      setDb(serverState.db);
     };
 
     const handleStorage = (event: StorageEvent) => {
@@ -833,19 +976,51 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const applyServerDb = (serverDb: RentflowDb) => {
+  const applyServerDb = (serverDb: RentflowDb, revision: number | null = serverRevisionRef.current) => {
     const nextSnapshot = serializePersistableDbSnapshot(serverDb);
     pendingServerPersistRef.current = null;
+    hasServerDbRef.current = true;
+    serverRevisionRef.current = revision;
     lastPersistedDbRef.current = nextSnapshot;
     persistValue(DB_STORAGE_KEY, buildPersistableDbSnapshot(serverDb));
     dbBroadcastChannelRef.current?.postMessage(nextSnapshot);
     setDb(serverDb);
   };
 
+  const applyOnboardingSync = (sync: OnboardingSyncResponse) => {
+    hasServerDbRef.current = true;
+    serverRevisionRef.current = sync.revision;
+    pendingServerPersistRef.current = null;
+    setDb((previousDb) => {
+      const nextDb = mergeOnboardingRecords(previousDb ?? EMPTY_DB, sync);
+      const nextSnapshot = serializePersistableDbSnapshot(nextDb);
+      lastPersistedDbRef.current = nextSnapshot;
+      persistValue(DB_STORAGE_KEY, buildPersistableDbSnapshot(nextDb));
+      dbBroadcastChannelRef.current?.postMessage(nextSnapshot);
+      return nextDb;
+    });
+  };
+
+  const syncOnboardingStatus = async (propertyId: string) => {
+    const sync = await fetchOnboardingStatus(propertyId);
+    if (sync) {
+      applyOnboardingSync(sync);
+    }
+  };
+
+  const postOnboardingAction = async (payload: Record<string, unknown>) => {
+    const sync = await postOnboardingMutation(ONBOARDING_ACTION_API_ENDPOINT, payload);
+    if (sync) {
+      applyOnboardingSync(sync);
+      return true;
+    }
+    return false;
+  };
+
   const login = async (email: string, password: string, propertyId?: string) => {
     const normalizedEmail = email.trim().toLowerCase();
 
-    if (hasServerDbRef.current) {
+    if (propertyId) {
       const result = await postOnboardingMutation(ONBOARDING_LOGIN_API_ENDPOINT, {
         email: normalizedEmail,
         password,
@@ -853,7 +1028,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       });
 
       if (result) {
-        applyServerDb(result.db);
+        applyOnboardingSync(result);
         setSession({ userId: result.userId });
         return;
       }
@@ -902,7 +1077,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const register = async ({ name, email, password, role, propertyId }: RegisterPayload) => {
     const normalizedEmail = email.trim().toLowerCase();
 
-    if (hasServerDbRef.current) {
+    if (propertyId) {
       const result = await postOnboardingMutation(ONBOARDING_REGISTER_API_ENDPOINT, {
         name,
         email: normalizedEmail,
@@ -912,7 +1087,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       });
 
       if (result) {
-        applyServerDb(result.db);
+        applyOnboardingSync(result);
         setSession({ userId: result.userId });
         return;
       }
@@ -968,10 +1143,15 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const resetDatabase = () => {
     const loadFreshDb = hasServerDbRef.current
-      ? resetServerDbAsync().then((serverDb) => serverDb ?? loadSeedDbAsync())
-      : loadSeedDbAsync();
+      ? resetServerDbAsync().then(
+          async (serverState) => serverState ?? { db: await loadSeedDbAsync(), revision: null },
+        )
+      : loadSeedDbAsync().then((seedDb) => ({ db: seedDb, revision: null }));
 
-    loadFreshDb.then((freshDb) => {
+    loadFreshDb.then((freshState) => {
+      const freshDb = freshState.db;
+      serverRevisionRef.current = freshState.revision;
+      hasServerDbRef.current = freshState.revision !== null;
       setDb(freshDb);
       if (session.userId) {
         const nextUser = freshDb.users.find((user) => user.id === session.userId);
@@ -1298,6 +1478,12 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         }
       });
     });
+    void postOnboardingAction({
+      action: "cancel",
+      landlordId,
+      propertyId: payload.propertyId,
+      tenantId: payload.tenantId,
+    });
   };
 
   const restartOnboarding = (userId: string) => {
@@ -1371,6 +1557,14 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         landlordCreditSkipApproved: Boolean(payload.landlordCreditSkipApproved),
       });
     });
+    void postOnboardingAction({
+      action: "invite",
+      landlordId,
+      propertyId: payload.propertyId,
+      tenantEmail: payload.tenantEmail,
+      tenantPhone: payload.tenantPhone,
+      landlordCreditSkipApproved: Boolean(payload.landlordCreditSkipApproved),
+    });
   };
 
   const setTenantCreditSkipApproval = (
@@ -1401,6 +1595,13 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         contractVisibilityStep: 2,
         landlordCreditSkipApproved: payload.approved,
       });
+    });
+    void postOnboardingAction({
+      action: "credit_skip_approval",
+      landlordId,
+      propertyId: payload.propertyId,
+      tenantEmail: payload.tenantEmail,
+      approved: payload.approved,
     });
   };
 
@@ -1793,6 +1994,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         clearSiteAccess,
         login,
         register,
+        applyOnboardingSync,
+        syncOnboardingStatus,
         logout,
         resetDatabase,
         updateUser,
