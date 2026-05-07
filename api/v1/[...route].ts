@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "http";
+import * as runtimeApi from "../../src/lib/runtimeApi";
 import type { RentflowDb, Role } from "../../src/types";
 import type {
   cancelTenantOnboardingOnServer,
@@ -37,7 +38,7 @@ function getRequestOrigin(req: Req) {
 }
 
 async function getRuntimeApi() {
-  return import("../../src/lib/runtimeApi.ts");
+  return runtimeApi;
 }
 
 async function readJsonBody<T>(req: Req): Promise<T> {
