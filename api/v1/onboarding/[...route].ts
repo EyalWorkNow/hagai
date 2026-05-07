@@ -37,7 +37,7 @@ function getRequestOrigin(req: Req) {
 }
 
 async function getRuntimeApi() {
-  return import("../runtimeApi");
+  return import("../runtimeApi.js");
 }
 
 async function readJsonBody<T>(req: Req): Promise<T> {
