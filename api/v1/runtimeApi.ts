@@ -1,5 +1,5 @@
 import os from "os";
-import seedDb from "./runtimeSeed.json";
+import { createRequire } from "module";
 import type {
   AuthAccount,
   Contract,
@@ -11,6 +11,9 @@ import type {
   Role,
   User,
 } from "../../src/types";
+
+const require = createRequire(import.meta.url);
+const seedDb = require("./runtimeSeed.json") as RentflowDb;
 
 export type OnboardingSyncResponse = {
   revision: number;
