@@ -320,6 +320,11 @@ function summarizeDbForDebug(db: RentflowDb) {
   };
 }
 
+function isServerDbEnvironmentEnabled() {
+  if (typeof window === "undefined") return false;
+  return ["localhost", "127.0.0.1", "::1", "[::1]"].includes(window.location.hostname);
+}
+
 function getResponseRevision(response: Response) {
   const rawRevision = response.headers.get("x-db-revision");
   if (!rawRevision) return null;
@@ -485,10 +490,12 @@ type LoadedDbState = {
   revision: number | null;
 };
 
-async function loadDbStateAsync(): Promise<LoadedDbState> {
-  const serverState = await loadServerDbAsync();
-  if (serverState) {
-    return { db: serverState.db, source: "server", revision: serverState.revision };
+async function loadDbStateAsync(serverDbEnabled: boolean): Promise<LoadedDbState> {
+  if (serverDbEnabled) {
+    const serverState = await loadServerDbAsync();
+    if (serverState) {
+      return { db: serverState.db, source: "server", revision: serverState.revision };
+    }
   }
 
   const seededDb = await loadSeedDbAsync();
@@ -874,6 +881,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const lastPersistedDbRef = useRef<string | null>(null);
   const dbBroadcastChannelRef = useRef<BroadcastChannel | null>(null);
   const hasServerDbRef = useRef(false);
+  const serverDbEnabledRef = useRef(isServerDbEnvironmentEnabled());
   const queuedServerPersistRef = useRef<QueuedServerPersist | null>(null);
   const activeServerPersistRef = useRef<string | null>(null);
   const serverRevisionRef = useRef<number | null>(null);
@@ -968,13 +976,18 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       try { window.localStorage.removeItem(DB_STORAGE_KEY); } catch { /* ignore */ }
     }
 
-    loadDbStateAsync().then((loadedState) => {
+    appendDebugLog("app.init.server_db_mode", {
+      enabled: serverDbEnabledRef.current,
+      hostname: typeof window !== "undefined" ? window.location.hostname : null,
+    });
+
+    loadDbStateAsync(serverDbEnabledRef.current).then((loadedState) => {
       appendDebugLog("app.init.loaded", {
         source: loadedState.source,
         revision: loadedState.revision,
         summary: summarizeDbForDebug(loadedState.db),
       });
-      hasServerDbRef.current = loadedState.source === "server";
+      hasServerDbRef.current = serverDbEnabledRef.current && loadedState.source === "server";
       serverRevisionRef.current = loadedState.revision;
       lastPersistedDbRef.current = serializePersistableDbSnapshot(loadedState.db);
       setDb(loadedState.db);
@@ -995,7 +1008,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         serverEnabled: hasServerDbRef.current,
         summary: summarizeDbForDebug(db),
       });
-      if (hasServerDbRef.current) {
+      if (serverDbEnabledRef.current && hasServerDbRef.current) {
         queueServerPersist(persistableDb, nextSnapshot);
       }
     }
@@ -1036,7 +1049,12 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     };
 
     const syncDbFromServer = async () => {
-      if (!hasServerDbRef.current || activeServerPersistRef.current || queuedServerPersistRef.current) return;
+      if (
+        !serverDbEnabledRef.current ||
+        !hasServerDbRef.current ||
+        activeServerPersistRef.current ||
+        queuedServerPersistRef.current
+      ) return;
       const serverState = await loadServerDbAsync();
       if (!serverState) {
         return;
@@ -1128,7 +1146,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     const nextSnapshot = serializePersistableDbSnapshot(serverDb);
     queuedServerPersistRef.current = null;
     activeServerPersistRef.current = null;
-    hasServerDbRef.current = true;
+    hasServerDbRef.current = serverDbEnabledRef.current;
     serverRevisionRef.current = revision;
     lastPersistedDbRef.current = nextSnapshot;
     persistValue(DB_STORAGE_KEY, buildPersistableDbSnapshot(serverDb));
@@ -1144,7 +1162,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       contractId: sync.records.contract?.id ?? null,
       onboardingStep: sync.records.user?.onboardingStep ?? null,
     });
-    hasServerDbRef.current = true;
+    hasServerDbRef.current = serverDbEnabledRef.current;
     serverRevisionRef.current = sync.revision;
     queuedServerPersistRef.current = null;
     activeServerPersistRef.current = null;
@@ -1312,7 +1330,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   };
 
   const resetDatabase = () => {
-    const loadFreshDb = hasServerDbRef.current
+    const loadFreshDb = serverDbEnabledRef.current && hasServerDbRef.current
       ? resetServerDbAsync().then(
           async (serverState) => serverState ?? { db: await loadSeedDbAsync(), revision: null },
         )
@@ -1321,7 +1339,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     loadFreshDb.then((freshState) => {
       const freshDb = freshState.db;
       serverRevisionRef.current = freshState.revision;
-      hasServerDbRef.current = freshState.revision !== null;
+      hasServerDbRef.current = serverDbEnabledRef.current && freshState.revision !== null;
       setDb(freshDb);
       if (session.userId) {
         const nextUser = freshDb.users.find((user) => user.id === session.userId);
