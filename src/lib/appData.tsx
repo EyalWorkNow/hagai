@@ -267,6 +267,12 @@ type ServerPersistResult = {
   revision?: number | null;
 };
 
+type QueuedServerPersist = {
+  db: RentflowDb;
+  snapshot: string;
+  staleRetries: number;
+};
+
 function getResponseRevision(response: Response) {
   const rawRevision = response.headers.get("x-db-revision");
   if (!rawRevision) return null;
@@ -803,8 +809,70 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const lastPersistedDbRef = useRef<string | null>(null);
   const dbBroadcastChannelRef = useRef<BroadcastChannel | null>(null);
   const hasServerDbRef = useRef(false);
-  const pendingServerPersistRef = useRef<string | null>(null);
+  const queuedServerPersistRef = useRef<QueuedServerPersist | null>(null);
+  const activeServerPersistRef = useRef<string | null>(null);
   const serverRevisionRef = useRef<number | null>(null);
+
+  const flushQueuedServerPersist = () => {
+    if (!hasServerDbRef.current || activeServerPersistRef.current || !queuedServerPersistRef.current) {
+      return;
+    }
+
+    const queuedPersist = queuedServerPersistRef.current;
+    queuedServerPersistRef.current = null;
+    activeServerPersistRef.current = queuedPersist.snapshot;
+
+    persistServerDbAsync(queuedPersist.db, serverRevisionRef.current).then((result) => {
+      if (activeServerPersistRef.current !== queuedPersist.snapshot) return;
+
+      if (result.stale) {
+        hasServerDbRef.current = true;
+        serverRevisionRef.current = result.revision ?? serverRevisionRef.current;
+
+        if (result.db) {
+          const serverSnapshot = serializePersistableDbSnapshot(result.db);
+          if (serverSnapshot === queuedPersist.snapshot) {
+            lastPersistedDbRef.current = serverSnapshot;
+            persistValue(DB_STORAGE_KEY, buildPersistableDbSnapshot(result.db));
+            dbBroadcastChannelRef.current?.postMessage(serverSnapshot);
+            return;
+          }
+        }
+
+        const canRetryWithFreshRevision =
+          serverRevisionRef.current !== null && queuedPersist.staleRetries < 2;
+        if (canRetryWithFreshRevision && !queuedServerPersistRef.current) {
+          queuedServerPersistRef.current = {
+            ...queuedPersist,
+            staleRetries: queuedPersist.staleRetries + 1,
+          };
+        } else if (!canRetryWithFreshRevision) {
+          hasServerDbRef.current = false;
+        }
+        return;
+      }
+
+      if (result.ok) {
+        hasServerDbRef.current = true;
+        serverRevisionRef.current = result.revision ?? serverRevisionRef.current;
+        return;
+      }
+
+      hasServerDbRef.current = false;
+    }).finally(() => {
+      if (activeServerPersistRef.current === queuedPersist.snapshot) {
+        activeServerPersistRef.current = null;
+      }
+      if (hasServerDbRef.current && queuedServerPersistRef.current) {
+        flushQueuedServerPersist();
+      }
+    });
+  };
+
+  const queueServerPersist = (persistableDb: RentflowDb, snapshot: string) => {
+    queuedServerPersistRef.current = { db: persistableDb, snapshot, staleRetries: 0 };
+    flushQueuedServerPersist();
+  };
 
   // Async DB initialization — avoids blocking the main thread on first render.
   // We REMOVE any stale snapshot before loading so an old EMPTY_DB save never
@@ -839,31 +907,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       persistValue(DB_STORAGE_KEY, persistableDb);
       dbBroadcastChannelRef.current?.postMessage(nextSnapshot);
       if (hasServerDbRef.current) {
-        pendingServerPersistRef.current = nextSnapshot;
-        const baseRevision = serverRevisionRef.current;
-        persistServerDbAsync(persistableDb, baseRevision).then((result) => {
-          if (pendingServerPersistRef.current === nextSnapshot) {
-            pendingServerPersistRef.current = null;
-          }
-          if (result.stale && result.db) {
-            hasServerDbRef.current = true;
-            serverRevisionRef.current = result.revision ?? serverRevisionRef.current;
-            const serverSnapshot = serializePersistableDbSnapshot(result.db);
-            lastPersistedDbRef.current = serverSnapshot;
-            persistValue(DB_STORAGE_KEY, buildPersistableDbSnapshot(result.db));
-            dbBroadcastChannelRef.current?.postMessage(serverSnapshot);
-            setDb(result.db);
-            return;
-          }
-          if (result.ok) {
-            hasServerDbRef.current = true;
-            serverRevisionRef.current = result.revision ?? serverRevisionRef.current;
-            return;
-          }
-          if (!result.ok && !result.stale) {
-            hasServerDbRef.current = false;
-          }
-        });
+        queueServerPersist(persistableDb, nextSnapshot);
       }
     }
   }, [db, isReady]);
@@ -899,7 +943,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     };
 
     const syncDbFromServer = async () => {
-      if (!hasServerDbRef.current || pendingServerPersistRef.current) return;
+      if (!hasServerDbRef.current || activeServerPersistRef.current || queuedServerPersistRef.current) return;
       const serverState = await loadServerDbAsync();
       if (!serverState) {
         return;
@@ -978,7 +1022,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const applyServerDb = (serverDb: RentflowDb, revision: number | null = serverRevisionRef.current) => {
     const nextSnapshot = serializePersistableDbSnapshot(serverDb);
-    pendingServerPersistRef.current = null;
+    queuedServerPersistRef.current = null;
+    activeServerPersistRef.current = null;
     hasServerDbRef.current = true;
     serverRevisionRef.current = revision;
     lastPersistedDbRef.current = nextSnapshot;
@@ -990,7 +1035,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const applyOnboardingSync = (sync: OnboardingSyncResponse) => {
     hasServerDbRef.current = true;
     serverRevisionRef.current = sync.revision;
-    pendingServerPersistRef.current = null;
+    queuedServerPersistRef.current = null;
+    activeServerPersistRef.current = null;
     setDb((previousDb) => {
       const nextDb = mergeOnboardingRecords(previousDb ?? EMPTY_DB, sync);
       const nextSnapshot = serializePersistableDbSnapshot(nextDb);
