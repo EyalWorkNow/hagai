@@ -2,7 +2,6 @@ import express from "express";
 import os from "os";
 import path from "path";
 import { pathToFileURL } from "url";
-import { createServer as createViteServer } from "vite";
 import seedDb from "./src/data/garim-po-db.json";
 import {
   formatChannelLabel,
@@ -994,6 +993,7 @@ async function startServer() {
   registerApi(app, "/api/v1");
 
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true, host: true },
       appType: "spa",
