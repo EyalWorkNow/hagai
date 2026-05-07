@@ -423,6 +423,14 @@ function registerUserForOnboarding(payload: {
 
   commitRuntimeDb([payload.propertyId]);
   const sync = getOnboardingSyncResponse(payload.propertyId, userId);
+  if (!sync) {
+    console.error("[register] getOnboardingSyncResponse returned null", {
+      propertyId: payload.propertyId,
+      userId,
+      property: findProperty(runtimeDb, payload.propertyId),
+      contractsForProperty: runtimeDb.contracts.filter(c => c.propertyId === payload.propertyId).map(c => ({ id: c.id, tenantId: c.tenantId, status: c.status })),
+    });
+  }
   return sync
     ? { sync, status: 200 as const }
     : { error: "סנכרון הדייר נכשל", status: 500 as const };

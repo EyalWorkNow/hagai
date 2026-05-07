@@ -1078,18 +1078,23 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     const normalizedEmail = email.trim().toLowerCase();
 
     if (propertyId) {
-      const result = await postOnboardingMutation(ONBOARDING_REGISTER_API_ENDPOINT, {
-        name,
-        email: normalizedEmail,
-        password,
-        role,
-        propertyId,
-      });
+      try {
+        const result = await postOnboardingMutation(ONBOARDING_REGISTER_API_ENDPOINT, {
+          name,
+          email: normalizedEmail,
+          password,
+          role,
+          propertyId,
+        });
 
-      if (result) {
-        applyOnboardingSync(result);
-        setSession({ userId: result.userId });
-        return;
+        if (result) {
+          applyOnboardingSync(result);
+          setSession({ userId: result.userId });
+          return;
+        }
+      } catch (err) {
+        // Server error (e.g. property not in server DB, network issue) — fall through to local registration
+        console.warn("[register] server registration failed, using local fallback:", err);
       }
     }
 
