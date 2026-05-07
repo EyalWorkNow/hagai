@@ -1,11 +1,11 @@
 import type { IncomingMessage, ServerResponse } from "http";
-import * as runtimeApi from "../../../src/lib/runtimeApi";
+import * as runtimeApi from "../runtimeApi";
 import type { RentflowDb, Role } from "../../../src/types";
 import type {
   cancelTenantOnboardingOnServer,
   inviteTenantForOnboarding,
   setCreditSkipApprovalForOnboarding,
-} from "../../../src/lib/runtimeApi";
+} from "../runtimeApi";
 
 type Req = IncomingMessage & {
   body?: unknown;
