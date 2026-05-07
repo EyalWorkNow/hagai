@@ -58,7 +58,7 @@ async function setRevisionHeader(res: ServerResponse) {
   res.setHeader("X-Db-Revision", String(getRuntimeDbRevision()));
 }
 
-export default async function handler(req: Req, res: ServerResponse) {
+async function routeRequest(req: Req, res: ServerResponse) {
   const url = parseUrl(req);
   const pathname = url.pathname.replace(/^\/api\/v1/, "") || "/";
   const method = req.method ?? "GET";
@@ -298,4 +298,18 @@ export default async function handler(req: Req, res: ServerResponse) {
   }
 
   sendJson(res, 404, { error: "Not found" });
+}
+
+export default async function handler(req: Req, res: ServerResponse) {
+  try {
+    await routeRequest(req, res);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown API error";
+    const code =
+      error && typeof error === "object" && "code" in error
+        ? String((error as { code?: unknown }).code)
+        : undefined;
+    console.error("[api/v1] request failed", error);
+    sendJson(res, 500, { error: "Internal server error", message, code });
+  }
 }
