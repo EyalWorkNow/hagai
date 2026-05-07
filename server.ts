@@ -1,4 +1,5 @@
 import express from "express";
+import os from "os";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import seedDb from "./src/data/garim-po-db.json";
@@ -52,11 +53,45 @@ function cloneDb(): RentflowDb {
   return normalizeDb(runtimeDb);
 }
 
+function getLanAddress() {
+  const interfaces = os.networkInterfaces();
+  for (const entries of Object.values(interfaces)) {
+    for (const entry of entries ?? []) {
+      if (entry.family === "IPv4" && !entry.internal) {
+        return entry.address;
+      }
+    }
+  }
+  return null;
+}
+
+function getPublicOrigin(req: express.Request) {
+  if (process.env.PUBLIC_APP_ORIGIN) {
+    return process.env.PUBLIC_APP_ORIGIN.replace(/\/$/, "");
+  }
+
+  const protocol = req.protocol || "http";
+  const host = req.get("host") ?? "";
+  const [hostname, port] = host.split(":");
+  const isLocalhost = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(hostname);
+
+  if (!isLocalhost) {
+    return `${protocol}://${host}`;
+  }
+
+  const lanAddress = getLanAddress();
+  return `${protocol}://${lanAddress ?? hostname}${port ? `:${port}` : ""}`;
+}
+
 function buildApi() {
   const router = express.Router();
 
   router.get("/health", (_req, res) => {
     res.json({ status: "ok", service: "garim-po-api" });
+  });
+
+  router.get("/public-origin", (req, res) => {
+    res.json({ origin: getPublicOrigin(req) });
   });
 
   router.get("/users", (_req, res) => res.json(cloneDb().users));

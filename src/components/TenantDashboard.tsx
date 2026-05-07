@@ -519,9 +519,27 @@ function TenantJoinProcessCard({
   const tenantConnected = Boolean(contract?.tenantQrScannedAt);
   const landlordConnected = Boolean(contract?.landlordQrScannedAt);
   const bothConnected = tenantConnected && landlordConnected;
-  const origin = typeof window === "undefined" ? "" : window.location.origin;
-  const tenantQrLink = `${origin}/?tenantId=${user.id}`;
-  const propertyInviteLink = contract?.propertyId ? `${origin}/?propertyId=${contract.propertyId}` : origin;
+  const [publicOrigin, setPublicOrigin] = useState(getInitialPublicOrigin);
+  const tenantQrLink = publicOrigin ? `${publicOrigin}/?tenantId=${user.id}` : "";
+  const propertyInviteLink =
+    publicOrigin && contract?.propertyId ? `${publicOrigin}/?propertyId=${contract.propertyId}` : publicOrigin;
+
+  useEffect(() => {
+    let isMounted = true;
+    fetch("/api/v1/public-origin", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        if (isMounted && payload?.origin) {
+          setPublicOrigin(String(payload.origin));
+        }
+      })
+      .catch(() => {
+        // Keep the current browser origin as a fallback.
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   return (
     <section className="dashboard-card overflow-hidden p-5 md:p-7">
@@ -533,21 +551,30 @@ function TenantJoinProcessCard({
           </p>
           <button 
             onClick={() => {
+              if (!propertyInviteLink) return;
               navigator.clipboard.writeText(propertyInviteLink);
               alert("הקישור הועתק ללוח!");
             }}
-            className="mt-3 flex items-center gap-2 text-xs font-black text-blue-600 hover:text-blue-700 transition-colors"
+            disabled={!propertyInviteLink}
+            className={cn(
+              "mt-3 flex items-center gap-2 text-xs font-black text-blue-600 hover:text-blue-700 transition-colors",
+              !propertyInviteLink && "cursor-not-allowed opacity-50",
+            )}
           >
             <Link2 size={14} />
             <span>העתק קישור נכס</span>
           </button>
         </div>
         <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[18px] bg-white p-1 md:h-16 md:w-16 md:rounded-[20px] shadow-sm">
-          <img 
-            src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(tenantQrLink)}`}
-            alt="קוד QR של הדייר"
-            className="h-full w-full object-contain"
-          />
+          {tenantQrLink ? (
+            <img 
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(tenantQrLink)}`}
+              alt="קוד QR של הדייר"
+              className="h-full w-full object-contain"
+            />
+          ) : (
+            <LoaderCircle className="animate-spin text-slate-300" size={24} />
+          )}
         </div>
       </div>
 
@@ -1422,6 +1449,12 @@ function formatCurrency(amount: number) {
     currency: "ILS",
     maximumFractionDigits: 0,
   }).format(amount);
+}
+
+function getInitialPublicOrigin() {
+  if (typeof window === "undefined") return "";
+  const isLocalHost = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+  return isLocalHost ? "" : window.location.origin;
 }
 
 function getTodayDate() {

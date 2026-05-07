@@ -1008,16 +1008,35 @@ function InviteTenantModal({
     Boolean(existingInvite?.landlordCreditSkipApproved),
   );
   const [isSent, setIsSent] = useState(false);
+  const [publicOrigin, setPublicOrigin] = useState(getInitialPublicOrigin);
   const processStatus = onboardingSnapshot.status;
   const activeTenantEmail = onboardingSnapshot.activeTenantEmail ?? email.trim().toLowerCase();
   const canCancelConnection = Boolean(tenant && !tenant.onboardingComplete);
   const currentStepTitle = tenant ? TENANT_ONBOARDING_STEPS[onboardingSnapshot.stepIndex] : null;
+  const tenantInviteLink = publicOrigin ? `${publicOrigin}/?propertyId=${property.id}` : "";
 
   useEffect(() => {
     setEmail(tenant?.email ?? existingInvite?.tenantEmail ?? "");
     setPhone(tenant?.phone ?? existingInvite?.tenantPhone ?? "");
     setLandlordCreditSkipApproved(Boolean(existingInvite?.landlordCreditSkipApproved));
   }, [existingInvite?.landlordCreditSkipApproved, existingInvite?.tenantEmail, existingInvite?.tenantPhone, tenant?.email, tenant?.phone]);
+
+  useEffect(() => {
+    let isMounted = true;
+    fetch("/api/v1/public-origin", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        if (isMounted && payload?.origin) {
+          setPublicOrigin(String(payload.origin));
+        }
+      })
+      .catch(() => {
+        // Keep the current browser origin as a fallback.
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleCreditSkipChange = (approved: boolean) => {
     setLandlordCreditSkipApproved(approved);
@@ -1055,11 +1074,17 @@ function InviteTenantModal({
                 <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6">QR לשוכר (סריקה מהירה)</p>
                 <div className="relative overflow-hidden rounded-[28px] border border-slate-100 bg-white p-4 shadow-xl transition-transform duration-500 group-hover:scale-[1.02] sm:p-6 sm:rounded-[32px]">
                   <div className="absolute inset-0 bg-[linear-gradient(to_bottom,transparent_49%,#3b82f6_50%,#3b82f6_51%,transparent_52%)] bg-[length:100%_200%] animate-[scan_3s_linear_infinite] opacity-10 pointer-events-none"></div>
-                  <img 
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&ecc=M&margin=10&data=${encodeURIComponent(window.location.origin + "/?propertyId=" + property.id)}`}
-                    alt="Scan for onboarding"
-                    className="h-40 w-40 rounded-xl relative z-10"
-                  />
+                  {tenantInviteLink ? (
+                    <img 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&ecc=M&margin=10&data=${encodeURIComponent(tenantInviteLink)}`}
+                      alt="Scan for onboarding"
+                      className="h-40 w-40 rounded-xl relative z-10"
+                    />
+                  ) : (
+                    <div className="relative z-10 flex h-40 w-40 items-center justify-center rounded-xl bg-slate-50 text-center text-[11px] font-black leading-5 text-slate-400">
+                      מכין קישור רשת למובייל
+                    </div>
+                  )}
                 </div>
                 <p className="mt-8 text-sm font-bold leading-relaxed text-slate-500">
                   הצג את הקוד לשוכר לסריקה. לאחר הסריקה הוא יועבר ישירות לתהליך ההרשמה במכשיר שלו.
@@ -1067,22 +1092,30 @@ function InviteTenantModal({
                 <div className="mt-6 flex flex-col w-full gap-3">
                   <button 
                     onClick={() => {
-                      const link = window.location.origin + "/?propertyId=" + property.id;
-                      navigator.clipboard.writeText(link);
+                      if (!tenantInviteLink) return;
+                      navigator.clipboard.writeText(tenantInviteLink);
                       alert("הקישור הועתק ללוח!");
                     }}
-                    className="w-full py-3 bg-slate-100 text-slate-900 rounded-xl font-black text-xs hover:bg-slate-200 active:scale-95 transition-all flex items-center justify-center gap-2"
+                    disabled={!tenantInviteLink}
+                    className={cn(
+                      "w-full py-3 bg-slate-100 text-slate-900 rounded-xl font-black text-xs hover:bg-slate-200 active:scale-95 transition-all flex items-center justify-center gap-2",
+                      !tenantInviteLink && "cursor-not-allowed opacity-50",
+                    )}
                   >
                     <Copy size={14} />
                     <span>העתק קישור להצטרפות</span>
                   </button>
                   <button 
                     onClick={() => {
-                      const link = window.location.origin + "/?propertyId=" + property.id;
-                      const message = encodeURIComponent(`היי! מוזמן להתחיל את תהליך ההצטרפות לדירה ב-${property.address} דרך ${BRAND_NAME} בקישור הבא: ${link}`);
+                      if (!tenantInviteLink) return;
+                      const message = encodeURIComponent(`היי! מוזמן להתחיל את תהליך ההצטרפות לדירה ב-${property.address} דרך ${BRAND_NAME} בקישור הבא: ${tenantInviteLink}`);
                       window.open(`https://wa.me/${phone.replace(/\D/g, '')}?text=${message}`, '_blank');
                     }}
-                    className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-black text-xs shadow-lg hover:bg-emerald-600 active:scale-95 transition-all flex items-center justify-center gap-2"
+                    disabled={!tenantInviteLink}
+                    className={cn(
+                      "w-full py-4 bg-emerald-500 text-white rounded-2xl font-black text-xs shadow-lg hover:bg-emerald-600 active:scale-95 transition-all flex items-center justify-center gap-2",
+                      !tenantInviteLink && "cursor-not-allowed opacity-50",
+                    )}
                   >
                     <span>שלח הזמנה בוואטסאפ</span>
                   </button>
@@ -1258,6 +1291,12 @@ function Input({ label, value, onChange, placeholder, type = "text", autoFocus =
       />
     </div>
   );
+}
+
+function getInitialPublicOrigin() {
+  if (typeof window === "undefined") return "";
+  const isLocalHost = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+  return isLocalHost ? "" : window.location.origin;
 }
 
 function TransferItem({ payment, index }: { payment: Payment, index: number }) {
