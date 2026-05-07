@@ -24,6 +24,8 @@ const DB_STORAGE_KEY = "garim-po-json-db-v1";
 const DB_BROADCAST_CHANNEL = "garim-po-db-sync";
 const DB_API_ENDPOINT = "/api/v1/db";
 const DB_RESET_API_ENDPOINT = "/api/v1/db/reset";
+const ONBOARDING_REGISTER_API_ENDPOINT = "/api/v1/onboarding/register";
+const ONBOARDING_LOGIN_API_ENDPOINT = "/api/v1/onboarding/login";
 const SESSION_STORAGE_KEY = "garim-po-session";
 const SITE_ACCESS_SESSION_STORAGE_KEY = "garim-po-site-access-session";
 const SITE_ACCESS_ACTIVATIONS_STORAGE_KEY = "garim-po-site-access-activations";
@@ -143,9 +145,9 @@ type AppDataContextValue = {
   isReady: boolean;
   requestSiteAccess: (username: string, password: string) => void;
   clearSiteAccess: () => void;
-  login: (email: string, password: string, propertyId?: string) => void;
-  register: (payload: RegisterPayload) => void;
-  linkProperty: (userId: string, propertyId: string) => void;
+  login: (email: string, password: string, propertyId?: string) => Promise<void>;
+  register: (payload: RegisterPayload) => Promise<void>;
+  linkProperty: (userId: string, propertyId: string) => Promise<void>;
   logout: () => void;
   resetDatabase: () => void;
   updateUser: (userId: string, patch: Partial<User>) => void;
@@ -264,6 +266,38 @@ async function resetServerDbAsync(): Promise<RentflowDb | null> {
     return normalizeDb((await response.json()) as RentflowDb);
   } catch {
     return null;
+  }
+}
+
+async function postOnboardingMutation(
+  endpoint: string,
+  payload: Record<string, unknown>,
+): Promise<{ db: RentflowDb; userId: string } | null> {
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const responsePayload = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      throw new Error(responsePayload?.error || "פעולת הסנכרון מול השרת נכשלה");
+    }
+
+    if (!responsePayload?.db || !responsePayload?.userId) {
+      return null;
+    }
+
+    return {
+      db: normalizeDb(responsePayload.db as RentflowDb),
+      userId: String(responsePayload.userId),
+    };
+  } catch (error) {
+    if (error instanceof TypeError) {
+      return null;
+    }
+    throw error;
   }
 }
 
@@ -757,7 +791,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     const intervalId = window.setInterval(() => {
       syncDbFromStorage();
       void syncDbFromServer();
-    }, 1500);
+    }, 500);
 
     return () => {
       window.removeEventListener("storage", handleStorage);
@@ -799,8 +833,32 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const login = (email: string, password: string, propertyId?: string) => {
+  const applyServerDb = (serverDb: RentflowDb) => {
+    const nextSnapshot = serializePersistableDbSnapshot(serverDb);
+    pendingServerPersistRef.current = null;
+    lastPersistedDbRef.current = nextSnapshot;
+    persistValue(DB_STORAGE_KEY, buildPersistableDbSnapshot(serverDb));
+    dbBroadcastChannelRef.current?.postMessage(nextSnapshot);
+    setDb(serverDb);
+  };
+
+  const login = async (email: string, password: string, propertyId?: string) => {
     const normalizedEmail = email.trim().toLowerCase();
+
+    if (hasServerDbRef.current) {
+      const result = await postOnboardingMutation(ONBOARDING_LOGIN_API_ENDPOINT, {
+        email: normalizedEmail,
+        password,
+        propertyId,
+      });
+
+      if (result) {
+        applyServerDb(result.db);
+        setSession({ userId: result.userId });
+        return;
+      }
+    }
+
     const account = db.authAccounts.find(
       (candidate) =>
         candidate.email.toLowerCase() === normalizedEmail && candidate.password === password,
@@ -841,8 +899,25 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     setSiteAccessSession(result.session);
   };
 
-  const register = ({ name, email, password, role, propertyId }: RegisterPayload) => {
+  const register = async ({ name, email, password, role, propertyId }: RegisterPayload) => {
     const normalizedEmail = email.trim().toLowerCase();
+
+    if (hasServerDbRef.current) {
+      const result = await postOnboardingMutation(ONBOARDING_REGISTER_API_ENDPOINT, {
+        name,
+        email: normalizedEmail,
+        password,
+        role,
+        propertyId,
+      });
+
+      if (result) {
+        applyServerDb(result.db);
+        setSession({ userId: result.userId });
+        return;
+      }
+    }
+
     if (db.authAccounts.some((account) => account.email.toLowerCase() === normalizedEmail)) {
       throw new Error("האימייל כבר בשימוש");
     }
@@ -874,7 +949,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     setSession({ userId });
   };
 
-  const linkProperty = (userId: string, propertyId: string) => {
+  const linkProperty = async (userId: string, propertyId: string) => {
     applyDbUpdate((nextDb) => {
       const user = findUser(nextDb, userId);
       if (!user || user.role !== "tenant") return;

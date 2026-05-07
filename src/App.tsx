@@ -576,28 +576,28 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
 
   // When coming from a QR invite (propertyId present), skip role selection — always register as tenant
   if (showRoleSelection && pendingDraft) {
-    if (activePropertyId) {
-      // Auto-register as tenant immediately
-      register({
-        name: pendingDraft.name,
-        email: pendingDraft.email,
-        password: pendingDraft.password,
-        role: "tenant",
-        propertyId: activePropertyId,
-      });
-      window.history.replaceState({}, document.title, window.location.pathname);
-      return null;
-    }
     return (
       <RoleSelection
-        onSelect={(role) => {
-          register({
-            name: pendingDraft.name,
-            email: pendingDraft.email,
-            password: pendingDraft.password,
-            role,
-            propertyId: role === "tenant" ? activePropertyId : undefined,
-          });
+        onSelect={async (role) => {
+          setError(null);
+          setIsLoading(true);
+          try {
+            await register({
+              name: pendingDraft.name,
+              email: pendingDraft.email,
+              password: pendingDraft.password,
+              role,
+              propertyId: role === "tenant" ? activePropertyId : undefined,
+            });
+            if (activePropertyId) {
+              window.history.replaceState({}, document.title, window.location.pathname);
+            }
+          } catch (err: any) {
+            console.error(err);
+            setError(err?.message || "אירעה שגיאה לא צפויה");
+          } finally {
+            setIsLoading(false);
+          }
         }}
       />
     );
@@ -616,7 +616,7 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
 
         if (activePropertyId) {
           // QR invite flow — register directly as tenant, no role selection
-          register({
+          await register({
             name: name.trim(),
             email: email.trim().toLowerCase(),
             password,
@@ -634,7 +634,7 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
           setShowRoleSelection(true);
         }
       } else {
-        login(email, password, activePropertyId);
+        await login(email, password, activePropertyId);
         if (activePropertyId) {
           window.history.replaceState({}, document.title, window.location.pathname);
         }
@@ -647,7 +647,7 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
     }
   };
 
-  const handleDemoLogin = (demoEmail: string) => {
+  const handleDemoLogin = async (demoEmail: string) => {
     setIsRegister(false);
     setEmail(demoEmail);
     setPassword("123123");
@@ -662,7 +662,12 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
     
     setName(usernameMap[demoEmail] || demoEmail.split('@')[0]);
     setError(null);
-    login(demoEmail, "123123", activePropertyId);
+    try {
+      await login(demoEmail, "123123", activePropertyId);
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message || "אירעה שגיאה לא צפויה");
+    }
   };
 
   const handleGoogleStyleLogin = () => {
