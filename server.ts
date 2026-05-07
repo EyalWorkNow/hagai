@@ -12,7 +12,32 @@ import {
   getRevenueByChannel,
   getTenantHeroFinancials,
 } from "./src/lib/analytics";
-import { RentflowDb } from "./src/types";
+import type {
+  AuthAccount,
+  Contract,
+  DocumentRecord,
+  EligibilityCheck,
+  OnboardingInvite,
+  Property,
+  RentflowDb,
+  Role,
+  User,
+} from "./src/types";
+
+type OnboardingSyncResponse = {
+  revision: number;
+  userId: string | null;
+  propertyId: string;
+  records: {
+    user: User | null;
+    authAccount?: AuthAccount;
+    property: Property;
+    contract: Contract | null;
+    invite: OnboardingInvite | null;
+    documents: DocumentRecord[];
+    eligibilityCheck?: EligibilityCheck | null;
+  };
+};
 
 function normalizeDb(rawDb: RentflowDb): RentflowDb {
   const db = structuredClone(rawDb);
@@ -34,6 +59,7 @@ function normalizeDb(rawDb: RentflowDb): RentflowDb {
   db.integrations = db.integrations ?? [];
   db.transactions = db.transactions ?? [];
   db.supportIssues = db.supportIssues ?? [];
+  db.authAccounts = db.authAccounts ?? [];
   db.paymentRetries = db.paymentRetries ?? [];
   db.utilityCharges = db.utilityCharges ?? [];
   db.transfers = db.transfers ?? [];
@@ -48,9 +74,516 @@ function normalizeDb(rawDb: RentflowDb): RentflowDb {
 }
 
 let runtimeDb = normalizeDb(seedDb as RentflowDb);
+let runtimeDbRevision = 1;
+const onboardingSubscribers = new Map<string, Set<express.Response>>();
 
 function cloneDb(): RentflowDb {
   return normalizeDb(runtimeDb);
+}
+
+function setDbRevisionHeader(res: express.Response) {
+  res.setHeader("X-Db-Revision", String(runtimeDbRevision));
+}
+
+function getClientDbRevision(req: express.Request) {
+  const rawRevision = req.get("x-db-base-revision");
+  if (!rawRevision) return null;
+  const revision = Number(rawRevision);
+  return Number.isFinite(revision) ? revision : null;
+}
+
+function buildId(prefix: string) {
+  return `${prefix}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function todayIso() {
+  return nowIso().slice(0, 10);
+}
+
+function oneYearFromTodayIso() {
+  const endDate = new Date();
+  endDate.setFullYear(endDate.getFullYear() + 1);
+  return endDate.toISOString().slice(0, 10);
+}
+
+function findUser(db: RentflowDb, userId: string) {
+  return db.users.find((user) => user.id === userId) ?? null;
+}
+
+function findProperty(db: RentflowDb, propertyId: string) {
+  return db.properties.find((property) => property.id === propertyId) ?? null;
+}
+
+function findOnboardingContractForProperty(db: RentflowDb, propertyId: string, tenantId?: string) {
+  return (
+    db.contracts.find(
+      (contract) =>
+        contract.propertyId === propertyId &&
+        (!tenantId || contract.tenantId === tenantId) &&
+        contract.status !== "active" &&
+        contract.status !== "expired",
+    ) ??
+    db.contracts.find(
+      (contract) =>
+        contract.propertyId === propertyId &&
+        (!tenantId || contract.tenantId === tenantId) &&
+        contract.status !== "expired",
+    ) ??
+    null
+  );
+}
+
+function getOnboardingPropertyIdForUser(db: RentflowDb, userId: string) {
+  const contract = db.contracts.find(
+    (item) => item.tenantId === userId && item.status !== "expired",
+  );
+  if (contract) return contract.propertyId;
+  return db.properties.find((property) => property.tenantId === userId)?.id ?? null;
+}
+
+function getOnboardingSyncResponse(
+  propertyId: string,
+  preferredUserId?: string | null,
+): OnboardingSyncResponse | null {
+  const property = findProperty(runtimeDb, propertyId);
+  if (!property) return null;
+
+  const tenant =
+    (preferredUserId ? findUser(runtimeDb, preferredUserId) : null) ??
+    (property.tenantId ? findUser(runtimeDb, property.tenantId) : null);
+  const contract = findOnboardingContractForProperty(runtimeDb, property.id, tenant?.id);
+  const tenantEmail = tenant?.email.trim().toLowerCase();
+  const invite =
+    runtimeDb.onboardingInvites.find(
+      (item) =>
+        item.propertyId === property.id &&
+        tenantEmail &&
+        item.tenantEmail.toLowerCase() === tenantEmail &&
+        item.status !== "completed",
+    ) ??
+    runtimeDb.onboardingInvites.find(
+      (item) => item.propertyId === property.id && item.status !== "completed",
+    ) ??
+    null;
+  const documents = contract
+    ? runtimeDb.documents.filter(
+        (document) => document.ownerType === "contract" && document.ownerId === contract.id,
+      )
+    : [];
+  const eligibilityCheck = tenant
+    ? runtimeDb.eligibilityChecks.find((check) => check.tenantId === tenant.id) ?? null
+    : null;
+  const authAccount = tenant
+    ? runtimeDb.authAccounts.find((account) => account.userId === tenant.id)
+    : undefined;
+
+  return {
+    revision: runtimeDbRevision,
+    userId: tenant?.id ?? null,
+    propertyId: property.id,
+    records: {
+      user: tenant ?? null,
+      authAccount,
+      property,
+      contract,
+      invite,
+      documents,
+      eligibilityCheck,
+    },
+  };
+}
+
+function writeOnboardingEvent(res: express.Response, payload: OnboardingSyncResponse) {
+  res.write(`event: onboarding-sync\n`);
+  res.write(`data: ${JSON.stringify(payload)}\n\n`);
+}
+
+function notifyOnboardingSubscribers(propertyId: string) {
+  const subscribers = onboardingSubscribers.get(propertyId);
+  if (!subscribers?.size) return;
+  const payload = getOnboardingSyncResponse(propertyId);
+  if (!payload) return;
+  for (const subscriber of subscribers) {
+    writeOnboardingEvent(subscriber, payload);
+  }
+}
+
+function notifyAllOnboardingSubscribers() {
+  for (const propertyId of onboardingSubscribers.keys()) {
+    notifyOnboardingSubscribers(propertyId);
+  }
+}
+
+function commitRuntimeDb(propertyIds: Array<string | null | undefined>) {
+  runtimeDb = normalizeDb(runtimeDb);
+  runtimeDbRevision += 1;
+  const uniquePropertyIds = [...new Set(propertyIds.filter(Boolean) as string[])];
+  for (const propertyId of uniquePropertyIds) {
+    notifyOnboardingSubscribers(propertyId);
+  }
+}
+
+function getOnboardingPropertyIds(db: RentflowDb) {
+  const propertyIds = new Set<string>();
+  db.properties.forEach((property) => {
+    if (property.tenantId) propertyIds.add(property.id);
+  });
+  db.contracts.forEach((contract) => {
+    if (contract.status !== "expired") propertyIds.add(contract.propertyId);
+  });
+  db.onboardingInvites.forEach((invite) => {
+    if (invite.status !== "completed") propertyIds.add(invite.propertyId);
+  });
+  return propertyIds;
+}
+
+function upsertOnboardingInvite(
+  db: RentflowDb,
+  payload: {
+    landlordId?: string;
+    propertyId: string;
+    tenantEmail: string;
+    tenantPhone?: string;
+    status?: "sent" | "opened" | "completed";
+    contractVisibilityStep?: 1 | 2 | 4;
+    landlordCreditSkipApproved?: boolean;
+  },
+) {
+  const normalizedEmail = payload.tenantEmail.trim().toLowerCase();
+  const existing = db.onboardingInvites.find(
+    (invite) =>
+      invite.propertyId === payload.propertyId &&
+      invite.tenantEmail.toLowerCase() === normalizedEmail,
+  );
+
+  if (existing) {
+    existing.tenantEmail = normalizedEmail;
+    existing.tenantPhone = payload.tenantPhone ?? existing.tenantPhone;
+    existing.status = payload.status ?? existing.status;
+    existing.contractVisibilityStep =
+      payload.contractVisibilityStep ?? existing.contractVisibilityStep;
+    if (payload.landlordCreditSkipApproved !== undefined) {
+      existing.landlordCreditSkipApproved = payload.landlordCreditSkipApproved;
+    }
+    return existing;
+  }
+
+  const invite = {
+    id: buildId("invite"),
+    landlordId: payload.landlordId ?? findProperty(db, payload.propertyId)?.landlordId ?? "",
+    tenantEmail: normalizedEmail,
+    tenantPhone: payload.tenantPhone,
+    propertyId: payload.propertyId,
+    sentAt: nowIso(),
+    status: payload.status ?? "sent",
+    contractVisibilityStep: payload.contractVisibilityStep ?? 2,
+    landlordCreditSkipApproved: Boolean(payload.landlordCreditSkipApproved),
+  };
+
+  db.onboardingInvites.unshift(invite);
+  return invite;
+}
+
+function startTenantOnboardingForProperty(db: RentflowDb, userId: string, propertyId: string) {
+  const user = findUser(db, userId);
+  const property = findProperty(db, propertyId);
+  if (!user || user.role !== "tenant" || !property) return;
+
+  const tenantEmail = user.email.trim().toLowerCase();
+  db.onboardingInvites.forEach((invite) => {
+    if (
+      invite.propertyId === property.id &&
+      invite.tenantEmail.toLowerCase() !== tenantEmail &&
+      invite.status !== "completed"
+    ) {
+      invite.status = "completed";
+    }
+  });
+
+  property.tenantId = user.id;
+  property.status = "occupied";
+  user.onboardingComplete = false;
+  user.onboardingStep = 0;
+  user.kycStatus = "pending";
+  user.bdiStatus = "pending";
+  user.bdiReason = undefined;
+  user.statusLabel = undefined;
+
+  upsertOnboardingInvite(db, {
+    landlordId: property.landlordId,
+    propertyId: property.id,
+    tenantEmail,
+    tenantPhone: user.phone,
+    status: "opened",
+    contractVisibilityStep: 2,
+  });
+
+  const existingContract = db.contracts.find(
+    (contract) =>
+      contract.propertyId === property.id &&
+      contract.tenantId === user.id &&
+      contract.status !== "active" &&
+      contract.status !== "expired",
+  );
+
+  if (existingContract) {
+    existingContract.propertyAddress = property.address;
+    existingContract.landlordId = property.landlordId;
+    existingContract.tenantName = user.name;
+    existingContract.rentAmount = property.rent;
+    existingContract.buildingCommitteeAmount = property.costs?.buildingCommittee ?? 0;
+    existingContract.arnonaAmount = property.costs?.arnona ?? 0;
+    existingContract.utilityPaymentMode = "separate";
+    existingContract.monthlyPaymentAmount = property.rent;
+    existingContract.status = "waiting_kyc";
+    existingContract.tenantQrScannedAt = nowIso();
+    existingContract.landlordQrScannedAt = undefined;
+    existingContract.contractUploadedAt = undefined;
+    existingContract.contractClausesApprovedAt = undefined;
+    existingContract.signedByTenantAt = undefined;
+    existingContract.signedByLandlordAt = undefined;
+    return;
+  }
+
+  const contractId = buildId("contract");
+  db.contracts.unshift({
+    id: contractId,
+    propertyId: property.id,
+    propertyAddress: property.address,
+    landlordId: property.landlordId,
+    tenantId: user.id,
+    tenantName: user.name,
+    rentAmount: property.rent,
+    buildingCommitteeAmount: property.costs?.buildingCommittee ?? 0,
+    arnonaAmount: property.costs?.arnona ?? 0,
+    utilityPaymentMode: "separate",
+    monthlyPaymentAmount: property.rent,
+    startDate: todayIso(),
+    endDate: oneYearFromTodayIso(),
+    status: "waiting_kyc",
+    guaranteeType: "bank",
+    createdAt: nowIso(),
+    templateId: "template_standard",
+    tenantQrScannedAt: nowIso(),
+  });
+
+  db.documents.unshift({
+    id: buildId("document"),
+    ownerType: "contract",
+    ownerId: contractId,
+    label: "טיוטת חוזה שכירות",
+    category: "contract",
+    status: "pending",
+  });
+}
+
+function registerUserForOnboarding(payload: {
+  name: string;
+  email: string;
+  password: string;
+  role: Role;
+  propertyId: string;
+}) {
+  const normalizedEmail = payload.email.trim().toLowerCase();
+  if (runtimeDb.authAccounts.some((account) => account.email.toLowerCase() === normalizedEmail)) {
+    return { error: "האימייל כבר בשימוש", status: 409 as const };
+  }
+
+  const property = findProperty(runtimeDb, payload.propertyId);
+  if (!property) {
+    return { error: "הנכס לא נמצא במערכת", status: 404 as const };
+  }
+
+  const userId = buildId(payload.role);
+  runtimeDb.authAccounts.push({
+    userId,
+    email: normalizedEmail,
+    password: payload.password,
+  });
+  runtimeDb.users.push({
+    id: userId,
+    name: payload.name,
+    email: normalizedEmail,
+    role: payload.role,
+    phone: "",
+    kycStatus: payload.role === "tenant" ? "pending" : "approved",
+    bdiStatus: payload.role === "tenant" ? "pending" : "green",
+    onboardingStep: payload.role === "tenant" ? 0 : 5,
+    onboardingComplete: payload.role !== "tenant",
+    createdAt: nowIso(),
+  });
+
+  if (payload.role === "tenant") {
+    startTenantOnboardingForProperty(runtimeDb, userId, payload.propertyId);
+  }
+
+  commitRuntimeDb([payload.propertyId]);
+  const sync = getOnboardingSyncResponse(payload.propertyId, userId);
+  return sync
+    ? { sync, status: 200 as const }
+    : { error: "סנכרון הדייר נכשל", status: 500 as const };
+}
+
+function loginUserForOnboarding(payload: {
+  email: string;
+  password: string;
+  propertyId: string;
+}) {
+  const normalizedEmail = payload.email.trim().toLowerCase();
+  const property = findProperty(runtimeDb, payload.propertyId);
+  if (!property) {
+    return { error: "הנכס לא נמצא במערכת", status: 404 as const };
+  }
+
+  const account = runtimeDb.authAccounts.find(
+    (candidate) =>
+      candidate.email.toLowerCase() === normalizedEmail && candidate.password === payload.password,
+  );
+
+  if (!account) {
+    return { error: "פרטי התחברות שגויים", status: 401 as const };
+  }
+
+  startTenantOnboardingForProperty(runtimeDb, account.userId, payload.propertyId);
+
+  commitRuntimeDb([payload.propertyId]);
+  const sync = getOnboardingSyncResponse(payload.propertyId, account.userId);
+  return sync
+    ? { sync, status: 200 as const }
+    : { error: "סנכרון הדייר נכשל", status: 500 as const };
+}
+
+function inviteTenantForOnboarding(payload: {
+  landlordId: string;
+  propertyId: string;
+  tenantEmail: string;
+  tenantPhone?: string;
+  landlordCreditSkipApproved?: boolean;
+}) {
+  const property = findProperty(runtimeDb, payload.propertyId);
+  if (!property || property.landlordId !== payload.landlordId) {
+    return { error: "הנכס לא נמצא עבור המשכיר", status: 404 as const };
+  }
+
+  upsertOnboardingInvite(runtimeDb, {
+    landlordId: payload.landlordId,
+    propertyId: property.id,
+    tenantEmail: payload.tenantEmail,
+    tenantPhone: payload.tenantPhone,
+    status: "sent",
+    contractVisibilityStep: 2,
+    landlordCreditSkipApproved: Boolean(payload.landlordCreditSkipApproved),
+  });
+
+  commitRuntimeDb([property.id]);
+  const sync = getOnboardingSyncResponse(property.id);
+  return sync
+    ? { sync, status: 200 as const }
+    : { error: "סנכרון ההזמנה נכשל", status: 500 as const };
+}
+
+function setCreditSkipApprovalForOnboarding(payload: {
+  landlordId: string;
+  propertyId: string;
+  tenantEmail?: string;
+  approved: boolean;
+}) {
+  const property = findProperty(runtimeDb, payload.propertyId);
+  if (!property || property.landlordId !== payload.landlordId) {
+    return { error: "הנכס לא נמצא עבור המשכיר", status: 404 as const };
+  }
+
+  const tenant =
+    (property.tenantId ? findUser(runtimeDb, property.tenantId) : null) ??
+    runtimeDb.users.find(
+      (candidate) =>
+        payload.tenantEmail &&
+        candidate.email.toLowerCase() === payload.tenantEmail.toLowerCase(),
+    ) ??
+    null;
+  const tenantEmail = (payload.tenantEmail || tenant?.email || "").trim().toLowerCase();
+  if (!tenantEmail) {
+    return { error: "לא נמצא דייר לעדכון אישור דילוג", status: 400 as const };
+  }
+
+  upsertOnboardingInvite(runtimeDb, {
+    landlordId: payload.landlordId,
+    propertyId: property.id,
+    tenantEmail,
+    tenantPhone: tenant?.phone,
+    status: tenant ? "opened" : "sent",
+    contractVisibilityStep: 2,
+    landlordCreditSkipApproved: payload.approved,
+  });
+
+  commitRuntimeDb([property.id]);
+  const sync = getOnboardingSyncResponse(property.id, tenant?.id);
+  return sync
+    ? { sync, status: 200 as const }
+    : { error: "סנכרון אישור הדילוג נכשל", status: 500 as const };
+}
+
+function cancelTenantOnboardingOnServer(payload: {
+  landlordId: string;
+  propertyId: string;
+  tenantId: string;
+}) {
+  const property = findProperty(runtimeDb, payload.propertyId);
+  const tenant = findUser(runtimeDb, payload.tenantId);
+  if (!property || property.landlordId !== payload.landlordId || !tenant || tenant.role !== "tenant") {
+    return { error: "לא ניתן לבטל את תהליך החיבור", status: 404 as const };
+  }
+
+  const tenantEmail = tenant.email.toLowerCase();
+  runtimeDb.contracts
+    .filter(
+      (contract) =>
+        contract.propertyId === property.id &&
+        contract.tenantId === tenant.id &&
+        contract.status !== "active" &&
+        contract.status !== "expired",
+    )
+    .forEach((contract) => {
+      contract.status = "expired";
+      contract.tenantQrScannedAt = undefined;
+      contract.landlordQrScannedAt = undefined;
+      contract.contractUploadedAt = undefined;
+      contract.contractClausesApprovedAt = undefined;
+      contract.signedByTenantAt = undefined;
+      contract.signedByLandlordAt = undefined;
+    });
+
+  if (property.tenantId === tenant.id) {
+    property.tenantId = undefined;
+    property.status = "vacant";
+  }
+
+  tenant.onboardingComplete = false;
+  tenant.onboardingStep = 0;
+  tenant.kycStatus = "pending";
+  tenant.bdiStatus = "pending";
+  tenant.bdiReason = undefined;
+  tenant.statusLabel = "תהליך חיבור בוטל";
+
+  runtimeDb.onboardingInvites.forEach((invite) => {
+    if (
+      invite.propertyId === property.id &&
+      invite.tenantEmail.toLowerCase() === tenantEmail &&
+      invite.status !== "completed"
+    ) {
+      invite.status = "completed";
+    }
+  });
+
+  commitRuntimeDb([property.id]);
+  const sync = getOnboardingSyncResponse(property.id);
+  return sync
+    ? { sync, status: 200 as const }
+    : { error: "סנכרון ביטול החיבור נכשל", status: 500 as const };
 }
 
 function getLanAddress() {
@@ -102,11 +635,13 @@ function buildApi() {
   router.get("/integrations", (_req, res) => res.json(cloneDb().integrations ?? []));
 
   router.get("/db", (_req, res) => {
+    setDbRevisionHeader(res);
     res.json(cloneDb());
   });
 
   router.put("/db", (req, res) => {
     const incomingDb = req.body as Partial<RentflowDb>;
+    const clientRevision = getClientDbRevision(req);
 
     if (
       !incomingDb ||
@@ -118,19 +653,223 @@ function buildApi() {
       return;
     }
 
-    runtimeDb = normalizeDb({
+    if (runtimeDbRevision > 1 && (clientRevision === null || clientRevision < runtimeDbRevision)) {
+      setDbRevisionHeader(res);
+      res.status(409).json({
+        error: "Database snapshot is stale",
+        revision: runtimeDbRevision,
+        db: cloneDb(),
+      });
+      return;
+    }
+
+    const nextRuntimeDb = normalizeDb({
       ...runtimeDb,
       ...incomingDb,
       integrations: runtimeDb.integrations,
       transactions: runtimeDb.transactions,
       supportIssues: runtimeDb.supportIssues,
     } as RentflowDb);
+    const affectedPropertyIds = new Set([
+      ...getOnboardingPropertyIds(runtimeDb),
+      ...getOnboardingPropertyIds(nextRuntimeDb),
+    ]);
+    runtimeDb = nextRuntimeDb;
+    runtimeDbRevision += 1;
+    setDbRevisionHeader(res);
+    for (const propertyId of affectedPropertyIds) {
+      notifyOnboardingSubscribers(propertyId);
+    }
     res.json(cloneDb());
   });
 
   router.post("/db/reset", (_req, res) => {
     runtimeDb = normalizeDb(seedDb as RentflowDb);
+    runtimeDbRevision += 1;
+    setDbRevisionHeader(res);
+    notifyAllOnboardingSubscribers();
     res.json(cloneDb());
+  });
+
+  router.get("/onboarding/status", (req, res) => {
+    const propertyId = typeof req.query.propertyId === "string" ? req.query.propertyId : "";
+    if (!propertyId) {
+      res.status(400).json({ error: "Missing propertyId" });
+      return;
+    }
+
+    const sync = getOnboardingSyncResponse(propertyId);
+    if (!sync) {
+      res.status(404).json({ error: "Property not found" });
+      return;
+    }
+
+    setDbRevisionHeader(res);
+    res.json(sync);
+  });
+
+  router.get("/onboarding/events", (req, res) => {
+    const propertyId = typeof req.query.propertyId === "string" ? req.query.propertyId : "";
+    if (!propertyId) {
+      res.status(400).json({ error: "Missing propertyId" });
+      return;
+    }
+
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    });
+    res.write(": connected\n\n");
+
+    const subscribers = onboardingSubscribers.get(propertyId) ?? new Set<express.Response>();
+    subscribers.add(res);
+    onboardingSubscribers.set(propertyId, subscribers);
+
+    const currentSync = getOnboardingSyncResponse(propertyId);
+    if (currentSync) {
+      writeOnboardingEvent(res, currentSync);
+    }
+
+    const keepAlive = setInterval(() => {
+      res.write(": keep-alive\n\n");
+    }, 25000);
+
+    req.on("close", () => {
+      clearInterval(keepAlive);
+      subscribers.delete(res);
+      if (!subscribers.size) {
+        onboardingSubscribers.delete(propertyId);
+      }
+    });
+  });
+
+  router.post("/onboarding/register", (req, res) => {
+    const payload = req.body as {
+      name?: string;
+      email?: string;
+      password?: string;
+      role?: Role;
+      propertyId?: string;
+    };
+
+    if (
+      !payload.name?.trim() ||
+      !payload.email?.trim() ||
+      !payload.password?.trim() ||
+      !payload.role ||
+      !payload.propertyId?.trim()
+    ) {
+      res.status(400).json({ error: "Missing registration fields" });
+      return;
+    }
+
+    const result = registerUserForOnboarding({
+      name: payload.name.trim(),
+      email: payload.email,
+      password: payload.password,
+      role: payload.role,
+      propertyId: payload.propertyId,
+    });
+
+    if ("error" in result) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+
+    setDbRevisionHeader(res);
+    res.json(result.sync);
+  });
+
+  router.post("/onboarding/login", (req, res) => {
+    const payload = req.body as {
+      email?: string;
+      password?: string;
+      propertyId?: string;
+    };
+
+    if (!payload.email?.trim() || !payload.password?.trim() || !payload.propertyId?.trim()) {
+      res.status(400).json({ error: "Missing login fields" });
+      return;
+    }
+
+    const result = loginUserForOnboarding({
+      email: payload.email,
+      password: payload.password,
+      propertyId: payload.propertyId,
+    });
+
+    if ("error" in result) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+
+    setDbRevisionHeader(res);
+    res.json(result.sync);
+  });
+
+  router.post("/onboarding/action", (req, res) => {
+    const payload = req.body as {
+      action?: string;
+      landlordId?: string;
+      propertyId?: string;
+      tenantId?: string;
+      tenantEmail?: string;
+      tenantPhone?: string;
+      approved?: boolean;
+      landlordCreditSkipApproved?: boolean;
+    };
+    let result:
+      | ReturnType<typeof inviteTenantForOnboarding>
+      | ReturnType<typeof setCreditSkipApprovalForOnboarding>
+      | ReturnType<typeof cancelTenantOnboardingOnServer>;
+
+    if (payload.action === "invite") {
+      if (!payload.landlordId || !payload.propertyId || !payload.tenantEmail?.trim()) {
+        res.status(400).json({ error: "Missing invite fields" });
+        return;
+      }
+      result = inviteTenantForOnboarding({
+        landlordId: payload.landlordId,
+        propertyId: payload.propertyId,
+        tenantEmail: payload.tenantEmail,
+        tenantPhone: payload.tenantPhone,
+        landlordCreditSkipApproved: Boolean(payload.landlordCreditSkipApproved),
+      });
+    } else if (payload.action === "credit_skip_approval") {
+      if (!payload.landlordId || !payload.propertyId || payload.approved === undefined) {
+        res.status(400).json({ error: "Missing approval fields" });
+        return;
+      }
+      result = setCreditSkipApprovalForOnboarding({
+        landlordId: payload.landlordId,
+        propertyId: payload.propertyId,
+        tenantEmail: payload.tenantEmail,
+        approved: payload.approved,
+      });
+    } else if (payload.action === "cancel") {
+      if (!payload.landlordId || !payload.propertyId || !payload.tenantId) {
+        res.status(400).json({ error: "Missing cancel fields" });
+        return;
+      }
+      result = cancelTenantOnboardingOnServer({
+        landlordId: payload.landlordId,
+        propertyId: payload.propertyId,
+        tenantId: payload.tenantId,
+      });
+    } else {
+      res.status(400).json({ error: "Unsupported onboarding action" });
+      return;
+    }
+
+    if ("error" in result) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+
+    setDbRevisionHeader(res);
+    res.json(result.sync);
   });
 
   router.get("/dashboard/admin", (_req, res) => {

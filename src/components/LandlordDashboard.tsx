@@ -998,6 +998,7 @@ function InviteTenantModal({
   onCancelOnboarding: (tenantId: string) => void;
   onClose: () => void;
 }) {
+  const { applyOnboardingSync, syncOnboardingStatus } = useAppData();
   const onboardingSnapshot = getTenantOnboardingSnapshot(property, contracts, users, invites);
   const tenant = onboardingSnapshot.tenant;
   const currentTenant = onboardingSnapshot.currentTenant;
@@ -1037,6 +1038,41 @@ function InviteTenantModal({
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let lastEventAt = Date.now();
+    let eventSource: EventSource | null = null;
+
+    void syncOnboardingStatus(property.id);
+
+    if (typeof EventSource !== "undefined") {
+      eventSource = new EventSource(
+        `/api/v1/onboarding/events?propertyId=${encodeURIComponent(property.id)}`,
+      );
+      eventSource.addEventListener("onboarding-sync", (event) => {
+        lastEventAt = Date.now();
+        try {
+          applyOnboardingSync(JSON.parse((event as MessageEvent).data));
+        } catch {
+          void syncOnboardingStatus(property.id);
+        }
+      });
+      eventSource.onerror = () => {
+        lastEventAt = 0;
+      };
+    }
+
+    const fallbackInterval = window.setInterval(() => {
+      if (Date.now() - lastEventAt > 900) {
+        void syncOnboardingStatus(property.id);
+      }
+    }, 1000);
+
+    return () => {
+      window.clearInterval(fallbackInterval);
+      eventSource?.close();
+    };
+  }, [property.id]);
 
   const handleCreditSkipChange = (approved: boolean) => {
     setLandlordCreditSkipApproved(approved);
