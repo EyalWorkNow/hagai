@@ -65,7 +65,7 @@ export default function LandlordDashboard({ user }: { user: User }) {
   );
 
   // Derived Metrics
-  const { totalMonthlyIncome, occupiedCount, vacantCount, pendingPaymentsNum, failedPaymentsNum, openServiceCalls, featuredProperty, featuredCosts } = useMemo(() => {
+  const { totalMonthlyIncome, occupiedCount, vacantCount, pendingPaymentsNum, failedPaymentsNum, openServiceCalls } = useMemo(() => {
     const totalMonthlyIncome = properties.reduce((acc, p) => acc + (p.status === "occupied" ? p.rent : 0), 0);
     const occupiedCount = properties.filter(p => p.status === "occupied").length;
     const vacantCount = properties.length - occupiedCount;
@@ -76,22 +76,59 @@ export default function LandlordDashboard({ user }: { user: User }) {
     }).length;
     const failedPaymentsNum = payments.filter(p => p.status === "failed").length;
     const openServiceCalls = serviceCalls.filter((call) => call.status !== "closed").length;
-    const featuredProperty = properties.find((property) => property.status === "occupied") ?? properties[0] ?? null;
-    const featuredCosts = featuredProperty?.costs ?? {
-      buildingCommittee: 0,
-      arnona: 0,
-      utilities: 0,
-    };
-    
-    return { totalMonthlyIncome, occupiedCount, vacantCount, pendingPaymentsNum, failedPaymentsNum, openServiceCalls, featuredProperty, featuredCosts };
+    return { totalMonthlyIncome, occupiedCount, vacantCount, pendingPaymentsNum, failedPaymentsNum, openServiceCalls };
   }, [properties, payments, serviceCalls]);
+
+  // Prefer a property with an active in-progress onboarding over one with a completed tenant,
+  // so the overview reflects the tenant the landlord is currently waiting for.
+  const featuredProperty = useMemo(() => {
+    const withActiveOnboarding = properties.find((p) => {
+      const s = getTenantOnboardingSnapshot(p, contracts, db.users, db.onboardingInvites);
+      return Boolean((s.tenant && !s.tenant.onboardingComplete) || s.invite);
+    });
+    return withActiveOnboarding ?? properties.find((p) => p.status === "occupied") ?? properties[0] ?? null;
+  }, [properties, contracts, db]);
+
+  const featuredCosts = featuredProperty?.costs ?? { buildingCommittee: 0, arnona: 0, utilities: 0 };
+
   const featuredOnboarding = useMemo(
     () =>
       featuredProperty
         ? getTenantOnboardingSnapshot(featuredProperty, contracts, db.users, db.onboardingInvites)
         : null,
-    [contracts, db, featuredProperty],
+    [featuredProperty, contracts, db],
   );
+
+  // Diagnostic logs — emitted whenever the landlord's DB slice changes so we can trace
+  // whether server updates are reaching the dashboard and which onboarding sessions are visible.
+  useEffect(() => {
+    const sessions = properties.map((p) =>
+      getTenantOnboardingSnapshot(p, contracts, db.users, db.onboardingInvites),
+    );
+    const activeSessions = sessions.filter((s) => Boolean(s.tenant || s.invite));
+    console.debug("[landlord] db.update.received", {
+      users: db.users.length,
+      properties: properties.length,
+      contracts: contracts.length,
+      invites: db.onboardingInvites.length,
+    });
+    console.debug("[landlord] property.filter", {
+      landlordId: user.id,
+      count: properties.length,
+      ids: properties.map((p) => p.id.slice(-6)),
+    });
+    console.debug("[landlord] onboarding.sessions.count", { total: sessions.length, active: activeSessions.length });
+    console.debug("[landlord] visible.sessions.count", activeSessions.length);
+    for (const s of activeSessions) {
+      console.debug("[landlord] render.session", {
+        propertyId: (s.contract?.propertyId ?? s.invite?.propertyId ?? "").slice(-6),
+        tenant: s.tenant?.email ?? null,
+        invite: s.invite?.tenantEmail ?? null,
+        stepIndex: s.stepIndex,
+        status: s.status,
+      });
+    }
+  }, [db, properties, contracts, user.id]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 text-right" dir="rtl">
