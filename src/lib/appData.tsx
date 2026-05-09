@@ -322,7 +322,11 @@ function summarizeDbForDebug(db: RentflowDb) {
 
 function isServerDbEnvironmentEnabled() {
   if (typeof window === "undefined") return false;
-  return ["localhost", "127.0.0.1", "::1", "[::1]"].includes(window.location.hostname);
+  const { hostname, port } = window.location;
+  if (["localhost", "127.0.0.1", "::1", "[::1]"].includes(hostname)) return true;
+  // Non-standard port means the app is served by the local Express+Vite dev server,
+  // even when accessed via LAN IP from a mobile device scanning a QR code.
+  return port !== "" && port !== "80" && port !== "443";
 }
 
 function getResponseRevision(response: Response) {
@@ -332,9 +336,14 @@ function getResponseRevision(response: Response) {
   return Number.isFinite(revision) ? revision : null;
 }
 
-async function loadServerDbAsync(): Promise<ServerDbResult | null> {
+async function loadServerDbAsync(sinceRevision?: number | null): Promise<ServerDbResult | null> {
   try {
-    const response = await fetch(DB_API_ENDPOINT, { cache: "no-store" });
+    const headers: Record<string, string> = {};
+    if (sinceRevision != null) {
+      headers["x-db-base-revision"] = String(sinceRevision);
+    }
+    const response = await fetch(DB_API_ENDPOINT, { cache: "no-store", headers });
+    if (response.status === 304) return null;
     if (!response.ok) return null;
     const revision = getResponseRevision(response);
     appendDebugLog("db.load_server.success", { revision, status: response.status });
@@ -1055,7 +1064,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         activeServerPersistRef.current ||
         queuedServerPersistRef.current
       ) return;
-      const serverState = await loadServerDbAsync();
+      const serverState = await loadServerDbAsync(serverRevisionRef.current);
       if (!serverState) {
         return;
       }

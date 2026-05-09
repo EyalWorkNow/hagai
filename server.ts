@@ -197,8 +197,12 @@ function getOnboardingSyncResponse(
 }
 
 function writeOnboardingEvent(res: express.Response, payload: OnboardingSyncResponse) {
-  res.write(`event: onboarding-sync\n`);
-  res.write(`data: ${JSON.stringify(payload)}\n\n`);
+  try {
+    res.write(`event: onboarding-sync\n`);
+    res.write(`data: ${JSON.stringify(payload)}\n\n`);
+  } catch {
+    // Socket was destroyed before the close event cleaned up the subscriber — safe to ignore
+  }
 }
 
 function notifyOnboardingSubscribers(propertyId: string) {
@@ -641,7 +645,12 @@ function buildApi() {
   router.get("/transactions", (_req, res) => res.json(cloneDb().transactions ?? []));
   router.get("/integrations", (_req, res) => res.json(cloneDb().integrations ?? []));
 
-  router.get("/db", (_req, res) => {
+  router.get("/db", (req, res) => {
+    const clientRevision = getClientDbRevision(req);
+    if (clientRevision !== null && clientRevision >= runtimeDbRevision) {
+      res.status(304).end();
+      return;
+    }
     setDbRevisionHeader(res);
     res.json(cloneDb());
   });
