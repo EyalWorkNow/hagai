@@ -761,41 +761,58 @@ function buildApi() {
     });
   });
 
-  router.post("/onboarding/register", (req, res) => {
-    const payload = req.body as {
-      name?: string;
-      email?: string;
-      password?: string;
-      role?: Role;
-      propertyId?: string;
-    };
+  router.post("/onboarding/register", (req, res, next) => {
+    try {
+      const payload = req.body as {
+        name?: string;
+        email?: string;
+        password?: string;
+        role?: Role;
+        propertyId?: string;
+      };
 
-    if (
-      !payload.name?.trim() ||
-      !payload.email?.trim() ||
-      !payload.password?.trim() ||
-      !payload.role ||
-      !payload.propertyId?.trim()
-    ) {
-      res.status(400).json({ error: "Missing registration fields" });
-      return;
+      console.log("[register] incoming", {
+        ip: req.ip,
+        contentType: req.get("content-type"),
+        bodyKeys: payload ? Object.keys(payload) : null,
+        hasName: Boolean(payload?.name),
+        hasEmail: Boolean(payload?.email),
+        hasPropertyId: Boolean(payload?.propertyId),
+      });
+
+      if (
+        !payload?.name?.trim() ||
+        !payload?.email?.trim() ||
+        !payload?.password?.trim() ||
+        !payload?.role ||
+        !payload?.propertyId?.trim()
+      ) {
+        console.log("[register] validation failed", payload);
+        res.status(400).json({ error: "Missing registration fields" });
+        return;
+      }
+
+      const result = registerUserForOnboarding({
+        name: payload.name.trim(),
+        email: payload.email,
+        password: payload.password,
+        role: payload.role,
+        propertyId: payload.propertyId,
+      });
+
+      if ("error" in result) {
+        console.log("[register] business error", result.error, result.status);
+        res.status(result.status).json({ error: result.error });
+        return;
+      }
+
+      console.log("[register] success", { userId: result.sync.userId, propertyId: result.sync.propertyId });
+      setDbRevisionHeader(res);
+      res.json(result.sync);
+    } catch (err) {
+      console.error("[register] unexpected exception", err);
+      next(err);
     }
-
-    const result = registerUserForOnboarding({
-      name: payload.name.trim(),
-      email: payload.email,
-      password: payload.password,
-      role: payload.role,
-      propertyId: payload.propertyId,
-    });
-
-    if ("error" in result) {
-      res.status(result.status).json({ error: result.error });
-      return;
-    }
-
-    setDbRevisionHeader(res);
-    res.json(result.sync);
   });
 
   router.post("/onboarding/login", (req, res) => {
@@ -986,6 +1003,17 @@ function registerApi(app: express.Express, mountPath = "/api/v1") {
   app.use(express.json({ limit: "25mb" }));
   app.use(mountPath, buildApi());
   app.set("trust proxy", true);
+  // Catch any unhandled exception from API routes and return JSON (not Express's default HTML 500).
+  // Without this, a thrown exception (e.g. writing to a destroyed SSE socket) produces an HTML
+  // response that the client can't parse, triggering the silent local-fallback path.
+  app.use(mountPath, ((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    console.error("[api.error]", err?.message ?? err);
+    if (!res.headersSent) {
+      res.status(err?.status ?? err?.statusCode ?? 500).json({
+        error: err?.message || "שגיאה פנימית בשרת",
+      });
+    }
+  }) as express.ErrorRequestHandler);
   return app;
 }
 

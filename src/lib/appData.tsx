@@ -430,9 +430,17 @@ async function postOnboardingMutation(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const responsePayload = await response.json().catch(() => null);
+    const rawText = await response.text().catch(() => "");
+    let responsePayload: any = null;
+    try { responsePayload = rawText ? JSON.parse(rawText) : null; } catch { /* ignore */ }
 
     if (!response.ok) {
+      appendDebugLog("mutation.error", {
+        endpoint,
+        status: response.status,
+        rawText: rawText.slice(0, 400),
+        errorField: responsePayload?.error ?? null,
+      });
       throw new Error(responsePayload?.error || "פעולת הסנכרון מול השרת נכשלה");
     }
 
