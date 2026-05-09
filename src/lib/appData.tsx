@@ -996,6 +996,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     appendDebugLog("app.init.server_db_mode", {
       enabled: serverDbEnabledRef.current,
       hostname: typeof window !== "undefined" ? window.location.hostname : null,
+      port: typeof window !== "undefined" ? (window.location.port || "(default)") : null,
+      origin: typeof window !== "undefined" ? window.location.origin : null,
     });
 
     loadDbStateAsync(serverDbEnabledRef.current).then((loadedState) => {
