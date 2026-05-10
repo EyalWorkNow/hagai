@@ -1,42 +1,7 @@
-var __create = Object.create;
-var __defProp = Object.defineProperty;
-var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
-var __getOwnPropNames = Object.getOwnPropertyNames;
-var __getProtoOf = Object.getPrototypeOf;
-var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, { get: all[name], enumerable: true });
-};
-var __copyProps = (to, from, except, desc) => {
-  if (from && typeof from === "object" || typeof from === "function") {
-    for (let key of __getOwnPropNames(from))
-      if (!__hasOwnProp.call(to, key) && key !== except)
-        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
-  }
-  return to;
-};
-var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
-  // If the importer is in node compatibility mode or this is not an ESM
-  // file that has been converted to a CommonJS file using a Babel-
-  // compatible transform (i.e. "__esModule" has not been set), then set
-  // "default" to the CommonJS "module.exports" for node compatibility.
-  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
-  mod
-));
-var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
-
-// api/index.ts
-var index_exports = {};
-__export(index_exports, {
-  default: () => index_default
-});
-module.exports = __toCommonJS(index_exports);
-
 // server.ts
-var import_config = require("dotenv/config");
-var import_express = __toESM(require("express"), 1);
-var import_os = __toESM(require("os"), 1);
+import "dotenv/config";
+import express from "express";
+import os from "os";
 
 // src/data/garim-po-db.json
 var garim_po_db_default = {
@@ -420752,17 +420717,17 @@ var garim_po_db_default = {
 };
 
 // server-supabase.ts
-var import_supabase_js = require("@supabase/supabase-js");
-var import_ws = __toESM(require("ws"), 1);
+import { createClient } from "@supabase/supabase-js";
+import ws from "ws";
 var STATE_ROW_ID = "main";
 function createSupabaseClient() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
-  return (0, import_supabase_js.createClient)(url, key, {
+  return createClient(url, key, {
     auth: { persistSession: false },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    realtime: { transport: import_ws.default }
+    realtime: { transport: ws }
   });
 }
 var client = createSupabaseClient();
@@ -421340,7 +421305,7 @@ function cancelTenantOnboardingOnServer(payload) {
   return sync ? { sync, status: 200 } : { error: "\u05E1\u05E0\u05DB\u05E8\u05D5\u05DF \u05D1\u05D9\u05D8\u05D5\u05DC \u05D4\u05D7\u05D9\u05D1\u05D5\u05E8 \u05E0\u05DB\u05E9\u05DC", status: 500 };
 }
 function getLanAddress() {
-  const interfaces = import_os.default.networkInterfaces();
+  const interfaces = os.networkInterfaces();
   for (const entries of Object.values(interfaces)) {
     for (const entry of entries ?? []) {
       if (entry.family === "IPv4" && !entry.internal) {
@@ -421365,7 +421330,7 @@ function getPublicOrigin(req) {
   return `${protocol}://${lanAddress ?? hostname}${port ? `:${port}` : ""}`;
 }
 function buildApi() {
-  const router = import_express.default.Router();
+  const router = express.Router();
   router.use((_req, _res, next) => {
     ensureSupabaseState().then(() => next()).catch(next);
   });
@@ -421667,7 +421632,7 @@ function buildApi() {
   return router;
 }
 function registerApi(app, mountPath = "/api/v1") {
-  app.use(import_express.default.json({ limit: "25mb" }));
+  app.use(express.json({ limit: "25mb" }));
   app.use(mountPath, buildApi());
   app.set("trust proxy", true);
   app.use(mountPath, ((err, _req, res, _next) => {
@@ -421681,8 +421646,11 @@ function registerApi(app, mountPath = "/api/v1") {
   return app;
 }
 function createApiApp(mountPath = "/api/v1") {
-  return registerApi((0, import_express.default)(), mountPath);
+  return registerApi(express(), mountPath);
 }
 
 // api/index.ts
 var index_default = createApiApp("/api/v1");
+export {
+  index_default as default
+};
