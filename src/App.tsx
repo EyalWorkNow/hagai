@@ -738,24 +738,48 @@ export function WelcomeScreen({ propertyId }: { propertyId?: string }) {
              <div className="grid items-start gap-8 md:grid-cols-[1fr_0.8fr] md:gap-12">
                 {/* Form Side */}
                 <div className="space-y-8">
-                   <div className="flex items-center gap-4">
+                   <div className="grid grid-cols-2 gap-4 p-1.5 bg-slate-100/50 rounded-[28px] border border-slate-200/50">
                       <button 
+                        type="button"
                         onClick={() => setIsRegister(true)}
                         className={cn(
-                          "flex-1 py-4 rounded-2xl font-black text-sm transition-all",
-                          isRegister ? "bg-slate-950 text-white shadow-xl" : "bg-slate-50 text-slate-400 hover:bg-slate-100"
+                          "flex flex-col items-center gap-3 py-6 rounded-[22px] transition-all duration-500 relative overflow-hidden group",
+                          isRegister 
+                            ? "bg-white text-slate-900 shadow-[0_10px_40px_rgba(0,0,0,0.08)] scale-100" 
+                            : "text-slate-400 hover:text-slate-600 scale-[0.98]"
                         )}
                       >
-                         יצירת חשבון דייר
+                         {isRegister && <motion.div layoutId="active-pill" className="absolute inset-0 bg-white" transition={{ type: "spring", bounce: 0.2, duration: 0.6 }} />}
+                         <div className="relative z-10 flex flex-col items-center gap-3">
+                            <div className={cn(
+                              "h-12 w-12 rounded-2xl flex items-center justify-center transition-all duration-500",
+                              isRegister ? "bg-slate-900 text-white shadow-lg shadow-slate-900/20 rotate-0" : "bg-slate-200/50 text-slate-400 -rotate-6"
+                            )}>
+                               <UserPlus size={22} />
+                            </div>
+                            <span className="font-black text-[13px] tracking-tight italic">יצירת חשבון דייר</span>
+                         </div>
                       </button>
                       <button 
+                        type="button"
                         onClick={() => setIsRegister(false)}
                         className={cn(
-                          "flex-1 py-4 rounded-2xl font-black text-sm transition-all",
-                          !isRegister ? "bg-slate-950 text-white shadow-xl" : "bg-slate-50 text-slate-400 hover:bg-slate-100"
+                          "flex flex-col items-center gap-3 py-6 rounded-[22px] transition-all duration-500 relative overflow-hidden group",
+                          !isRegister 
+                            ? "bg-white text-slate-900 shadow-[0_10px_40px_rgba(0,0,0,0.08)] scale-100" 
+                            : "text-slate-400 hover:text-slate-600 scale-[0.98]"
                         )}
                       >
-                         כניסת משתמש קיים
+                         {!isRegister && <motion.div layoutId="active-pill" className="absolute inset-0 bg-white" transition={{ type: "spring", bounce: 0.2, duration: 0.6 }} />}
+                         <div className="relative z-10 flex flex-col items-center gap-3">
+                            <div className={cn(
+                              "h-12 w-12 rounded-2xl flex items-center justify-center transition-all duration-500",
+                              !isRegister ? "bg-slate-900 text-white shadow-lg shadow-slate-900/20 rotate-0" : "bg-slate-200/50 text-slate-400 rotate-6"
+                            )}>
+                               <LogIn size={22} />
+                            </div>
+                            <span className="font-black text-[13px] tracking-tight italic">כניסת משתמש קיים</span>
+                         </div>
                       </button>
                    </div>
 
