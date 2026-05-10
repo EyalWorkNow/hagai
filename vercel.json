@@ -3,12 +3,12 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "functions": {
-    "api/index.ts": {
+    "api/bundle.js": {
       "maxDuration": 30
     }
   },
   "rewrites": [
-    { "source": "/api/v1/:path*", "destination": "/api/index" },
+    { "source": "/api/v1/:path*", "destination": "/api/bundle" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "tsx dev-server.ts",
     "start": "NODE_ENV=production node --import tsx/esm server.ts",
-    "build": "vite build",
+    "build:api": "esbuild api/index.ts --bundle --platform=node --target=node20 --packages=external --outfile=api/bundle.js --log-level=info",
+    "build": "npm run build:api && vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
