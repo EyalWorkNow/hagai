@@ -203,6 +203,21 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
   const hasRequiredIdentity = draft.idPhotoUploaded && draft.selfieUploaded && hasValidOptionalIdentity && hasValidOptionalPhone;
   const isCreditApproved = user.bdiStatus === "green";
   const landlordCreditSkipApproved = draft.landlordCreditSkipApproved || Boolean(activeInvite?.landlordCreditSkipApproved);
+
+  // Auto-advance when both conditions are true: landlord approved skip AND tenant submitted request
+  useEffect(() => {
+    if (
+      currentStep === 2 &&
+      landlordCreditSkipApproved &&
+      !isCreditApproved &&
+      eligibilityCheck?.status === "pending"
+    ) {
+      persistAgreement();
+      skipEligibilityCheck(user.id, activeContract?.landlordId);
+      moveToStep(3);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [landlordCreditSkipApproved, eligibilityCheck?.status]);
   const hasRequiredDocuments = draft.clausesApproved;
   const hasRequiredBankDetails =
     Boolean(draft.bankId) &&
