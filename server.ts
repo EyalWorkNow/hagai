@@ -223,6 +223,23 @@ function notifyAllOnboardingSubscribers() {
   }
 }
 
+let supabaseStateLoaded = false;
+
+async function ensureSupabaseState() {
+  if (supabaseStateLoaded || !isSupabaseEnabled) return;
+  supabaseStateLoaded = true;
+  try {
+    const saved = await loadDbFromSupabase();
+    if (saved) {
+      runtimeDb = normalizeDb(saved.db);
+      runtimeDbRevision = saved.revision;
+      console.log(`[supabase] lazy-loaded DB (revision ${saved.revision})`);
+    }
+  } catch (err: unknown) {
+    console.error("[supabase] lazy load failed:", (err as Error)?.message ?? err);
+  }
+}
+
 function persistToSupabase() {
   if (!isSupabaseEnabled) return;
   saveDbToSupabase(runtimeDb, runtimeDbRevision).catch((err: unknown) => {
@@ -639,6 +656,11 @@ function getPublicOrigin(req: express.Request) {
 
 function buildApi() {
   const router = express.Router();
+
+  // On serverless cold starts, load DB from Supabase before handling any request
+  router.use((_req, _res, next) => {
+    ensureSupabaseState().then(() => next()).catch(next);
+  });
 
   router.get("/health", (_req, res) => {
     res.json({ status: "ok", service: "garim-po-api" });

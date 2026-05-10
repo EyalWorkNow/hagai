@@ -323,10 +323,11 @@ function summarizeDbForDebug(db: RentflowDb) {
 function isServerDbEnvironmentEnabled() {
   if (typeof window === "undefined") return false;
   const { hostname, port } = window.location;
+  // Local dev (localhost) or LAN (non-standard port) or any production host
   if (["localhost", "127.0.0.1", "::1", "[::1]"].includes(hostname)) return true;
-  // Non-standard port means the app is served by the local Express+Vite dev server,
-  // even when accessed via LAN IP from a mobile device scanning a QR code.
-  return port !== "" && port !== "80" && port !== "443";
+  if (port !== "" && port !== "80" && port !== "443") return true;
+  // Production deployment (e.g. Vercel/Netlify on port 443) — server API is always present
+  return true;
 }
 
 function getResponseRevision(response: Response) {
