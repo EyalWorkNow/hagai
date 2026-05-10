@@ -421382,41 +421382,52 @@ function buildApi() {
       next(err);
     }
   });
-  router.put("/db", (req, res) => {
-    const incomingDb = req.body;
-    const clientRevision = getClientDbRevision(req);
-    if (!incomingDb || !Array.isArray(incomingDb.users) || !Array.isArray(incomingDb.properties) || !Array.isArray(incomingDb.contracts)) {
-      res.status(400).json({ error: "Invalid database snapshot" });
-      return;
-    }
-    if (runtimeDbRevision > 1 && (clientRevision === null || clientRevision < runtimeDbRevision)) {
-      setDbRevisionHeader(res);
-      res.status(409).json({
-        error: "Database snapshot is stale",
-        revision: runtimeDbRevision,
-        db: cloneDb()
+  router.put("/db", async (req, res, next) => {
+    try {
+      if (IS_VERCEL && isSupabaseEnabled) {
+        const saved = await loadDbFromSupabase();
+        if (saved) {
+          runtimeDb = normalizeDb(saved.db);
+          runtimeDbRevision = saved.revision;
+        }
+      }
+      const incomingDb = req.body;
+      const clientRevision = getClientDbRevision(req);
+      if (!incomingDb || !Array.isArray(incomingDb.users) || !Array.isArray(incomingDb.properties) || !Array.isArray(incomingDb.contracts)) {
+        res.status(400).json({ error: "Invalid database snapshot" });
+        return;
+      }
+      if (runtimeDbRevision > 1 && (clientRevision === null || clientRevision < runtimeDbRevision)) {
+        setDbRevisionHeader(res);
+        res.status(409).json({
+          error: "Database snapshot is stale",
+          revision: runtimeDbRevision,
+          db: cloneDb()
+        });
+        return;
+      }
+      const nextRuntimeDb = normalizeDb({
+        ...runtimeDb,
+        ...incomingDb,
+        integrations: runtimeDb.integrations,
+        transactions: runtimeDb.transactions,
+        supportIssues: runtimeDb.supportIssues
       });
-      return;
+      const affectedPropertyIds = /* @__PURE__ */ new Set([
+        ...getOnboardingPropertyIds(runtimeDb),
+        ...getOnboardingPropertyIds(nextRuntimeDb)
+      ]);
+      runtimeDb = nextRuntimeDb;
+      runtimeDbRevision += 1;
+      persistToSupabase();
+      setDbRevisionHeader(res);
+      for (const propertyId of affectedPropertyIds) {
+        notifyOnboardingSubscribers(propertyId);
+      }
+      res.json(cloneDb());
+    } catch (err) {
+      next(err);
     }
-    const nextRuntimeDb = normalizeDb({
-      ...runtimeDb,
-      ...incomingDb,
-      integrations: runtimeDb.integrations,
-      transactions: runtimeDb.transactions,
-      supportIssues: runtimeDb.supportIssues
-    });
-    const affectedPropertyIds = /* @__PURE__ */ new Set([
-      ...getOnboardingPropertyIds(runtimeDb),
-      ...getOnboardingPropertyIds(nextRuntimeDb)
-    ]);
-    runtimeDb = nextRuntimeDb;
-    runtimeDbRevision += 1;
-    persistToSupabase();
-    setDbRevisionHeader(res);
-    for (const propertyId of affectedPropertyIds) {
-      notifyOnboardingSubscribers(propertyId);
-    }
-    res.json(cloneDb());
   });
   router.post("/db/reset", (_req, res) => {
     runtimeDb = normalizeDb(garim_po_db_default);

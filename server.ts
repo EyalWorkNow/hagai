@@ -711,7 +711,17 @@ function buildApi() {
     }
   });
 
-  router.put("/db", (req, res) => {
+  router.put("/db", async (req, res, next) => {
+    try {
+    if (IS_VERCEL && isSupabaseEnabled) {
+      // Sync with Supabase before checking revision to avoid false 409s across instances
+      const saved = await loadDbFromSupabase();
+      if (saved) {
+        runtimeDb = normalizeDb(saved.db);
+        runtimeDbRevision = saved.revision;
+      }
+    }
+
     const incomingDb = req.body as Partial<RentflowDb>;
     const clientRevision = getClientDbRevision(req);
 
@@ -754,6 +764,7 @@ function buildApi() {
       notifyOnboardingSubscribers(propertyId);
     }
     res.json(cloneDb());
+    } catch (err) { next(err); }
   });
 
   router.post("/db/reset", (_req, res) => {
@@ -1094,6 +1105,11 @@ export async function startServer() {
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
   const HOST = "0.0.0.0";
+
+  app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    next();
+  });
 
   if (isSupabaseEnabled) {
     try {
