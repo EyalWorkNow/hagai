@@ -6,5 +6,3 @@ coverage/
 *.log
 .env*
 !.env.example
-api/bundle.js
-api/bundle.js.map
