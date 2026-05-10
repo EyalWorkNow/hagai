@@ -999,6 +999,14 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       port: typeof window !== "undefined" ? (window.location.port || "(default)") : null,
       origin: typeof window !== "undefined" ? window.location.origin : null,
     });
+    appendDebugLog("garim-po-debug.page.url", {
+      href: typeof window !== "undefined" ? window.location.href : null,
+      origin: typeof window !== "undefined" ? window.location.origin : null,
+    });
+    appendDebugLog("garim-po-debug.api.base_url", {
+      db: new URL(DB_API_ENDPOINT, typeof window !== "undefined" ? window.location.origin : "").toString(),
+      register: new URL(ONBOARDING_REGISTER_API_ENDPOINT, typeof window !== "undefined" ? window.location.origin : "").toString(),
+    });
 
     loadDbStateAsync(serverDbEnabledRef.current).then((loadedState) => {
       appendDebugLog("app.init.loaded", {
@@ -1281,6 +1289,12 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
     if (propertyId) {
       try {
+        appendDebugLog("garim-po-debug.register.endpoint", {
+          endpoint: ONBOARDING_REGISTER_API_ENDPOINT,
+          resolved: new URL(ONBOARDING_REGISTER_API_ENDPOINT, typeof window !== "undefined" ? window.location.origin : "").toString(),
+          email: normalizedEmail,
+          propertyId,
+        });
         const result = await postOnboardingMutation(ONBOARDING_REGISTER_API_ENDPOINT, {
           name,
           email: normalizedEmail,

@@ -1065,7 +1065,12 @@ function InviteTenantModal({
       .then((response) => (response.ok ? response.json() : null))
       .then((payload) => {
         if (isMounted && payload?.origin) {
-          setPublicOrigin(String(payload.origin));
+          const origin = String(payload.origin);
+          setPublicOrigin(origin);
+          console.debug("[garim-po-debug] qr.invite_url", {
+            publicOrigin: origin,
+            exampleLink: `${origin}/?propertyId=<propertyId>`,
+          });
         }
       })
       .catch(() => {
