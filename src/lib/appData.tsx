@@ -1600,10 +1600,16 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     applyDbUpdate((nextDb) => {
       const user = findUser(nextDb, userId);
       if (!user) return;
-      if (user.bdiStatus !== "green") return;
-      const contract = nextDb.contracts.find(
-        (item) => item.tenantId === userId && item.status === "waiting_signature",
-      );
+      const contract =
+        nextDb.contracts.find(
+          (item) => item.tenantId === userId && item.status === "waiting_signature",
+        ) ??
+        nextDb.contracts.find(
+          (item) =>
+            item.tenantId === userId &&
+            item.status !== "active" &&
+            item.status !== "expired",
+        );
       if (!contract) return;
 
       contract.signedByTenantAt = nowIso();
