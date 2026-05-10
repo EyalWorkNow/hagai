@@ -267,7 +267,7 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
     (currentStep === 1 && (!hasRequiredDocuments || draft.rentAmount <= 0)) ||
     (currentStep === 2 && (!draft.creditConsent || eligibilityCheck?.status === "pending") && !isCreditApproved) ||
     (currentStep === 3 && !hasRequiredBankDetails) ||
-    (currentStep === 4 && (!canSign || !hasRequiredSignature));
+    (currentStep === 4 && !hasRequiredSignature);
 
   const handleNext = async () => {
     if (isPrimaryDisabled) return;
@@ -1273,17 +1273,6 @@ function SignatureStep({
         </div>
       </div>
 
-      {!canSign && (
-        <InfoPanel tone="danger">
-          <AlertCircle size={22} />
-          <div>
-            <h3>החתימה חסומה</h3>
-            <p>
-              סטטוס דירוג האשראי הנוכחי הוא {user.bdiStatus ?? "לא קיים"}. יש לקבל חיווי חיובי לפני חתימה על שטר חוב.
-            </p>
-          </div>
-        </InfoPanel>
-      )}
 
       <div className="grid gap-5 lg:grid-cols-2">
         <SignatureDocumentCard
