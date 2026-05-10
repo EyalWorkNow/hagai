@@ -7,3 +7,4 @@ coverage/
 .env*
 !.env.example
 api/bundle.js
+api/bundle.js.map
