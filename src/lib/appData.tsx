@@ -177,7 +177,7 @@ type AppDataContextValue = {
   updateUser: (userId: string, patch: Partial<User>) => void;
   submitKyc: (userId: string) => void;
   approveKyc: (userId: string) => void;
-  requestEligibilityCheck: (userId: string, landlordId?: string) => void;
+  requestEligibilityCheck: (userId: string, landlordId?: string, propertyId?: string) => void;
   resolveEligibilityCheck: (userId: string, approved: boolean) => void;
   skipEligibilityCheck: (userId: string, landlordId?: string) => void;
   saveOnboardingAgreement: (userId: string, payload: SaveOnboardingAgreementPayload) => void;
@@ -1409,7 +1409,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const requestEligibilityCheck = (userId: string, landlordId?: string) => {
+  const requestEligibilityCheck = (userId: string, landlordId?: string, propertyId?: string) => {
     applyDbUpdate((nextDb) => {
       const user = findUser(nextDb, userId);
       if (!user) return;
@@ -1437,6 +1437,17 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       user.bdiStatus = "pending";
       user.onboardingStep = Math.max(user.onboardingStep ?? 0, 2);
     });
+
+    if (propertyId) {
+      postOnboardingAction({
+        action: "request_eligibility_check",
+        tenantId: userId,
+        propertyId,
+        landlordId,
+      }).catch((err) => {
+        console.warn("[requestEligibilityCheck] server action failed, relying on local state:", err);
+      });
+    }
   };
 
   const resolveEligibilityCheck = (userId: string, approved: boolean) => {

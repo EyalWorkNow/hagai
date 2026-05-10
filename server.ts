@@ -3,7 +3,7 @@ import express from "express";
 import os from "os";
 import path from "path";
 import seedDb from "./src/data/garim-po-db.json";
-import { isSupabaseEnabled, loadDbFromSupabase, saveDbToSupabase, getRevisionFromSupabase } from "./server-supabase";
+import { isSupabaseEnabled, loadDbFromSupabase, saveDbToSupabase } from "./server-supabase";
 
 const IS_VERCEL = Boolean(process.env.VERCEL);
 import {
@@ -226,6 +226,8 @@ function notifyAllOnboardingSubscribers() {
 }
 
 let supabaseStateLoaded = false;
+let lastSupabaseRefreshAt = 0;
+const SUPABASE_REFRESH_INTERVAL_MS = 3000;
 
 async function ensureSupabaseState() {
   if (supabaseStateLoaded || !isSupabaseEnabled) return;
@@ -235,10 +237,27 @@ async function ensureSupabaseState() {
     if (saved) {
       runtimeDb = normalizeDb(saved.db);
       runtimeDbRevision = saved.revision;
+      lastSupabaseRefreshAt = Date.now();
       console.log(`[supabase] lazy-loaded DB (revision ${saved.revision})`);
     }
   } catch (err: unknown) {
     console.error("[supabase] lazy load failed:", (err as Error)?.message ?? err);
+  }
+}
+
+async function refreshFromSupabaseIfStale(): Promise<void> {
+  if (!IS_VERCEL || !isSupabaseEnabled) return;
+  const now = Date.now();
+  if (now - lastSupabaseRefreshAt < SUPABASE_REFRESH_INTERVAL_MS) return;
+  lastSupabaseRefreshAt = now;
+  try {
+    const saved = await loadDbFromSupabase();
+    if (saved) {
+      runtimeDb = normalizeDb(saved.db);
+      runtimeDbRevision = saved.revision;
+    }
+  } catch (err: unknown) {
+    console.error("[supabase] stale refresh failed:", (err as Error)?.message ?? err);
   }
 }
 
@@ -567,6 +586,47 @@ function setCreditSkipApprovalForOnboarding(payload: {
     : { error: "סנכרון אישור הדילוג נכשל", status: 500 as const };
 }
 
+function requestEligibilityCheckOnServer(payload: {
+  tenantId: string;
+  propertyId: string;
+  landlordId?: string;
+}) {
+  const property = findProperty(runtimeDb, payload.propertyId);
+  const tenant = findUser(runtimeDb, payload.tenantId);
+  if (!property || !tenant || tenant.role !== "tenant") {
+    return { error: "הדייר או הנכס לא נמצא", status: 404 as const };
+  }
+
+  const existing = runtimeDb.eligibilityChecks.find((check) => check.tenantId === tenant.id);
+  if (existing) {
+    existing.status = "pending";
+    existing.checkedAt = nowIso();
+    existing.notes = "הבדיקה נשלחה לעיון מחדש.";
+  } else {
+    runtimeDb.eligibilityChecks.push({
+      id: buildId("eligibility"),
+      tenantId: tenant.id,
+      landlordId: payload.landlordId ?? property.landlordId,
+      status: "pending",
+      score: 0,
+      grade: "בהמתנה",
+      recommendation: "review",
+      checkedAt: nowIso(),
+      provider: "BDI",
+      notes: "בדיקה חדשה הוגשה מתוך תהליך האונבורדינג.",
+    });
+  }
+
+  tenant.bdiStatus = "pending";
+  tenant.onboardingStep = Math.max(tenant.onboardingStep ?? 0, 2);
+
+  commitRuntimeDb([property.id]);
+  const sync = getOnboardingSyncResponse(property.id, tenant.id);
+  return sync
+    ? { sync, status: 200 as const }
+    : { error: "סנכרון בקשת הבדיקה נכשל", status: 500 as const };
+}
+
 function cancelTenantOnboardingOnServer(payload: {
   landlordId: string;
   propertyId: string;
@@ -681,24 +741,7 @@ function buildApi() {
 
   router.get("/db", async (req, res, next) => {
     try {
-      if (IS_VERCEL && isSupabaseEnabled) {
-        // On Vercel, each instance has independent in-memory state.
-        // Always check Supabase revision so writes from other instances are visible.
-        const supabaseRevision = await getRevisionFromSupabase();
-        if (supabaseRevision !== null) {
-          const clientRevision = getClientDbRevision(req);
-          if (clientRevision !== null && clientRevision >= supabaseRevision) {
-            res.setHeader("X-Db-Revision", String(supabaseRevision));
-            res.status(304).end();
-            return;
-          }
-          const saved = await loadDbFromSupabase();
-          if (saved) {
-            runtimeDb = normalizeDb(saved.db);
-            runtimeDbRevision = saved.revision;
-          }
-        }
-      }
+      await refreshFromSupabaseIfStale();
       const clientRevision = getClientDbRevision(req);
       if (clientRevision !== null && clientRevision >= runtimeDbRevision) {
         res.status(304).end();
@@ -713,14 +756,7 @@ function buildApi() {
 
   router.put("/db", async (req, res, next) => {
     try {
-    if (IS_VERCEL && isSupabaseEnabled) {
-      // Sync with Supabase before checking revision to avoid false 409s across instances
-      const saved = await loadDbFromSupabase();
-      if (saved) {
-        runtimeDb = normalizeDb(saved.db);
-        runtimeDbRevision = saved.revision;
-      }
-    }
+    await refreshFromSupabaseIfStale();
 
     const incomingDb = req.body as Partial<RentflowDb>;
     const clientRevision = getClientDbRevision(req);
@@ -778,13 +814,7 @@ function buildApi() {
 
   router.get("/onboarding/status", async (req, res, next) => {
     try {
-      if (IS_VERCEL && isSupabaseEnabled) {
-        const saved = await loadDbFromSupabase();
-        if (saved) {
-          runtimeDb = normalizeDb(saved.db);
-          runtimeDbRevision = saved.revision;
-        }
-      }
+      await refreshFromSupabaseIfStale();
       const propertyId = typeof req.query.propertyId === "string" ? req.query.propertyId : "";
       if (!propertyId) {
         res.status(400).json({ error: "Missing propertyId" });
@@ -936,7 +966,8 @@ function buildApi() {
     let result:
       | ReturnType<typeof inviteTenantForOnboarding>
       | ReturnType<typeof setCreditSkipApprovalForOnboarding>
-      | ReturnType<typeof cancelTenantOnboardingOnServer>;
+      | ReturnType<typeof cancelTenantOnboardingOnServer>
+      | ReturnType<typeof requestEligibilityCheckOnServer>;
 
     if (payload.action === "invite") {
       if (!payload.landlordId || !payload.propertyId || !payload.tenantEmail?.trim()) {
@@ -960,6 +991,16 @@ function buildApi() {
         propertyId: payload.propertyId,
         tenantEmail: payload.tenantEmail,
         approved: payload.approved,
+      });
+    } else if (payload.action === "request_eligibility_check") {
+      if (!payload.tenantId || !payload.propertyId) {
+        res.status(400).json({ error: "Missing eligibility check fields" });
+        return;
+      }
+      result = requestEligibilityCheckOnServer({
+        tenantId: payload.tenantId,
+        propertyId: payload.propertyId,
+        landlordId: payload.landlordId,
       });
     } else if (payload.action === "cancel") {
       if (!payload.landlordId || !payload.propertyId || !payload.tenantId) {

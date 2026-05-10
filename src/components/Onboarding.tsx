@@ -290,7 +290,7 @@ export default function Onboarding({ user, onComplete, onLogout }: OnboardingPro
           moveToStep(3);
           return;
         }
-        requestEligibilityCheck(user.id, activeContract?.landlordId);
+        requestEligibilityCheck(user.id, activeContract?.landlordId, activeContract?.propertyId ?? activeProperty?.id);
         return;
       }
 
