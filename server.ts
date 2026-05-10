@@ -1,7 +1,9 @@
+import "dotenv/config";
 import express from "express";
 import os from "os";
 import path from "path";
 import seedDb from "./src/data/garim-po-db.json";
+import { isSupabaseEnabled, loadDbFromSupabase, saveDbToSupabase } from "./server-supabase";
 import {
   formatChannelLabel,
   formatProviderLabel,
@@ -221,9 +223,17 @@ function notifyAllOnboardingSubscribers() {
   }
 }
 
+function persistToSupabase() {
+  if (!isSupabaseEnabled) return;
+  saveDbToSupabase(runtimeDb, runtimeDbRevision).catch((err: unknown) => {
+    console.error("[supabase] save failed:", (err as Error)?.message ?? err);
+  });
+}
+
 function commitRuntimeDb(propertyIds: Array<string | null | undefined>) {
   runtimeDb = normalizeDb(runtimeDb);
   runtimeDbRevision += 1;
+  persistToSupabase();
   const uniquePropertyIds = [...new Set(propertyIds.filter(Boolean) as string[])];
   for (const propertyId of uniquePropertyIds) {
     notifyOnboardingSubscribers(propertyId);
@@ -692,6 +702,7 @@ function buildApi() {
     ]);
     runtimeDb = nextRuntimeDb;
     runtimeDbRevision += 1;
+    persistToSupabase();
     setDbRevisionHeader(res);
     for (const propertyId of affectedPropertyIds) {
       notifyOnboardingSubscribers(propertyId);
@@ -702,6 +713,7 @@ function buildApi() {
   router.post("/db/reset", (_req, res) => {
     runtimeDb = normalizeDb(seedDb as RentflowDb);
     runtimeDbRevision += 1;
+    persistToSupabase();
     setDbRevisionHeader(res);
     notifyAllOnboardingSubscribers();
     res.json(cloneDb());
@@ -1025,6 +1037,24 @@ export async function startServer() {
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
   const HOST = "0.0.0.0";
+
+  if (isSupabaseEnabled) {
+    try {
+      const saved = await loadDbFromSupabase();
+      if (saved) {
+        runtimeDb = normalizeDb(saved.db);
+        runtimeDbRevision = saved.revision;
+        console.log(`[supabase] loaded DB from cloud (revision ${saved.revision})`);
+      } else {
+        console.log("[supabase] no saved state — seeding Supabase with initial data");
+        await saveDbToSupabase(runtimeDb, runtimeDbRevision);
+      }
+    } catch (err: unknown) {
+      console.error("[supabase] failed to load DB on startup:", (err as Error)?.message ?? err);
+    }
+  } else {
+    console.log("[supabase] disabled — SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set");
+  }
 
   registerApi(app, "/api/v1");
 
