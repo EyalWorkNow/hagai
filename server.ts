@@ -3,7 +3,9 @@ import express from "express";
 import os from "os";
 import path from "path";
 import seedDb from "./src/data/garim-po-db.json";
-import { isSupabaseEnabled, loadDbFromSupabase, saveDbToSupabase } from "./server-supabase";
+import { isSupabaseEnabled, loadDbFromSupabase, saveDbToSupabase, getRevisionFromSupabase } from "./server-supabase";
+
+const IS_VERCEL = Boolean(process.env.VERCEL);
 import {
   formatChannelLabel,
   formatProviderLabel,
@@ -677,14 +679,36 @@ function buildApi() {
   router.get("/transactions", (_req, res) => res.json(cloneDb().transactions ?? []));
   router.get("/integrations", (_req, res) => res.json(cloneDb().integrations ?? []));
 
-  router.get("/db", (req, res) => {
-    const clientRevision = getClientDbRevision(req);
-    if (clientRevision !== null && clientRevision >= runtimeDbRevision) {
-      res.status(304).end();
-      return;
+  router.get("/db", async (req, res, next) => {
+    try {
+      if (IS_VERCEL && isSupabaseEnabled) {
+        // On Vercel, each instance has independent in-memory state.
+        // Always check Supabase revision so writes from other instances are visible.
+        const supabaseRevision = await getRevisionFromSupabase();
+        if (supabaseRevision !== null) {
+          const clientRevision = getClientDbRevision(req);
+          if (clientRevision !== null && clientRevision >= supabaseRevision) {
+            res.setHeader("X-Db-Revision", String(supabaseRevision));
+            res.status(304).end();
+            return;
+          }
+          const saved = await loadDbFromSupabase();
+          if (saved) {
+            runtimeDb = normalizeDb(saved.db);
+            runtimeDbRevision = saved.revision;
+          }
+        }
+      }
+      const clientRevision = getClientDbRevision(req);
+      if (clientRevision !== null && clientRevision >= runtimeDbRevision) {
+        res.status(304).end();
+        return;
+      }
+      setDbRevisionHeader(res);
+      res.json(cloneDb());
+    } catch (err) {
+      next(err);
     }
-    setDbRevisionHeader(res);
-    res.json(cloneDb());
   });
 
   router.put("/db", (req, res) => {
@@ -741,21 +765,32 @@ function buildApi() {
     res.json(cloneDb());
   });
 
-  router.get("/onboarding/status", (req, res) => {
-    const propertyId = typeof req.query.propertyId === "string" ? req.query.propertyId : "";
-    if (!propertyId) {
-      res.status(400).json({ error: "Missing propertyId" });
-      return;
-    }
+  router.get("/onboarding/status", async (req, res, next) => {
+    try {
+      if (IS_VERCEL && isSupabaseEnabled) {
+        const saved = await loadDbFromSupabase();
+        if (saved) {
+          runtimeDb = normalizeDb(saved.db);
+          runtimeDbRevision = saved.revision;
+        }
+      }
+      const propertyId = typeof req.query.propertyId === "string" ? req.query.propertyId : "";
+      if (!propertyId) {
+        res.status(400).json({ error: "Missing propertyId" });
+        return;
+      }
 
-    const sync = getOnboardingSyncResponse(propertyId);
-    if (!sync) {
-      res.status(404).json({ error: "Property not found" });
-      return;
-    }
+      const sync = getOnboardingSyncResponse(propertyId);
+      if (!sync) {
+        res.status(404).json({ error: "Property not found" });
+        return;
+      }
 
-    setDbRevisionHeader(res);
-    res.json(sync);
+      setDbRevisionHeader(res);
+      res.json(sync);
+    } catch (err) {
+      next(err);
+    }
   });
 
   router.get("/onboarding/events", (req, res) => {

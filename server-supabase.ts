@@ -30,6 +30,17 @@ export async function loadDbFromSupabase(): Promise<{ db: RentflowDb; revision: 
   return { db: data.db_json as RentflowDb, revision: data.revision as number };
 }
 
+export async function getRevisionFromSupabase(): Promise<number | null> {
+  if (!client) return null;
+  const { data, error } = await client
+    .from("rentflow_state")
+    .select("revision")
+    .eq("id", STATE_ROW_ID)
+    .single();
+  if (error || !data) return null;
+  return data.revision as number;
+}
+
 export async function saveDbToSupabase(db: RentflowDb, revision: number): Promise<void> {
   if (!client) return;
   const { error } = await client
