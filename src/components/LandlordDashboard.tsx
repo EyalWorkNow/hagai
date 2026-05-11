@@ -973,21 +973,19 @@ function LandlordOnboardingTracker({
   const progress = Math.round(((snapshot.stepIndex + 1) / snapshot.totalSteps) * 100);
   const displayName = snapshot.tenant?.name ?? snapshot.invite?.tenantEmail ?? "דייר חדש";
 
-  // Optimistic local state prevents SSE race from flickering the button
-  const [creditSkipApproved, setCreditSkipApproved] = useState(snapshot.landlordCreditSkipApproved);
-  const creditSkipPendingRef = useRef(false);
-  const creditSkipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // localOverride: null = show server value, boolean = user clicked and server hasn't confirmed yet
+  const [localOverride, setLocalOverride] = useState<boolean | null>(null);
+  const serverValue = snapshot.landlordCreditSkipApproved;
+  const creditSkipApproved = localOverride !== null ? localOverride : serverValue;
   useEffect(() => {
-    if (!creditSkipPendingRef.current) {
-      setCreditSkipApproved(snapshot.landlordCreditSkipApproved);
+    // Once the server confirms the same value the user set, release the override
+    if (localOverride !== null && serverValue === localOverride) {
+      setLocalOverride(null);
     }
-  }, [snapshot.landlordCreditSkipApproved]);
+  }, [serverValue, localOverride]);
   const handleTrackerCreditSkip = () => {
     const next = !creditSkipApproved;
-    creditSkipPendingRef.current = true;
-    setCreditSkipApproved(next);
-    if (creditSkipTimerRef.current) clearTimeout(creditSkipTimerRef.current);
-    creditSkipTimerRef.current = setTimeout(() => { creditSkipPendingRef.current = false; }, 3000);
+    setLocalOverride(next);
     onCreditSkipApproval(next);
   };
 
@@ -1060,9 +1058,10 @@ function InviteTenantModal({
   const existingInvite = onboardingSnapshot.invite;
   const [phone, setPhone] = useState(tenant?.phone ?? existingInvite?.tenantPhone ?? "");
   const [email, setEmail] = useState(tenant?.email ?? existingInvite?.tenantEmail ?? "");
-  const [landlordCreditSkipApproved, setLandlordCreditSkipApproved] = useState(
-    Boolean(existingInvite?.landlordCreditSkipApproved),
-  );
+  // localOverride: null = show server value, boolean = user set and waiting for server to confirm
+  const [localCreditSkipOverride, setLocalCreditSkipOverride] = useState<boolean | null>(null);
+  const serverCreditSkip = Boolean(existingInvite?.landlordCreditSkipApproved);
+  const landlordCreditSkipApproved = localCreditSkipOverride !== null ? localCreditSkipOverride : serverCreditSkip;
   const [isSent, setIsSent] = useState(false);
   const [publicOrigin, setPublicOrigin] = useState(getInitialPublicOrigin);
   const [showContractPopup, setShowContractPopup] = useState(false);
@@ -1072,24 +1071,21 @@ function InviteTenantModal({
   const currentStepTitle = tenant ? TENANT_ONBOARDING_STEPS[onboardingSnapshot.stepIndex] : null;
   const tenantInviteLink = publicOrigin ? `${publicOrigin}/?propertyId=${property.id}` : "";
 
-  // Refs for credit skip optimistic state (prevents SSE sync race from flickering)
-  const creditSkipPendingRef = useRef(false);
-  const creditSkipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Ref to detect the onboardingComplete transition
   const prevOnboardingCompleteRef = useRef(Boolean(currentTenant?.onboardingComplete));
 
-  // Email/phone only — credit skip is NOT synced from server to avoid flicker
+  // Sync email/phone from server
   useEffect(() => {
     setEmail(tenant?.email ?? existingInvite?.tenantEmail ?? "");
     setPhone(tenant?.phone ?? existingInvite?.tenantPhone ?? "");
   }, [existingInvite?.tenantEmail, existingInvite?.tenantPhone, tenant?.email, tenant?.phone]);
 
-  // Credit skip: only sync from server when no pending user action
+  // Release localOverride once server confirms the same value
   useEffect(() => {
-    if (!creditSkipPendingRef.current) {
-      setLandlordCreditSkipApproved(Boolean(existingInvite?.landlordCreditSkipApproved));
+    if (localCreditSkipOverride !== null && serverCreditSkip === localCreditSkipOverride) {
+      setLocalCreditSkipOverride(null);
     }
-  }, [existingInvite?.landlordCreditSkipApproved]);
+  }, [serverCreditSkip, localCreditSkipOverride]);
 
   // Detect tenant completion and auto-open contract popup
   useEffect(() => {
@@ -1162,10 +1158,7 @@ function InviteTenantModal({
   }, [property.id]);
 
   const handleCreditSkipChange = (approved: boolean) => {
-    creditSkipPendingRef.current = true;
-    setLandlordCreditSkipApproved(approved);
-    if (creditSkipTimerRef.current) clearTimeout(creditSkipTimerRef.current);
-    creditSkipTimerRef.current = setTimeout(() => { creditSkipPendingRef.current = false; }, 3000);
+    setLocalCreditSkipOverride(approved);
     if (activeTenantEmail) {
       onCreditSkipApproval({ email: activeTenantEmail, approved });
     }

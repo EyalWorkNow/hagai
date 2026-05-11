@@ -1108,7 +1108,21 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         revision: serverState.revision,
         summary: summarizeDbForDebug(serverState.db),
       });
-      setDb(serverState.db);
+      setDb((currentDb) => {
+        const base = currentDb ?? EMPTY_DB;
+        const mergedInvites = serverState.db.onboardingInvites.map((serverInvite) => {
+          const localInvite = base.onboardingInvites.find(
+            (inv) =>
+              inv.id === serverInvite.id ||
+              (inv.propertyId === serverInvite.propertyId &&
+                inv.tenantEmail.toLowerCase() === serverInvite.tenantEmail.toLowerCase()),
+          );
+          return localInvite
+            ? { ...serverInvite, landlordCreditSkipApproved: localInvite.landlordCreditSkipApproved }
+            : serverInvite;
+        });
+        return { ...serverState.db, onboardingInvites: mergedInvites };
+      });
     };
 
     const handleStorage = (event: StorageEvent) => {
