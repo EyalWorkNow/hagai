@@ -636,7 +636,15 @@ function mergeOnboardingRecords(db: RentflowDb, sync: OnboardingSyncResponse): R
   return normalizeDb({
     ...db,
     authAccounts: upsertAuthAccount(db.authAccounts, records.authAccount),
-    users: upsertRecord(db.users, records.user),
+    users: (() => {
+      if (!records.user) return db.users;
+      const serverUser = records.user;
+      const localUser = db.users.find((u) => u.id === serverUser.id);
+      const safeUser = localUser
+        ? { ...serverUser, onboardingStep: Math.max(serverUser.onboardingStep ?? 0, localUser.onboardingStep ?? 0) }
+        : serverUser;
+      return upsertRecord(db.users, safeUser);
+    })(),
     properties: upsertRecord(db.properties, records.property),
     contracts: records.contract ? upsertRecord(db.contracts, records.contract) : db.contracts,
     onboardingInvites: (() => {
@@ -649,7 +657,7 @@ function mergeOnboardingRecords(db: RentflowDb, sync: OnboardingSyncResponse): R
             inv.tenantEmail.toLowerCase() === serverInvite.tenantEmail.toLowerCase()),
       );
       const safeInvite = localInvite
-        ? { ...serverInvite, landlordCreditSkipApproved: localInvite.landlordCreditSkipApproved }
+        ? { ...serverInvite, landlordCreditSkipApproved: localInvite.landlordCreditSkipApproved || serverInvite.landlordCreditSkipApproved }
         : serverInvite;
       return upsertRecord(db.onboardingInvites, safeInvite);
     })(),
@@ -1118,10 +1126,16 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
                 inv.tenantEmail.toLowerCase() === serverInvite.tenantEmail.toLowerCase()),
           );
           return localInvite
-            ? { ...serverInvite, landlordCreditSkipApproved: localInvite.landlordCreditSkipApproved }
+            ? { ...serverInvite, landlordCreditSkipApproved: localInvite.landlordCreditSkipApproved || serverInvite.landlordCreditSkipApproved }
             : serverInvite;
         });
-        return { ...serverState.db, onboardingInvites: mergedInvites };
+        const mergedUsers = serverState.db.users.map((serverUser) => {
+          const localUser = base.users.find((u) => u.id === serverUser.id);
+          return localUser
+            ? { ...serverUser, onboardingStep: Math.max(serverUser.onboardingStep ?? 0, localUser.onboardingStep ?? 0) }
+            : serverUser;
+        });
+        return { ...serverState.db, onboardingInvites: mergedInvites, users: mergedUsers };
       });
     };
 
