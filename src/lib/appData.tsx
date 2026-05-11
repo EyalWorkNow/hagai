@@ -639,9 +639,20 @@ function mergeOnboardingRecords(db: RentflowDb, sync: OnboardingSyncResponse): R
     users: upsertRecord(db.users, records.user),
     properties: upsertRecord(db.properties, records.property),
     contracts: records.contract ? upsertRecord(db.contracts, records.contract) : db.contracts,
-    onboardingInvites: records.invite
-      ? upsertRecord(db.onboardingInvites, records.invite)
-      : db.onboardingInvites,
+    onboardingInvites: (() => {
+      if (!records.invite) return db.onboardingInvites;
+      const serverInvite = records.invite;
+      const localInvite = db.onboardingInvites.find(
+        (inv) =>
+          inv.id === serverInvite.id ||
+          (inv.propertyId === serverInvite.propertyId &&
+            inv.tenantEmail.toLowerCase() === serverInvite.tenantEmail.toLowerCase()),
+      );
+      const safeInvite = localInvite
+        ? { ...serverInvite, landlordCreditSkipApproved: localInvite.landlordCreditSkipApproved }
+        : serverInvite;
+      return upsertRecord(db.onboardingInvites, safeInvite);
+    })(),
     documents: upsertRecords(db.documents, records.documents),
     eligibilityChecks:
       records.eligibilityCheck === undefined
