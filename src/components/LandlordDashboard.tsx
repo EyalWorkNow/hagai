@@ -79,56 +79,32 @@ export default function LandlordDashboard({ user }: { user: User }) {
     return { totalMonthlyIncome, occupiedCount, vacantCount, pendingPaymentsNum, failedPaymentsNum, openServiceCalls };
   }, [properties, payments, serviceCalls]);
 
-  // Prefer a property with an active in-progress onboarding over one with a completed tenant,
-  // so the overview reflects the tenant the landlord is currently waiting for.
-  const featuredProperty = useMemo(() => {
-    const withActiveOnboarding = properties.find((p) => {
+  // Single pass: compute all property snapshots, featured property, and featured onboarding together.
+  // Previously getTenantOnboardingSnapshot was called 3N+2 times per render (diagnostic loop,
+  // featuredProperty loop, table rows, featuredOnboarding). Now it's exactly N calls.
+  const { featuredProperty, featuredOnboarding, propertyOnboardingSnapshots } = useMemo(() => {
+    const snapshots = new Map<string, TenantOnboardingSnapshot>();
+    let featured: Property | null = null;
+    let featuredSnapshot: TenantOnboardingSnapshot | null = null;
+
+    for (const p of properties) {
       const s = getTenantOnboardingSnapshot(p, contracts, db.users, db.onboardingInvites);
-      return Boolean((s.tenant && !s.tenant.onboardingComplete) || s.invite);
-    });
-    return withActiveOnboarding ?? properties.find((p) => p.status === "occupied") ?? properties[0] ?? null;
+      snapshots.set(p.id, s);
+      if (!featured && ((s.tenant && !s.tenant.onboardingComplete) || s.invite)) {
+        featured = p;
+        featuredSnapshot = s;
+      }
+    }
+
+    if (!featured) {
+      featured = properties.find((p) => p.status === "occupied") ?? properties[0] ?? null;
+      if (featured) featuredSnapshot = snapshots.get(featured.id) ?? null;
+    }
+
+    return { featuredProperty: featured, featuredOnboarding: featuredSnapshot, propertyOnboardingSnapshots: snapshots };
   }, [properties, contracts, db]);
 
   const featuredCosts = featuredProperty?.costs ?? { buildingCommittee: 0, arnona: 0, utilities: 0 };
-
-  const featuredOnboarding = useMemo(
-    () =>
-      featuredProperty
-        ? getTenantOnboardingSnapshot(featuredProperty, contracts, db.users, db.onboardingInvites)
-        : null,
-    [featuredProperty, contracts, db],
-  );
-
-  // Diagnostic logs — emitted whenever the landlord's DB slice changes so we can trace
-  // whether server updates are reaching the dashboard and which onboarding sessions are visible.
-  useEffect(() => {
-    const sessions = properties.map((p) =>
-      getTenantOnboardingSnapshot(p, contracts, db.users, db.onboardingInvites),
-    );
-    const activeSessions = sessions.filter((s) => Boolean(s.tenant || s.invite));
-    console.debug("[landlord] db.update.received", {
-      users: db.users.length,
-      properties: properties.length,
-      contracts: contracts.length,
-      invites: db.onboardingInvites.length,
-    });
-    console.debug("[landlord] property.filter", {
-      landlordId: user.id,
-      count: properties.length,
-      ids: properties.map((p) => p.id.slice(-6)),
-    });
-    console.debug("[landlord] onboarding.sessions.count", { total: sessions.length, active: activeSessions.length });
-    console.debug("[landlord] visible.sessions.count", activeSessions.length);
-    for (const s of activeSessions) {
-      console.debug("[landlord] render.session", {
-        propertyId: (s.contract?.propertyId ?? s.invite?.propertyId ?? "").slice(-6),
-        tenant: s.tenant?.email ?? null,
-        invite: s.invite?.tenantEmail ?? null,
-        stepIndex: s.stepIndex,
-        status: s.status,
-      });
-    }
-  }, [db, properties, contracts, user.id]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 text-right" dir="rtl">
@@ -495,14 +471,14 @@ export default function LandlordDashboard({ user }: { user: User }) {
                   <tbody className="divide-y divide-slate-50">
                      {properties.length > 0 ? (
                        properties.map(p => (
-                        <PropertyRow 
-                          key={p.id} 
-                          property={p} 
-                          onboarding={getTenantOnboardingSnapshot(p, contracts, db.users, db.onboardingInvites)}
+                        <PropertyRow
+                          key={p.id}
+                          property={p}
+                          onboarding={propertyOnboardingSnapshots.get(p.id)!}
                           onInvite={() => {
                              setSelectedPropertyId(p.id);
                              setShowInviteTenant(true);
-                          }} 
+                          }}
                         />
                        ))
                      ) : (
@@ -1140,16 +1116,18 @@ function InviteTenantModal({
         }
       });
       eventSource.onerror = () => {
-        lastEventAt = 0;
+        // Don't set to 0 — that would make Date.now()-0 > 1500 always true and flood polls.
+        // Just trigger one immediate resync; the interval handles the rest at normal cadence.
+        lastEventAt = Date.now();
         void syncOnboardingStatus(property.id);
       };
     }
 
     const fallbackInterval = window.setInterval(() => {
-      if (Date.now() - lastEventAt > 1500) {
+      if (Date.now() - lastEventAt > 2000) {
         void syncOnboardingStatus(property.id);
       }
-    }, 500);
+    }, 2000);
 
     return () => {
       window.clearInterval(fallbackInterval);
