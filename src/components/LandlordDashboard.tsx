@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, ReactNode, FormEvent } from "react";
+import { useEffect, useState, useMemo, useRef, ReactNode, FormEvent } from "react";
 import { 
   Home, 
   Users, 
@@ -973,6 +973,24 @@ function LandlordOnboardingTracker({
   const progress = Math.round(((snapshot.stepIndex + 1) / snapshot.totalSteps) * 100);
   const displayName = snapshot.tenant?.name ?? snapshot.invite?.tenantEmail ?? "דייר חדש";
 
+  // Optimistic local state prevents SSE race from flickering the button
+  const [creditSkipApproved, setCreditSkipApproved] = useState(snapshot.landlordCreditSkipApproved);
+  const creditSkipPendingRef = useRef(false);
+  const creditSkipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!creditSkipPendingRef.current) {
+      setCreditSkipApproved(snapshot.landlordCreditSkipApproved);
+    }
+  }, [snapshot.landlordCreditSkipApproved]);
+  const handleTrackerCreditSkip = () => {
+    const next = !creditSkipApproved;
+    creditSkipPendingRef.current = true;
+    setCreditSkipApproved(next);
+    if (creditSkipTimerRef.current) clearTimeout(creditSkipTimerRef.current);
+    creditSkipTimerRef.current = setTimeout(() => { creditSkipPendingRef.current = false; }, 3000);
+    onCreditSkipApproval(next);
+  };
+
   return (
     <div className={cn("rounded-[28px] border border-indigo-100 bg-indigo-50/60 p-4 sm:p-5", className)}>
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -990,18 +1008,18 @@ function LandlordOnboardingTracker({
         </div>
         <div className="flex flex-col gap-2 sm:flex-row lg:shrink-0">
           <button
-            onClick={() => onCreditSkipApproval(!snapshot.landlordCreditSkipApproved)}
+            onClick={handleTrackerCreditSkip}
             disabled={!snapshot.activeTenantEmail}
             className={cn(
               "inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[11px] font-black transition-all",
-              snapshot.landlordCreditSkipApproved
+              creditSkipApproved
                 ? "bg-emerald-500 text-white shadow-sm"
                 : "border border-indigo-200 bg-white text-indigo-700 hover:bg-indigo-50",
               !snapshot.activeTenantEmail && "cursor-not-allowed opacity-50",
             )}
           >
             <ShieldCheck size={15} />
-            {snapshot.landlordCreditSkipApproved ? "דילוג אשראי מאושר" : "אשר דילוג אשראי"}
+            {creditSkipApproved ? "דילוג אשראי מאושר" : "אשר דילוג אשראי"}
           </button>
           <button
             onClick={onOpenInvite}
@@ -1047,17 +1065,40 @@ function InviteTenantModal({
   );
   const [isSent, setIsSent] = useState(false);
   const [publicOrigin, setPublicOrigin] = useState(getInitialPublicOrigin);
+  const [showContractPopup, setShowContractPopup] = useState(false);
   const processStatus = onboardingSnapshot.status;
   const activeTenantEmail = onboardingSnapshot.activeTenantEmail ?? email.trim().toLowerCase();
   const canCancelConnection = Boolean(tenant && !tenant.onboardingComplete);
   const currentStepTitle = tenant ? TENANT_ONBOARDING_STEPS[onboardingSnapshot.stepIndex] : null;
   const tenantInviteLink = publicOrigin ? `${publicOrigin}/?propertyId=${property.id}` : "";
 
+  // Refs for credit skip optimistic state (prevents SSE sync race from flickering)
+  const creditSkipPendingRef = useRef(false);
+  const creditSkipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Ref to detect the onboardingComplete transition
+  const prevOnboardingCompleteRef = useRef(Boolean(currentTenant?.onboardingComplete));
+
+  // Email/phone only — credit skip is NOT synced from server to avoid flicker
   useEffect(() => {
     setEmail(tenant?.email ?? existingInvite?.tenantEmail ?? "");
     setPhone(tenant?.phone ?? existingInvite?.tenantPhone ?? "");
-    setLandlordCreditSkipApproved(Boolean(existingInvite?.landlordCreditSkipApproved));
-  }, [existingInvite?.landlordCreditSkipApproved, existingInvite?.tenantEmail, existingInvite?.tenantPhone, tenant?.email, tenant?.phone]);
+  }, [existingInvite?.tenantEmail, existingInvite?.tenantPhone, tenant?.email, tenant?.phone]);
+
+  // Credit skip: only sync from server when no pending user action
+  useEffect(() => {
+    if (!creditSkipPendingRef.current) {
+      setLandlordCreditSkipApproved(Boolean(existingInvite?.landlordCreditSkipApproved));
+    }
+  }, [existingInvite?.landlordCreditSkipApproved]);
+
+  // Detect tenant completion and auto-open contract popup
+  useEffect(() => {
+    const isComplete = Boolean(currentTenant?.onboardingComplete);
+    if (isComplete && !prevOnboardingCompleteRef.current) {
+      setShowContractPopup(true);
+    }
+    prevOnboardingCompleteRef.current = isComplete;
+  }, [currentTenant?.onboardingComplete]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1104,14 +1145,15 @@ function InviteTenantModal({
       });
       eventSource.onerror = () => {
         lastEventAt = 0;
+        void syncOnboardingStatus(property.id);
       };
     }
 
     const fallbackInterval = window.setInterval(() => {
-      if (Date.now() - lastEventAt > 4500) {
+      if (Date.now() - lastEventAt > 1500) {
         void syncOnboardingStatus(property.id);
       }
-    }, 1000);
+    }, 500);
 
     return () => {
       window.clearInterval(fallbackInterval);
@@ -1120,7 +1162,10 @@ function InviteTenantModal({
   }, [property.id]);
 
   const handleCreditSkipChange = (approved: boolean) => {
+    creditSkipPendingRef.current = true;
     setLandlordCreditSkipApproved(approved);
+    if (creditSkipTimerRef.current) clearTimeout(creditSkipTimerRef.current);
+    creditSkipTimerRef.current = setTimeout(() => { creditSkipPendingRef.current = false; }, 3000);
     if (activeTenantEmail) {
       onCreditSkipApproval({ email: activeTenantEmail, approved });
     }
@@ -1138,6 +1183,7 @@ function InviteTenantModal({
   };
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-3 text-right backdrop-blur-md sm:p-4" dir="rtl">
       <div className="relative max-h-[92dvh] w-full max-w-4xl overflow-y-auto overflow-x-hidden rounded-[28px] bg-white p-5 shadow-[0_30px_100px_rgba(0,0,0,0.2)] animate-in zoom-in-95 duration-300 sm:rounded-[36px] sm:p-8 md:p-10">
         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 blur-[100px] rounded-full -translate-y-1/2 translate-x-1/2"></div>
@@ -1278,9 +1324,17 @@ function InviteTenantModal({
                       </div>
                     </div>
                   ) : currentTenant?.onboardingComplete ? (
-                    <div className="mb-4 rounded-2xl border border-emerald-100 bg-white p-4 text-right shadow-sm">
-                      <p className="text-[10px] font-black tracking-[0.12em] text-emerald-600">דייר נוכחי</p>
-                      <p className="mt-2 text-sm font-black text-slate-900">{currentTenant.name}</p>
+                    <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-right shadow-sm">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-[10px] font-black tracking-[0.12em] text-emerald-700">הושלם בהצלחה ✓</p>
+                        <button
+                          onClick={() => setShowContractPopup(true)}
+                          className="text-[10px] font-black text-emerald-700 underline underline-offset-2 hover:text-emerald-900"
+                        >
+                          פתח פרטי חוזה
+                        </button>
+                      </div>
+                      <p className="mt-1 text-sm font-black text-slate-900">{currentTenant.name}</p>
                       <p className="mt-1 text-[11px] font-semibold text-slate-500">{currentTenant.email}</p>
                       {currentTenant.phone && (
                         <p className="mt-1 text-[11px] font-semibold text-slate-500">{currentTenant.phone}</p>
@@ -1299,9 +1353,26 @@ function InviteTenantModal({
                          style={{ width: `${Math.round(((onboardingSnapshot.stepIndex + 1) / onboardingSnapshot.totalSteps) * 100)}%` }}
                        />
                     </div>
-                    <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-full self-start inline-flex border border-indigo-100">
-                       <div className={cn("h-2 w-2 rounded-full", tenant ? "bg-blue-500 animate-pulse" : "bg-amber-500 animate-pulse")}></div>
-                       <span className="text-[10px] font-black text-indigo-900">{processStatus}</span>
+                    <div className={cn(
+                      "flex items-center gap-2 px-4 py-2 rounded-full self-start inline-flex border",
+                      currentTenant?.onboardingComplete
+                        ? "bg-emerald-50 border-emerald-200"
+                        : "bg-white border-indigo-100"
+                    )}>
+                       <div className={cn(
+                         "h-2 w-2 rounded-full",
+                         currentTenant?.onboardingComplete
+                           ? "bg-emerald-500"
+                           : tenant
+                             ? "bg-blue-500 animate-pulse"
+                             : "bg-amber-500 animate-pulse"
+                       )}></div>
+                       <span className={cn(
+                         "text-[10px] font-black",
+                         currentTenant?.onboardingComplete ? "text-emerald-800" : "text-indigo-900"
+                       )}>
+                         {currentTenant?.onboardingComplete ? "הושלם בהצלחה" : processStatus}
+                       </span>
                     </div>
 
                     <button
@@ -1354,6 +1425,122 @@ function InviteTenantModal({
       </div>
     </div>
   </div>
+  {showContractPopup && currentTenant?.onboardingComplete && (() => {
+    const activeContract =
+      contracts.find((c) => c.tenantId === currentTenant.id && c.status === "active") ??
+      contracts.find((c) => c.tenantId === currentTenant.id) ??
+      null;
+    return (
+      <ContractCompletionModal
+        tenant={currentTenant}
+        contract={activeContract}
+        onClose={() => setShowContractPopup(false)}
+      />
+    );
+  })()}
+    </>
+  );
+}
+
+function ContractCompletionModal({
+  tenant,
+  contract,
+  onClose,
+}: {
+  tenant: User;
+  contract: Contract | null;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-md" dir="rtl">
+      <div className="relative w-full max-w-lg rounded-[32px] bg-white p-7 shadow-[0_40px_120px_rgba(0,0,0,0.25)] animate-in zoom-in-95 duration-300">
+        <button
+          onClick={onClose}
+          className="absolute top-5 left-5 flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-all"
+        >
+          <X size={16} />
+        </button>
+
+        <div className="mb-6 flex items-center gap-3">
+          <div className="h-12 w-12 rounded-2xl bg-emerald-100 flex items-center justify-center shrink-0">
+            <CheckCircle2 size={24} className="text-emerald-600" />
+          </div>
+          <div>
+            <p className="text-lg font-black text-slate-900">הושלם בהצלחה!</p>
+            <p className="text-[11px] font-bold text-slate-500">הדייר השלים את כל שלבי ההצטרפות</p>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5 mb-4">
+          <p className="text-[10px] font-black text-slate-400 tracking-[0.12em] mb-3">פרטי הדייר</p>
+          <div className="flex items-center gap-3 mb-3">
+            <div className="h-10 w-10 shrink-0 bg-blue-100 text-blue-700 rounded-xl flex items-center justify-center font-black text-sm">
+              {tenant.name.charAt(0)}
+            </div>
+            <div>
+              <p className="text-sm font-black text-slate-900">{tenant.name}</p>
+              <p className="text-[11px] font-semibold text-slate-500">{tenant.email}</p>
+              {tenant.phone && <p className="text-[11px] font-semibold text-slate-500">{tenant.phone}</p>}
+            </div>
+          </div>
+        </div>
+
+        {contract ? (
+          <div className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-5 mb-5">
+            <p className="text-[10px] font-black text-indigo-500 tracking-[0.12em] mb-3">פרטי החוזה</p>
+            <div className="grid grid-cols-2 gap-3 text-right">
+              {contract.propertyAddress && (
+                <div className="col-span-2">
+                  <p className="text-[10px] text-slate-500 font-bold">כתובת הנכס</p>
+                  <p className="text-sm font-black text-slate-900">{contract.propertyAddress}</p>
+                </div>
+              )}
+              <div>
+                <p className="text-[10px] text-slate-500 font-bold">תחילת שכירות</p>
+                <p className="text-sm font-black text-slate-900">{contract.startDate}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-500 font-bold">סיום שכירות</p>
+                <p className="text-sm font-black text-slate-900">{contract.endDate}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-500 font-bold">שכ"ד חודשי</p>
+                <p className="text-sm font-black text-slate-900">₪{contract.rentAmount.toLocaleString()}</p>
+              </div>
+              {contract.monthlyPaymentAmount && (
+                <div>
+                  <p className="text-[10px] text-slate-500 font-bold">תשלום חודשי כולל</p>
+                  <p className="text-sm font-black text-slate-900">₪{contract.monthlyPaymentAmount.toLocaleString()}</p>
+                </div>
+              )}
+              <div>
+                <p className="text-[10px] text-slate-500 font-bold">סטטוס חוזה</p>
+                <p className="text-sm font-black text-emerald-700">פעיל</p>
+              </div>
+              {contract.signedByTenantAt && (
+                <div>
+                  <p className="text-[10px] text-slate-500 font-bold">נחתם ע"י דייר</p>
+                  <p className="text-sm font-black text-slate-900">
+                    {new Date(contract.signedByTenantAt).toLocaleDateString("he-IL")}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 mb-5">
+            <p className="text-xs font-bold text-slate-500 text-center">פרטי החוזה יופיעו בלשונית החוזים</p>
+          </div>
+        )}
+
+        <button
+          onClick={onClose}
+          className="w-full py-3.5 bg-slate-900 text-white rounded-2xl font-black text-sm hover:bg-black transition-all"
+        >
+          סגור
+        </button>
+      </div>
+    </div>
   );
 }
 
